@@ -1,12 +1,10 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Python-курс</title><link rel="stylesheet" href="site.css">
-<script>try{if(!localStorage.getItem("seenStart")&&location.search.indexOf("skip")<0)location.replace("start.html?first=1")}catch(e){}</script></head><body>
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Python-курс</title><link rel="stylesheet" href="site.css"></head><body>
 <main class="wrap">
-<section class="hero"><div>
-<h1>Учись писать код на Python — и сразу проверяй</h1>
-<p class="lead">Короткие задания, подсказки рядом и автопроверка: пишешь решение, отправляешь, через минуту получаешь ответ. Бесплатно.</p>
-<div class="btns"><a class="btn" href="#tasks">К заданиям</a><a class="btn ghost" href="start.html">Как это работает</a></div>
-<p class="m" id="total"></p></div>
-<svg class="art" viewBox="0 0 440 290" role="img" aria-label="Окно редактора кода с программой и результатом проверки">
+<section class="hero compact"><div>
+<h1>Пиши код. Получай ответ.</h1>
+<p class="lead">Задания по Python с проверкой за секунды. Бесплатно.</p>
+<div class="btns"><a class="btn big" id="cont" href="#map">Начать</a><button class="btn ghost big" id="how">Как это работает</button></div></div>
+<svg class="art" viewBox="0 0 440 290" role="img" aria-label="Окно редактора кода с результатом проверки">
  <rect width="440" height="290" rx="14" fill="#0a0e13"/><rect width="440" height="38" rx="14" fill="#121923"/><rect y="24" width="440" height="14" fill="#121923"/>
  <circle cx="22" cy="19" r="5" fill="#3a4657"/><circle cx="40" cy="19" r="5" fill="#3a4657"/><circle cx="58" cy="19" r="5" fill="#3a4657"/>
  <text x="220" y="23" fill="#98a5b8" font-family="Consolas,monospace" font-size="12" text-anchor="middle">vizitka.py</text>
@@ -18,26 +16,33 @@
  <g font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#98a5b8"><text x="24" y="178">Имя: Анна</text><text x="24" y="200">Город: Москва</text><text x="24" y="222" fill="#d9e2ee">Меня зовут Анна, я из Москва</text></g>
  <rect x="16" y="238" width="408" height="38" rx="9" fill="rgba(61,220,151,.14)"/>
  <path d="M32 257l5 5 10-11" stroke="#3ddc97" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
- <text x="58" y="262" fill="#3ddc97" font-family="Segoe UI,Arial,sans-serif" font-size="14" font-weight="600">Решено! Тесты пройдены</text></svg>
+ <text x="58" y="262" fill="#3ddc97" font-family="Segoe UI,Arial,sans-serif" font-size="14" font-weight="600">Все тесты пройдены</text></svg>
 </section>
 
-<ol class="flow">
- <li><i>шаг 1</i><b>Выбери задание</b><span>Условие и пример — на странице.</span></li>
- <li><i>шаг 2</i><b>Напиши код</b><span>Прямо в окне на сайте или в своём редакторе.</span></li>
- <li><i>шаг 3</i><b>Отправь</b><span>Одна кнопка, нужен аккаунт GitHub.</span></li>
- <li><i>шаг 4</i><b>Получи ответ</b><span>Робот отвечает за минуту: решено или что не так.</span></li>
-</ol>
-
-<h2 id="tasks">Задания</h2>
+<h2 id="map">Карта курса</h2>
+<div class="legend"><span><i></i>не начато</span><span><i class="p"></i>проверено</span><span><i class="s"></i>отправлено</span><span><i class="n"></i>следующее</span></div>
 <div id="list"></div>
+
+<div class="tiles">
+ <a class="tile" href="theory.html"><svg viewBox="0 0 200 92" fill="none" aria-hidden="true"><rect x="10" y="10" width="86" height="72" rx="10" fill="var(--surface2)"/><rect x="104" y="10" width="86" height="72" rx="10" fill="var(--surface2)"/><path d="M22 28h50M22 40h62M22 52h38" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/><path d="M116 28h40M116 40h60M116 52h30" stroke="var(--blue)" stroke-width="4" stroke-linecap="round"/><rect x="116" y="62" width="40" height="12" rx="4" fill="var(--amber)" opacity=".8"/></svg><b>Шпаргалки</b></a>
+ <a class="tile" href="quiz.html"><svg viewBox="0 0 200 92" fill="none" aria-hidden="true"><rect x="14" y="10" width="172" height="20" rx="8" fill="var(--surface2)"/><rect x="14" y="36" width="172" height="20" rx="8" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="2"/><rect x="14" y="62" width="172" height="20" rx="8" fill="var(--surface2)"/><path d="M162 46l5 5 9-10" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Тест</b></a>
+ <a class="tile" href="projects.html"><svg viewBox="0 0 200 92" fill="none" aria-hidden="true"><rect x="12" y="10" width="110" height="72" rx="10" fill="var(--surface2)"/><path d="M26 34l-8 8 8 8M46 34l8 8-8 8" stroke="var(--accent)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="134" y="10" width="54" height="34" rx="10" fill="var(--blue)" opacity=".85"/><rect x="134" y="50" width="54" height="32" rx="10" fill="var(--amber)" opacity=".85"/></svg><b>Проекты ребят</b></a>
+</div>
 </main>
 <script src="site.js"></script><script src="data/tasks.js"></script>
 <script>
 layout("index.html");
+var CHK='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+function load(k){try{return JSON.parse(localStorage.getItem(k)||"{}")}catch(e){return {}}}
+var sent=load("done"),passed=load("passed");
 var L={},ls=[];TASKS.forEach(function(t){if(!L[t.lesson]){L[t.lesson]={t:t.lessonTitle,a:[]};ls.push(t.lesson)}L[t.lesson].a.push(t)});
-document.getElementById("total").textContent=TASKS.length+" заданий в "+ls.length+" уроках";
-var done={};try{done=JSON.parse(localStorage.getItem("done")||"{}")}catch(e){}
-document.getElementById("list").innerHTML=ls.map(function(n){var l=L[n],c=l.a.filter(function(t){return done[t.id]}).length;
- return '<section class="lesson"><div class="side">'+lessonIcon(n)+'<h3>Урок '+n+'. '+esc(l.t)+'</h3><div class="prog"><i style="width:'+Math.round(c/l.a.length*100)+'%"></i></div><div class="m" style="font-size:14px">отправлено '+c+' из '+l.a.length+'</div><p style="margin-top:10px"><a href="theory.html?l='+n+'">Теория урока →</a></p></div>'+
- '<div class="rows">'+l.a.map(function(t){return '<a class="row" href="task.html?id='+t.id+'"><span class="id">'+t.id+'</span><span><span class="ttl">'+esc(t.title)+'</span><span class="desc">'+esc(t.text.replace(/[`*]/g,"").slice(0,90))+'…</span></span><span class="chip'+(done[t.id]?' done':'')+'">'+(done[t.id]?'отправлено':(t.func?'функция':'программа'))+'</span></a>'}).join("")+'</div></section>'}).join("");
+var nextT=TASKS.filter(function(t){return !sent[t.id]&&!passed[t.id]})[0]||null;
+var cont=document.getElementById("cont");
+if(nextT){cont.textContent=(Object.keys(sent).length||Object.keys(passed).length?"Продолжить: ":"Начать: ")+nextT.id+" "+nextT.title;cont.href="task.html?id="+nextT.id}
+document.getElementById("how").onclick=function(){window.openGuide&&window.openGuide(0)};
+document.getElementById("list").innerHTML=ls.map(function(n){var l=L[n],c=l.a.filter(function(t){return sent[t.id]}).length,R=18,C=2*Math.PI*R,off=C*(1-c/l.a.length);
+ var nodes=l.a.map(function(t,i){var cls=sent[t.id]?"sent":(passed[t.id]?"passed":(nextT&&nextT.id===t.id?"next":""));
+  return (i?'<span class="ln'+(sent[l.a[i-1].id]?' done':'')+'"></span>':'')+'<a class="node '+cls+'" href="task.html?id='+t.id+'" data-t="'+esc(t.title)+'" aria-label="'+t.id+' '+esc(t.title)+'">'+(sent[t.id]?CHK:t.id)+'</a>'}).join("");
+ return '<section class="track"><div class="head">'+lessonIcon(n)+'<div><h3>Урок '+n+'</h3><div class="sub">'+esc(l.t)+'</div></div><svg class="ring" viewBox="0 0 44 44" aria-label="'+c+' из '+l.a.length+'" style="margin-left:auto"><circle class="bg" cx="22" cy="22" r="'+R+'"/><circle class="fg" cx="22" cy="22" r="'+R+'" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'"/></svg></div><div class="path">'+nodes+'</div></section>'}).join("");
+try{if(!localStorage.getItem("seenStart")){window.__guideAuto=true;if(window.openGuide)window.openGuide(0)}}catch(e){}
 </script></body></html>

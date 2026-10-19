@@ -27,7 +27,8 @@ def main():
         rel = os.path.relpath(t["_dir"], ROOT).replace(os.sep, "/")
         pub.append(dict(id=t["id"], title=t["title"], lesson=lesson, lessonTitle=lesson_title(lesson),
                         text=t["text"], example=t.get("example"), hint=t.get("hint", ""),
-                        starter=t.get("starter", ""), file=t["file"], dir=rel, func=bool(t.get("funcs"))))
+                        starter=t.get("starter", ""), file=t["file"], dir=rel, func=bool(t.get("funcs")),
+                        cases=t.get("cases", []), funcs=t.get("funcs", [])))
     os.makedirs(os.path.join(ROOT, "docs", "data"), exist_ok=True)
     with open(os.path.join(ROOT, "docs", "data", "tasks.js"), "w", encoding="utf-8", newline="\n") as f:
         f.write("window.TASKS=" + json.dumps(pub, ensure_ascii=False, indent=1) + ";\n")

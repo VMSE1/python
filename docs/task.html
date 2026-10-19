@@ -1,44 +1,64 @@
 <!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Задание</title><link rel="stylesheet" href="site.css"></head><body>
 <main class="wrap" id="main"></main>
-<script src="site.js"></script><script src="data/tasks.js"></script><script src="data/theory.js"></script>
+<script src="site.js"></script><script src="data/tasks.js"></script><script src="data/theory.js"></script><script src="runner/check.js"></script>
 <script>
 layout("index.html");
+var ARROW='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+var OKI='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+var BADI='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+function load(k){try{return JSON.parse(localStorage.getItem(k)||"{}")}catch(e){return {}}}
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 var id=new URLSearchParams(location.search).get("id"),t=TASKS.filter(function(x){return x.id===id})[0],m=document.getElementById("main");
-if(!t){m.innerHTML='<h1 style="margin-top:40px">Задание не найдено</h1><p><a href="index.html">← ко всем заданиям</a></p>'}else{
+if(!t){m.innerHTML='<h1 style="margin-top:40px">Задание не найдено</h1><p><a href="index.html">← к карте курса</a></p>'}else{
 document.title=t.id+" "+t.title+" · Python-курс";
 var i=TASKS.indexOf(t),prev=TASKS[i-1],next=TASKS[i+1];
-var ex=t.example?(t.func?'<pre>&gt;&gt;&gt; '+esc(t.example.in)+'\n'+esc(t.example.out)+'</pre>':'<div class="m">Ввод</div><pre>'+esc(t.example.in)+'</pre><div class="m">Вывод</div><pre>'+esc(t.example.out)+'</pre>'):"";
+var ex="";if(t.example){ex=t.func?'<div class="io" style="grid-template-columns:1fr"><div class="term"><header>пример вызова</header><pre>&gt;&gt;&gt; '+esc(t.example.in)+'\n'+esc(t.example.out)+'</pre></div></div>':
+ '<div class="io"><div class="term"><header>ввод</header><pre>'+esc(t.example.in)+'</pre></div><div class="arrow">'+ARROW+'</div><div class="term"><header>вывод</header><pre>'+esc(t.example.out)+'</pre></div></div>'}
 var nick="";try{nick=localStorage.getItem("nick")||""}catch(e){}
 var ids=THEORY_MAP[t.id],pl=ids?ids.map(function(k){return THEORY.filter(function(p){return p.id===k})[0]}).filter(Boolean):THEORY.filter(function(p){return p.l===t.lesson});
-m.innerHTML='<div class="crumbs"><a href="index.html#tasks">Задания</a> / Урок '+t.lesson+'</div><div class="task-grid"><div>'+
-'<h1>'+t.id+'. '+esc(t.title)+'</h1><div class="box"><p>'+md(t.text)+'</p></div>'+
-'<h2>Пример</h2>'+ex+
-(t.hint?'<details class="box"><summary>Нужна подсказка?</summary><p>'+md(t.hint)+'</p></details>':'')+
-'<h2>Твой код</h2><div class="editor"><div class="bar2"><i></i><i></i><i></i><span>'+esc(t.file)+'</span></div><textarea id="code" spellcheck="false" aria-label="Код решения"></textarea></div>'+
-'<div class="btns" style="margin-top:10px"><button class="btn ghost" id="cp">Скопировать код</button><button class="btn ghost" id="dl">Скачать .py</button><button class="btn ghost" id="rs">Сбросить</button></div>'+
-'<h2>Отправить на проверку</h2><div class="box"><p>Придумай <b>ник</b> — не настоящую фамилию: заявки видны всем. Нажми кнопку, откроется GitHub с готовой заявкой, останется нажать <b>Submit new issue</b>. Нужен бесплатный аккаунт GitHub (<a href="start.html">как создать</a>).</p>'+
-'<p><input type="text" id="nick" maxlength="30" placeholder="твой ник, например snake_42" value="'+esc(nick)+'" aria-label="Ник"></p>'+
-'<p><button class="btn" id="send">Отправить на проверку</button></p><p id="msg" class="m"></p>'+
-'<details><summary>Без аккаунта GitHub</summary><p>Скачай репозиторий (Code → Download ZIP), положи свой файл в папку задания и запусти <code>python check.py '+t.id+'</code>. Покажи учителю экран с <code>[ OK ]</code>.</p></details></div>'+
+m.innerHTML='<div class="crumbs"><a href="index.html#map">← Карта курса</a></div><div class="task-grid"><div>'+
+'<div class="tk-head">'+lessonIcon(t.lesson)+'<div><div class="m" style="font-size:14px">Урок '+t.lesson+' · '+esc(t.lessonTitle)+'</div><h1 style="margin:0;font-size:clamp(24px,3.4vw,34px)">'+t.id+' '+esc(t.title)+'</h1></div></div>'+
+'<div class="stepper" id="stp"><div class="st on" id="s1"><i>1</i>Код</div><span class="ln"></span><div class="st" id="s2"><i>2</i>Проверка</div><span class="ln"></span><div class="st" id="s3"><i>3</i>Отправка</div></div>'+
+'<p class="cond">'+md(t.text)+'</p>'+ex+
+'<div class="toolbar"><button class="btn sm ghost" id="hintB">Подсказка</button></div><div class="box" id="hint" style="display:none;margin-top:8px"><p>'+md(t.hint||"")+'</p></div>'+
+'<div class="editor" style="margin-top:16px"><div class="bar2"><i></i><i></i><i></i><span>'+esc(t.file)+'</span></div><textarea id="code" spellcheck="false" aria-label="Код решения"></textarea></div>'+
+'<div class="toolbar"><button class="btn big" id="chk">Проверить здесь</button><span class="sp"></span><button class="btn sm ghost" id="cp">Копировать</button><button class="btn sm ghost" id="dl">Скачать .py</button><button class="btn sm ghost" id="rs">Сбросить</button></div>'+
+'<div class="res" id="res"></div>'+
+'<div class="sendbox" id="send"><input type="text" id="nick" maxlength="30" placeholder="твой ник" value="'+esc(nick)+'" aria-label="Ник (не фамилия)"><button class="btn" id="go">Отправить учителю</button><button class="q" id="q" title="Как это работает" aria-label="Как отправить">?</button><span id="msg" class="m" style="font-size:14px"></span></div>'+
 '<div class="pager"><span>'+(prev?'<a class="btn ghost" href="task.html?id='+prev.id+'">← '+prev.id+'</a>':'')+'</span><span>'+(next?'<a class="btn ghost" href="task.html?id='+next.id+'">'+next.id+' →</a>':'')+'</span></div></div>'+
-'<aside class="aside"><h2>Шпаргалка к заданию</h2>'+pl.map(plate).join("")+'<p class="m" style="font-size:14px"><a href="theory.html?l='+t.lesson+'">Вся теория урока →</a></p></aside></div>';
+'<aside class="aside"><h2>Шпаргалка</h2>'+pl.map(plate).join("")+'<p class="m" style="font-size:14px"><a href="theory.html?l='+t.lesson+'">Вся теория урока →</a></p></aside></div>';
 var ta=document.getElementById("code"),key="code_"+t.id,saved=null;
 try{saved=localStorage.getItem(key)}catch(e){}
 ta.value=saved!==null?saved:t.starter;
+function step(n,ok){["s1","s2","s3"].forEach(function(s,k){var e=document.getElementById(s);e.className="st"+(k<n?" ok":(k===n?" on":""));e.firstChild.innerHTML=k<n?OKI:(k+1)});}
+function refreshSteps(){var d=load("done"),p=load("passed");step(d[t.id]?3:(p[t.id]?2:0));document.getElementById("send").className="sendbox"+(p[t.id]&&!d[t.id]?" ready":"")}
+refreshSteps();
 ta.oninput=function(){try{localStorage.setItem(key,ta.value)}catch(e){}};
 ta.onkeydown=function(e){if(e.key==="Tab"){e.preventDefault();var s=ta.selectionStart;ta.value=ta.value.slice(0,s)+"    "+ta.value.slice(ta.selectionEnd);ta.selectionStart=ta.selectionEnd=s+4}};
+document.getElementById("hintB").onclick=function(){var h=document.getElementById("hint");h.style.display=h.style.display==="none"?"block":"none"};
 document.getElementById("cp").onclick=function(){copyText(ta.value,this)};
 document.getElementById("rs").onclick=function(){if(confirm("Вернуть заготовку? Твой код пропадёт.")){ta.value=t.starter;ta.oninput()}};
 document.getElementById("dl").onclick=function(){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+ta.value],{type:"text/x-python"}));a.download=t.file;a.click()};
-document.getElementById("send").onclick=function(){
+document.getElementById("q").onclick=function(){window.openGuide&&window.openGuide(3)};
+setTimeout(function(){BrowserCheck.warm()},600);
+var res=document.getElementById("res"),chk=document.getElementById("chk");
+chk.onclick=function(){
+ res.className="res on wait";res.innerHTML='<div class="rh">Проверяю…</div>';chk.disabled=true;
+ BrowserCheck.run(t,ta.value).then(function(r){chk.disabled=false;
+  if(r.todo){res.className="res on fail";res.innerHTML='<div class="rh">'+BADI+'Пока тут только заготовка. Напиши решение.</div>';return}
+  if(r.ok){res.className="res on pass";res.innerHTML='<div class="rh">'+OKI+'Все тесты пройдены. Отправь решение учителю</div>';var p=load("passed");p[t.id]=1;save("passed",p);refreshSteps();document.getElementById("go").focus()}
+  else{res.className="res on fail";res.innerHTML='<div class="rh">'+BADI+'Пока не так</div><ul>'+r.messages.map(function(x){return "<li>"+esc(x)+"</li>"}).join("")+'</ul>'+(r.sample?'<pre>'+esc(r.sample.slice(0,400))+'</pre>':"")}
+ });
+};
+document.getElementById("go").onclick=function(){
  var n=document.getElementById("nick").value.trim(),msg=document.getElementById("msg");
- if(!n){msg.className="bad";msg.textContent="Впиши ник.";return}
+ if(!n){msg.className="bad";msg.textContent="Впиши ник (не фамилию).";return}
  try{localStorage.setItem("nick",n)}catch(e){}
  var base="/issues/new?template=submit.yml&title="+encodeURIComponent("[Сдача] "+t.id+" "+n)+"&nick="+encodeURIComponent(n)+"&task="+encodeURIComponent(t.id+" — "+t.title);
  var url=ghUrl(base+"&code="+encodeURIComponent(ta.value));
- if(url.length>7500){msg.className="warn";msg.textContent="Код длинный и не подставится сам. Нажми «Скопировать код» и вставь его на странице GitHub в поле «Код решения».";url=ghUrl(base)}
- else{msg.className="ok";msg.textContent="Открываю GitHub. Нажми там Submit new issue. Ответ робота придёт комментарием."}
- try{var d=JSON.parse(localStorage.getItem("done")||"{}");d[t.id]=1;localStorage.setItem("done",JSON.stringify(d))}catch(e){}
+ if(url.length>7500){msg.className="warn";msg.textContent="Код длинный: нажми «Копировать» и вставь его на GitHub.";url=ghUrl(base)}
+ else{msg.className="ok";msg.textContent="Открываю GitHub → нажми Submit new issue"}
+ var d=load("done");d[t.id]=1;save("done",d);refreshSteps();
  window.open(url,"_blank","noopener");
 };}
 </script></body></html>

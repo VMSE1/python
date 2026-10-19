@@ -13,7 +13,28 @@ window.TASKS=[
   "starter": "name = input(\"Как тебя зовут? \")\n# TODO: спроси город и выведи визитку\n",
   "file": "vizitka.py",
   "dir": "lessons/lesson1/task_1_vizitka",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "Анна",
+     "Москва"
+    ],
+    "must": [
+     "Меня зовут Анна, я из Москва"
+    ]
+   },
+   {
+    "stdin": [
+     "Илья",
+     "Казань"
+    ],
+    "must": [
+     "Меня зовут Илья, я из Казань"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "1.2",
@@ -29,7 +50,28 @@ window.TASKS=[
   "starter": "# TODO: спроси a и b как целые числа и выведи площадь\n",
   "file": "ploshchad.py",
   "dir": "lessons/lesson1/task_2_ploshchad",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "4",
+     "5"
+    ],
+    "must": [
+     "Площадь: 20"
+    ]
+   },
+   {
+    "stdin": [
+     "3",
+     "7"
+    ],
+    "must": [
+     "Площадь: 21"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "1.3",
@@ -45,7 +87,26 @@ window.TASKS=[
   "starter": "# TODO: спроси километры как float, переведи в метры и выведи\n",
   "file": "konverter.py",
   "dir": "lessons/lesson1/task_3_konverter",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "1.5"
+    ],
+    "must": [
+     "1500"
+    ]
+   },
+   {
+    "stdin": [
+     "2"
+    ],
+    "must": [
+     "2000"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "1.4",
@@ -61,7 +122,34 @@ window.TASKS=[
   "starter": "# TODO: спроси минуты, посчитай часы (//) и остаток (%)\n",
   "file": "vremya.py",
   "dir": "lessons/lesson1/task_4_vremya",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "135"
+    ],
+    "must": [
+     "2 ч 15 мин"
+    ]
+   },
+   {
+    "stdin": [
+     "59"
+    ],
+    "must": [
+     "0 ч 59 мин"
+    ]
+   },
+   {
+    "stdin": [
+     "60"
+    ],
+    "must": [
+     "1 ч 0 мин"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "2.1",
@@ -77,7 +165,59 @@ window.TASKS=[
   "starter": "color = input(\"Цвет светофора: \")\n# TODO: if / elif / else\n",
   "file": "svetofor.py",
   "dir": "lessons/lesson2/task_1_svetofor",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "красный"
+    ],
+    "must": [
+     "Стой"
+    ],
+    "must_not": [
+     "иди",
+     "жди"
+    ]
+   },
+   {
+    "stdin": [
+     "жёлтый"
+    ],
+    "must": [
+     "Жди"
+    ],
+    "must_not": [
+     "стой",
+     "иди"
+    ]
+   },
+   {
+    "stdin": [
+     "зелёный"
+    ],
+    "must": [
+     "Иди"
+    ],
+    "must_not": [
+     "стой",
+     "жди"
+    ]
+   },
+   {
+    "stdin": [
+     "синий"
+    ],
+    "must": [
+     "Нет такого цвета"
+    ],
+    "must_not": [
+     "стой",
+     "жди",
+     "иди"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "2.2",
@@ -93,7 +233,50 @@ window.TASKS=[
   "starter": "score = int(input(\"Баллы: \"))\n# TODO: условия\n",
   "file": "otsenka.py",
   "dir": "lessons/lesson2/task_2_otsenka",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "90"
+    ],
+    "must": [
+     "Оценка: 5"
+    ]
+   },
+   {
+    "stdin": [
+     "85"
+    ],
+    "must": [
+     "Оценка: 5"
+    ]
+   },
+   {
+    "stdin": [
+     "70"
+    ],
+    "must": [
+     "Оценка: 4"
+    ]
+   },
+   {
+    "stdin": [
+     "50"
+    ],
+    "must": [
+     "Оценка: 3"
+    ]
+   },
+   {
+    "stdin": [
+     "20"
+    ],
+    "must": [
+     "Оценка: 2"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "2.3",
@@ -109,7 +292,52 @@ window.TASKS=[
   "starter": "height = int(input(\"Рост, см: \"))\nage = int(input(\"Возраст: \"))\n# TODO: условие с and\n",
   "file": "attraktsion.py",
   "dir": "lessons/lesson2/task_3_attraktsion",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "130",
+     "10"
+    ],
+    "must": [
+     "Можно"
+    ],
+    "must_not": [
+     "нельзя"
+    ]
+   },
+   {
+    "stdin": [
+     "110",
+     "10"
+    ],
+    "must": [
+     "Нельзя"
+    ]
+   },
+   {
+    "stdin": [
+     "130",
+     "5"
+    ],
+    "must": [
+     "Нельзя"
+    ]
+   },
+   {
+    "stdin": [
+     "120",
+     "7"
+    ],
+    "must": [
+     "Можно"
+    ],
+    "must_not": [
+     "нельзя"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "2.4",
@@ -125,7 +353,58 @@ window.TASKS=[
   "starter": "distance = float(input(\"Расстояние, км: \"))\n# TODO: выбери способ и выведи рекомендацию\n",
   "file": "gorodskoy_pomoshchnik.py",
   "dir": "lessons/lesson2/task_4_gorodskoy_pomoshchnik",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "1.5"
+    ],
+    "must": [
+     "Рекомендую: пешком"
+    ]
+   },
+   {
+    "stdin": [
+     "2"
+    ],
+    "must": [
+     "пешком"
+    ]
+   },
+   {
+    "stdin": [
+     "5"
+    ],
+    "must": [
+     "Рекомендую: на наземном транспорте"
+    ],
+    "must_not": [
+     "метро",
+     "пешком"
+    ]
+   },
+   {
+    "stdin": [
+     "8"
+    ],
+    "must": [
+     "наземном"
+    ]
+   },
+   {
+    "stdin": [
+     "12"
+    ],
+    "must": [
+     "Рекомендую: на метро"
+    ],
+    "must_not": [
+     "пешком",
+     "наземном"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "3.1",
@@ -141,7 +420,29 @@ window.TASKS=[
   "starter": "n = int(input(\"Число: \"))\n# TODO: цикл for\n",
   "file": "tablitsa.py",
   "dir": "lessons/lesson3/task_1_tablitsa",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "7"
+    ],
+    "must": [
+     "7 x 1 = 7",
+     "7 x 3 = 21",
+     "7 x 10 = 70"
+    ]
+   },
+   {
+    "stdin": [
+     "12"
+    ],
+    "must": [
+     "12 x 1 = 12",
+     "12 x 10 = 120"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "3.2",
@@ -157,7 +458,39 @@ window.TASKS=[
   "starter": "def sum_to(n):\n    # TODO: верни сумму чисел от 1 до n\n    pass\n",
   "file": "summa.py",
   "dir": "lessons/lesson3/task_2_summa",
-  "func": true
+  "func": true,
+  "cases": [],
+  "funcs": [
+   {
+    "name": "sum_to",
+    "calls": [
+     {
+      "args": [
+       5
+      ],
+      "expect": 15
+     },
+     {
+      "args": [
+       1
+      ],
+      "expect": 1
+     },
+     {
+      "args": [
+       100
+      ],
+      "expect": 5050
+     },
+     {
+      "args": [
+       0
+      ],
+      "expect": 0
+     }
+    ]
+   }
+  ]
  },
  {
   "id": "3.3",
@@ -173,7 +506,38 @@ window.TASKS=[
   "starter": "# TODO: цикл while True, накопитель, break по слову \"стоп\"\n",
   "file": "pokupki.py",
   "dir": "lessons/lesson3/task_3_pokupki",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "100",
+     "50.5",
+     "стоп"
+    ],
+    "must": [
+     "Итого: 150.5"
+    ]
+   },
+   {
+    "stdin": [
+     "10",
+     "20",
+     "стоп"
+    ],
+    "must": [
+     "Итого: 30"
+    ]
+   },
+   {
+    "stdin": [
+     "стоп"
+    ],
+    "must": [
+     "Итого: 0"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "3.4",
@@ -189,7 +553,45 @@ window.TASKS=[
   "starter": "def recommend(distance):\n    # TODO\n    pass\n",
   "file": "recommend.py",
   "dir": "lessons/lesson3/task_4_recommend",
-  "func": true
+  "func": true,
+  "cases": [],
+  "funcs": [
+   {
+    "name": "recommend",
+    "calls": [
+     {
+      "args": [
+       1.5
+      ],
+      "expect": "пешком"
+     },
+     {
+      "args": [
+       2
+      ],
+      "expect": "пешком"
+     },
+     {
+      "args": [
+       5
+      ],
+      "expect": "на наземном транспорте"
+     },
+     {
+      "args": [
+       8
+      ],
+      "expect": "на наземном транспорте"
+     },
+     {
+      "args": [
+       12
+      ],
+      "expect": "на метро"
+     }
+    ]
+   }
+  ]
  },
  {
   "id": "3.5",
@@ -205,7 +607,43 @@ window.TASKS=[
   "starter": "def biggest(numbers):\n    # TODO: без max()\n    pass\n",
   "file": "naibolshee.py",
   "dir": "lessons/lesson3/task_5_naibolshee",
-  "func": true
+  "func": true,
+  "cases": [],
+  "funcs": [
+   {
+    "name": "biggest",
+    "calls": [
+     {
+      "args": [
+       [
+        3,
+        9,
+        2
+       ]
+      ],
+      "expect": 9
+     },
+     {
+      "args": [
+       [
+        -5,
+        -2,
+        -9
+       ]
+      ],
+      "expect": -2
+     },
+     {
+      "args": [
+       [
+        7
+       ]
+      ],
+      "expect": 7
+     }
+    ]
+   }
+  ]
  },
  {
   "id": "4.1",
@@ -221,7 +659,34 @@ window.TASKS=[
   "starter": "text = input(\"Фраза: \")\n# TODO: split() и len()\n",
   "file": "slova.py",
   "dir": "lessons/lesson4/task_1_slova",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "я учу python"
+    ],
+    "must": [
+     "Слов: 3"
+    ]
+   },
+   {
+    "stdin": [
+     "привет"
+    ],
+    "must": [
+     "Слов: 1"
+    ]
+   },
+   {
+    "stdin": [
+     "раз два три четыре"
+    ],
+    "must": [
+     "Слов: 4"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "4.2",
@@ -237,7 +702,45 @@ window.TASKS=[
   "starter": "def is_palindrome(s):\n    # TODO\n    pass\n",
   "file": "palindrom.py",
   "dir": "lessons/lesson4/task_2_palindrom",
-  "func": true
+  "func": true,
+  "cases": [],
+  "funcs": [
+   {
+    "name": "is_palindrome",
+    "calls": [
+     {
+      "args": [
+       "шалаш"
+      ],
+      "expect": true
+     },
+     {
+      "args": [
+       "Шалаш"
+      ],
+      "expect": true
+     },
+     {
+      "args": [
+       "python"
+      ],
+      "expect": false
+     },
+     {
+      "args": [
+       "А роза упала на лапу Азора"
+      ],
+      "expect": true
+     },
+     {
+      "args": [
+       "ab"
+      ],
+      "expect": false
+     }
+    ]
+   }
+  ]
  },
  {
   "id": "4.3",
@@ -253,7 +756,43 @@ window.TASKS=[
   "starter": "def letter_count(text, letter):\n    # TODO\n    pass\n",
   "file": "chastota.py",
   "dir": "lessons/lesson4/task_3_chastota",
-  "func": true
+  "func": true,
+  "cases": [],
+  "funcs": [
+   {
+    "name": "letter_count",
+    "calls": [
+     {
+      "args": [
+       "Банан",
+       "а"
+      ],
+      "expect": 2
+     },
+     {
+      "args": [
+       "Банан",
+       "Н"
+      ],
+      "expect": 2
+     },
+     {
+      "args": [
+       "abc",
+       "z"
+      ],
+      "expect": 0
+     },
+     {
+      "args": [
+       "Ааа",
+       "а"
+      ],
+      "expect": 3
+     }
+    ]
+   }
+  ]
  },
  {
   "id": "4.4",
@@ -269,7 +808,35 @@ window.TASKS=[
   "starter": "words = {\n    \"кошка\": \"cat\",\n    # TODO: добавь остальные слова\n}\n# TODO: цикл до слова \"стоп\"\n",
   "file": "perevodchik.py",
   "dir": "lessons/lesson4/task_4_perevodchik",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "кошка",
+     "дом",
+     "рыба",
+     "стоп"
+    ],
+    "must": [
+     "cat",
+     "house",
+     "не знаю"
+    ]
+   },
+   {
+    "stdin": [
+     "собака",
+     "стоп"
+    ],
+    "must": [
+     "dog"
+    ],
+    "must_not": [
+     "не знаю"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "4.5",
@@ -285,7 +852,36 @@ window.TASKS=[
   "starter": "name = input(\"Имя: \")\n# TODO: запиши в hello.txt, потом прочитай и выведи\n",
   "file": "fayl.py",
   "dir": "lessons/lesson4/task_5_fayl",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "Анна"
+    ],
+    "must": [
+     "Привет, Анна!"
+    ],
+    "files": {
+     "hello.txt": [
+      "Привет, Анна!"
+     ]
+    }
+   },
+   {
+    "stdin": [
+     "Илья"
+    ],
+    "must": [
+     "Привет, Илья!"
+    ],
+    "files": {
+     "hello.txt": [
+      "Привет, Илья!"
+     ]
+    }
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "5.1",
@@ -301,7 +897,45 @@ window.TASKS=[
   "starter": "def safe_int(text):\n    # TODO: try / except\n    pass\n",
   "file": "safe_int.py",
   "dir": "lessons/lesson5/task_1_safe_int",
-  "func": true
+  "func": true,
+  "cases": [],
+  "funcs": [
+   {
+    "name": "safe_int",
+    "calls": [
+     {
+      "args": [
+       "5"
+      ],
+      "expect": 5
+     },
+     {
+      "args": [
+       "abc"
+      ],
+      "expect": null
+     },
+     {
+      "args": [
+       "-3"
+      ],
+      "expect": -3
+     },
+     {
+      "args": [
+       "1.5"
+      ],
+      "expect": null
+     },
+     {
+      "args": [
+       ""
+      ],
+      "expect": null
+     }
+    ]
+   }
+  ]
  },
  {
   "id": "5.2",
@@ -317,7 +951,43 @@ window.TASKS=[
   "starter": "def safe_divide(a, b):\n    # TODO: try / except ZeroDivisionError\n    pass\n",
   "file": "delenie.py",
   "dir": "lessons/lesson5/task_2_delenie",
-  "func": true
+  "func": true,
+  "cases": [],
+  "funcs": [
+   {
+    "name": "safe_divide",
+    "calls": [
+     {
+      "args": [
+       10,
+       2
+      ],
+      "expect": 5.0
+     },
+     {
+      "args": [
+       1,
+       0
+      ],
+      "expect": null
+     },
+     {
+      "args": [
+       7,
+       2
+      ],
+      "expect": 3.5
+     },
+     {
+      "args": [
+       0,
+       5
+      ],
+      "expect": 0.0
+     }
+    ]
+   }
+  ]
  },
  {
   "id": "5.3",
@@ -333,7 +1003,42 @@ window.TASKS=[
   "starter": "# TODO: while True + try / except ValueError\n",
   "file": "vvod_chisla.py",
   "dir": "lessons/lesson5/task_3_vvod_chisla",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "5"
+    ],
+    "must": [
+     "Принято: 5"
+    ],
+    "must_not": [
+     "ошибка"
+    ]
+   },
+   {
+    "stdin": [
+     "abc",
+     "-3"
+    ],
+    "must": [
+     "Ошибка",
+     "Принято: -3"
+    ]
+   },
+   {
+    "stdin": [
+     "x",
+     "1.5",
+     "",
+     "7"
+    ],
+    "must": [
+     "Принято: 7"
+    ]
+   }
+  ],
+  "funcs": []
  },
  {
   "id": "5.4",
@@ -349,6 +1054,47 @@ window.TASKS=[
   "starter": "# TODO: имя, цикл, try / except, recommend\n",
   "file": "gorodskoy_pomoshchnik_3.py",
   "dir": "lessons/lesson5/task_4_gorodskoy_pomoshchnik_3",
-  "func": false
+  "func": false,
+  "cases": [
+   {
+    "stdin": [
+     "Анна",
+     "abc",
+     "1.5",
+     "12",
+     "стоп"
+    ],
+    "must": [
+     "Это не число",
+     "Анна, рекомендую: пешком",
+     "Анна, рекомендую: на метро",
+     "Хорошей дороги!"
+    ]
+   },
+   {
+    "stdin": [
+     "Илья",
+     "5",
+     "стоп"
+    ],
+    "must": [
+     "Илья, рекомендую: на наземном транспорте",
+     "Хорошей дороги!"
+    ],
+    "must_not": [
+     "не число"
+    ]
+   },
+   {
+    "stdin": [
+     "Мария",
+     "стоп"
+    ],
+    "must": [
+     "Хорошей дороги!"
+    ]
+   }
+  ],
+  "funcs": []
  }
 ];

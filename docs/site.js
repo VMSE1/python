@@ -25,18 +25,26 @@ function applyTheme(t) {
 }
 (function () { try { var t = localStorage.getItem("theme"); if (t) applyTheme(t); } catch (e) {} })();
 
+function getToken() { try { return sessionStorage.getItem("tk") || localStorage.getItem("tk") || ""; } catch (e) { return ""; } }
+function isTeacher() { try { return !!localStorage.getItem("teacher"); } catch (e) { return false; } }
 function layout(active, title) {
-  var items = [["index.html", "Задания"], ["theory.html", "Теория"], ["quiz.html", "Тест"], ["projects.html", "Проекты"], ["journal.html", "Журнал"], ["start.html", "Как это работает"]];
+  var items = [["index.html", "Задания"], ["theory.html", "Теория"], ["quiz.html", "Тест"], ["projects.html", "Проекты"]];
+  if (isTeacher()) items.push(["teacher.html", "Кабинет"]);
   var nav = items.map(function (x) { return '<a href="' + x[0] + '"' + (x[0] === active ? ' class="on"' : "") + ">" + x[1] + "</a>"; }).join("");
+  document.head.insertAdjacentHTML("beforeend", '<link rel="stylesheet" href="guide.css">');
   document.body.insertAdjacentHTML("afterbegin",
     '<header class="top"><div class="wrap"><a class="logo" href="index.html">' + ICON.logo + 'Python-курс</a><nav>' + nav +
-    '<a href="' + ghUrl() + '" target="_blank" rel="noopener">GitHub</a><button id="themeBtn" title="Тема: светлая / тёмная" aria-label="Сменить тему">' + ICON.sun + '</button></nav></div></header>');
+    '<button id="guideBtn">Как это работает</button><a href="' + ghUrl() + '" target="_blank" rel="noopener">GitHub</a><button id="themeBtn" title="Тема: светлая / тёмная" aria-label="Сменить тему">' + ICON.sun + '</button></nav></div></header>');
+  var gs = document.createElement("script"); gs.src = "guide.js";
+  gs.onload = function () { if (/[?&]guide=1/.test(location.search)) window.openGuide(0); if (window.__guideAuto) window.openGuide(0); };
+  document.body.appendChild(gs);
+  document.getElementById("guideBtn").onclick = function () { if (window.openGuide) window.openGuide(0); };
   document.getElementById("themeBtn").onclick = function () {
     var cur = document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
     var next = cur === "light" ? "dark" : "light"; applyTheme(next); try { localStorage.setItem("theme", next); } catch (e) {}
   };
   document.body.insertAdjacentHTML("beforeend",
-    '<footer><div class="wrap">Python-курс · бесплатный и открытый · <a href="' + ghUrl() + '" target="_blank" rel="noopener">исходники</a> · <a href="teacher.html">для учителя</a></div></footer>');
+    '<footer><div class="wrap">Python-курс · бесплатный и открытый · <a href="' + ghUrl() + '" target="_blank" rel="noopener">исходники</a></div></footer>');
   if (title) document.title = title + " · Python-курс";
 }
 function copyText(text, btn) {
@@ -56,7 +64,8 @@ function sections(body) {
 function fetchIssues(label, cb, fail) {
   var all = [], page = 1;
   (function next() {
-    fetch("https://api.github.com/repos/" + CFG.repo + "/issues?state=all&per_page=100&page=" + page + "&labels=" + encodeURIComponent(label))
+    var h = { Accept: "application/vnd.github+json" }, tk = getToken(); if (tk) h.Authorization = "Bearer " + tk;
+    fetch("https://api.github.com/repos/" + CFG.repo + "/issues?state=all&per_page=100&page=" + page + "&labels=" + encodeURIComponent(label), { headers: h })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (a) { all = all.concat(a.filter(function (x) { return !x.pull_request; })); if (a.length === 100 && page < 5) { page++; next(); } else cb(all); })
       .catch(function (e) { fail(e); });
