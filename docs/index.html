@@ -1,0 +1,28 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Python-курс</title><link rel="stylesheet" href="site.css"></head><body>
+<main class="wrap">
+<section class="hero"><div>
+<h1>Python<span>_курс</span></h1>
+<p>Бесплатный курс по Python: короткие задания, автопроверка за минуту, тест и свои проекты. Пиши код — получай ответ от робота.</p>
+<div class="btns"><a class="btn" href="#tasks">Начать с заданий</a><a class="btn alt" href="quiz.html">Пройти тест</a><a class="btn ghost" href="projects.html">Проекты ребят</a></div>
+<div class="stats" id="stats"></div></div>
+<img src="img/pitosha_wink.png" alt="Питоша"></section>
+
+<h2>Как это работает</h2>
+<div class="steps">
+<div class="step"><i>1</i><br><b>Выбери задание</b><br><span class="m">Прочитай условие, скопируй заготовку.</span></div>
+<div class="step"><i>2</i><br><b>Напиши код</b><br><span class="m">В VS Code, Thonny или прямо в окне на сайте.</span></div>
+<div class="step"><i>3</i><br><b>Отправь</b><br><span class="m">Кнопка «Отправить на проверку» откроет GitHub с готовой заявкой.</span></div>
+<div class="step"><i>4</i><br><b>Получи ответ</b><br><span class="m">Робот проверит код и напишет ✅ или что не так. Исправь и отправь ещё раз.</span></div>
+</div>
+
+<h2 id="tasks">Задания</h2>
+<div id="list"></div>
+</main>
+<script src="site.js"></script><script src="data/tasks.js"></script>
+<script>
+layout("index.html");
+var L={},ls=[];TASKS.forEach(function(t){if(!L[t.lesson]){L[t.lesson]={t:t.lessonTitle,a:[]};ls.push(t.lesson)}L[t.lesson].a.push(t)});
+document.getElementById("stats").innerHTML='<div class="stat"><b>'+TASKS.length+'</b>заданий</div><div class="stat"><b>'+ls.length+'</b>уроков</div><div class="stat"><b>0 ₽</b>всё бесплатно</div>';
+var done={};try{done=JSON.parse(localStorage.getItem("done")||"{}")}catch(e){}
+document.getElementById("list").innerHTML=ls.map(function(n){var l=L[n];return '<div class="lesson">Урок '+n+'. '+esc(l.t)+'</div><div class="grid">'+l.a.map(function(t){return '<a class="card" href="task.html?id='+t.id+'"><span class="tag">'+(t.func?'функция':'программа')+(done[t.id]?' ✓':'')+'</span><div class="id">'+t.id+'</div><div class="ttl">'+esc(t.title)+'</div><div class="m">'+esc(t.text.replace(/[`*]/g,"").slice(0,70))+'…</div></a>'}).join("")+'</div>'}).join("");
+</script></body></html>

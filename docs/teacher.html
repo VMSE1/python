@@ -1,0 +1,19 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Результаты теста</title><link rel="stylesheet" href="site.css"></head><body><main class="wrap">
+<div class="crumbs">~/учитель</div><h1>Результаты теста</h1><div class="box"><p>Вставь коды учеников — по одному в строке.</p><textarea class="code" id="in" placeholder="Код 1&#10;Код 2&#10;..."></textarea><p><button class="btn" id="go">Разобрать</button> <button class="btn alt" id="csv">Скачать CSV</button></p><p class="m">Страница работает без интернета. Данные никуда не отправляются. Оценка пересчитывается по ответам, подправить цифру в коде нельзя.</p></div><div id="out"></div></main>
+<script src="site.js"></script><script>layout("teacher.html","Для учителя");</script><script src="questions.js"></script>
+<script>
+var Q=window.QUESTIONS,rows=[];
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function dec(s){return JSON.parse(decodeURIComponent(escape(atob(s.trim()))))}
+document.getElementById("go").onclick=function(){rows=[];var bad=0,stat={};
+document.getElementById("in").value.split(/\n+/).forEach(function(l){if(!l.trim())return;try{var o=dec(l),s=0;o.a.forEach(function(a){var q=Q[a[0]];if(!q)return;stat[a[0]]=stat[a[0]]||[0,0];stat[a[0]][1]++;if(q.a==a[1]){s++;stat[a[0]][0]++}});rows.push({n:o.n,l:o.l||"все",d:o.d,s:s,t:o.a.length})}catch(e){bad++}});
+rows.sort(function(a,b){return b.s/b.t-a.s/a.t});
+var h='<div class="box"><table><tr><th>#</th><th>Имя</th><th>Тест</th><th>Дата</th><th>Баллы</th><th>%</th></tr>';
+rows.forEach(function(r,i){h+='<tr><td>'+(i+1)+'</td><td>'+esc(r.n)+'</td><td>'+(r.l=="все"||r.l==0?"весь курс":"урок "+r.l)+'</td><td>'+esc(r.d)+'</td><td>'+r.s+' / '+r.t+'</td><td>'+Math.round(r.s/r.t*100)+'</td></tr>'});
+h+='</table>'+(bad?'<p class="r">Не удалось прочитать кодов: '+bad+'</p>':'')+'</div>';
+var ids=Object.keys(stat).sort(function(a,b){return stat[a][0]/stat[a][1]-stat[b][0]/stat[b][1]});
+h+='<div class="box"><b>Самые трудные вопросы</b><table><tr><th>Верно</th><th>Вопрос</th></tr>';
+ids.slice(0,8).forEach(function(i){h+='<tr><td>'+stat[i][0]+' / '+stat[i][1]+'</td><td>урок '+Q[i].l+': '+esc(Q[i].q)+(Q[i].code?'<pre>'+esc(Q[i].code)+'</pre>':'')+'</td></tr>'});
+document.getElementById("out").innerHTML=h+'</table></div>'};
+document.getElementById("csv").onclick=function(){var c="\ufeffимя;тест;дата;баллы;всего;процент\n"+rows.map(function(r){return [r.n,r.l,r.d,r.s,r.t,Math.round(r.s/r.t*100)].join(";")}).join("\n");var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([c],{type:"text/csv"}));a.download="results.csv";a.click()};
+</script></body></html>

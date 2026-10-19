@@ -1,0 +1,29 @@
+name: "Показать свой проект"
+description: Расскажи о своей программе, игре или идее — другие смогут посмотреть и прокомментировать
+title: "[Проект] "
+labels: ["проект"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Здесь можно показать любой свой проект на Python. Другие ребята смогут поставить 👍 и написать комментарий.
+        **Настоящую фамилию не пиши.**
+  - type: input
+    id: nick
+    attributes:
+      label: Ник
+    validations:
+      required: true
+  - type: textarea
+    id: about
+    attributes:
+      label: Что это за проект и что он умеет
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: Код (или ссылка на репозиторий)
+      render: python
+    validations:
+      required: true

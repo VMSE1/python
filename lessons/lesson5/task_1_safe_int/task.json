@@ -1,0 +1,49 @@
+{
+ "id": "5.1",
+ "title": "Безопасный int",
+ "file": "safe_int.py",
+ "text": "Напиши функцию `safe_int(text)`: если строку можно превратить в целое — вернуть число, иначе вернуть `None`. Программа не должна падать.",
+ "example": {
+  "in": "safe_int(\"abc\")",
+  "out": "None"
+ },
+ "hint": "`try: return int(text)` и `except ValueError: return None`.",
+ "starter": "def safe_int(text):\n    # TODO: try / except\n    pass\n",
+ "funcs": [
+  {
+   "name": "safe_int",
+   "calls": [
+    {
+     "args": [
+      "5"
+     ],
+     "expect": 5
+    },
+    {
+     "args": [
+      "abc"
+     ],
+     "expect": null
+    },
+    {
+     "args": [
+      "-3"
+     ],
+     "expect": -3
+    },
+    {
+     "args": [
+      "1.5"
+     ],
+     "expect": null
+    },
+    {
+     "args": [
+      ""
+     ],
+     "expect": null
+    }
+   ]
+  }
+ ]
+}

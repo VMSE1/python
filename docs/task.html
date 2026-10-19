@@ -1,0 +1,43 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Задание</title><link rel="stylesheet" href="site.css"></head><body>
+<main class="wrap" id="main"></main>
+<script src="site.js"></script><script src="data/tasks.js"></script>
+<script>
+layout("index.html");
+var id=new URLSearchParams(location.search).get("id"),t=TASKS.filter(function(x){return x.id===id})[0],m=document.getElementById("main");
+function md(s){return esc(s).replace(/`([^`]+)`/g,"<code>$1</code>").replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>")}
+if(!t){m.innerHTML='<h1>Задание не найдено</h1><p><a href="index.html">← ко всем заданиям</a></p>'}else{
+document.title=t.id+" "+t.title+" · Python-курс";
+var i=TASKS.indexOf(t),prev=TASKS[i-1],next=TASKS[i+1];
+var ex=t.example?(t.func?'<pre>&gt;&gt;&gt; '+esc(t.example.in)+'\n'+esc(t.example.out)+'</pre>':'<div class="m">Ввод:</div><pre>'+esc(t.example.in)+'</pre><div class="m">Вывод:</div><pre>'+esc(t.example.out)+'</pre>'):"";
+var nick="";try{nick=localStorage.getItem("nick")||""}catch(e){}
+m.innerHTML='<div class="crumbs"><a href="index.html">задания</a> / урок '+t.lesson+' / '+t.id+'</div>'+
+'<h1>'+t.id+'. '+esc(t.title)+'</h1><div class="box"><p style="margin:0">'+md(t.text)+'</p></div>'+
+'<h2>Пример</h2>'+ex+
+(t.hint?'<details class="box"><summary>Подсказка</summary><p>'+md(t.hint)+'</p></details>':'')+
+'<h2>Твой код</h2><p class="m">Файл <code>'+esc(t.file)+'</code>. Пиши здесь или в своём редакторе и вставь сюда.</p>'+
+'<textarea class="code" id="code" spellcheck="false"></textarea>'+
+'<div class="btns"><button class="btn ghost" id="cp">Скопировать код</button><button class="btn ghost" id="dl">Скачать .py</button><button class="btn ghost" id="rs">Сбросить</button></div>'+
+'<h2>Отправить на проверку</h2><div class="box"><p>Придумай <b>ник</b> (не настоящую фамилию — всё видно всем). Нажми кнопку: откроется GitHub с готовой заявкой, останется нажать «Submit new issue». Нужен бесплатный аккаунт GitHub.</p>'+
+'<p><input type="text" id="nick" maxlength="30" placeholder="твой ник, например snake_42" value="'+esc(nick)+'"></p>'+
+'<p><button class="btn" id="send">Отправить на проверку →</button></p><p id="msg" class="m"></p>'+
+'<details><summary>Без аккаунта GitHub</summary><p>Скачай репозиторий (Code → Download ZIP), положи свой файл в папку задания и запусти <code>python check.py '+t.id+'</code>. Покажи учителю экран с <code>[ OK ]</code>.</p></details></div>'+
+'<div class="btns">'+(prev?'<a class="btn ghost" href="task.html?id='+prev.id+'">← '+prev.id+'</a>':'')+(next?'<a class="btn ghost" href="task.html?id='+next.id+'">'+next.id+' →</a>':'')+'</div>';
+var ta=document.getElementById("code"),key="code_"+t.id,saved=null;
+try{saved=localStorage.getItem(key)}catch(e){}
+ta.value=saved!==null?saved:t.starter;
+ta.oninput=function(){try{localStorage.setItem(key,ta.value)}catch(e){}};
+ta.onkeydown=function(e){if(e.key==="Tab"){e.preventDefault();var s=ta.selectionStart;ta.value=ta.value.slice(0,s)+"    "+ta.value.slice(ta.selectionEnd);ta.selectionStart=ta.selectionEnd=s+4}};
+document.getElementById("cp").onclick=function(){copyText(ta.value,this)};
+document.getElementById("rs").onclick=function(){if(confirm("Вернуть заготовку? Твой код пропадёт.")){ta.value=t.starter;ta.oninput()}};
+document.getElementById("dl").onclick=function(){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+ta.value],{type:"text/x-python"}));a.download=t.file;a.click()};
+document.getElementById("send").onclick=function(){
+ var n=document.getElementById("nick").value.trim(),msg=document.getElementById("msg");
+ if(!n){msg.className="bad";msg.textContent="Впиши ник.";return}
+ try{localStorage.setItem("nick",n)}catch(e){}
+ var url=ghUrl("/issues/new?template=submit.yml&title="+encodeURIComponent("[Сдача] "+t.id+" "+n)+"&nick="+encodeURIComponent(n)+"&task="+encodeURIComponent(t.id+" — "+t.title)+"&code="+encodeURIComponent(ta.value));
+ if(url.length>7500){msg.className="warn";msg.innerHTML="Код слишком длинный для автоподстановки. Скопируй его кнопкой выше и вставь на странице GitHub вручную.";url=ghUrl("/issues/new?template=submit.yml&title="+encodeURIComponent("[Сдача] "+t.id+" "+n)+"&nick="+encodeURIComponent(n)+"&task="+encodeURIComponent(t.id+" — "+t.title))}
+ else{msg.className="ok";msg.textContent="Открываю GitHub… Нажми там «Submit new issue». Ответ робота придёт комментарием."}
+ try{var d=JSON.parse(localStorage.getItem("done")||"{}");d[t.id]=1;localStorage.setItem("done",JSON.stringify(d))}catch(e){}
+ window.open(url,"_blank","noopener");
+};}
+</script></body></html>

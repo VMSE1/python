@@ -1,0 +1,43 @@
+{
+ "id": "3.2",
+ "title": "Сумма до n",
+ "file": "summa.py",
+ "text": "Напиши функцию `sum_to(n)`: она **возвращает** сумму чисел от 1 до `n`.",
+ "example": {
+  "in": "sum_to(5)",
+  "out": "15"
+ },
+ "hint": "Накопитель `total = 0` и цикл. Не `print`, а `return`.",
+ "starter": "def sum_to(n):\n    # TODO: верни сумму чисел от 1 до n\n    pass\n",
+ "funcs": [
+  {
+   "name": "sum_to",
+   "calls": [
+    {
+     "args": [
+      5
+     ],
+     "expect": 15
+    },
+    {
+     "args": [
+      1
+     ],
+     "expect": 1
+    },
+    {
+     "args": [
+      100
+     ],
+     "expect": 5050
+    },
+    {
+     "args": [
+      0
+     ],
+     "expect": 0
+    }
+   ]
+  }
+ ]
+}

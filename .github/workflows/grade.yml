@@ -1,0 +1,79 @@
+name: Проверка сдачи
+on:
+  issues:
+    types: [opened, edited]
+permissions:
+  contents: read
+  issues: write
+jobs:
+  label-project:
+    if: startsWith(github.event.issue.title, '[Проект]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number, labels: ['проект']});
+  grade:
+    if: startsWith(github.event.issue.title, '[Сдача]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Достать задание и код из Issue
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = context.payload.issue.body || '';
+            const parts = {};
+            for (const chunk of body.split(/^### /m).slice(1)) {
+              const i = chunk.indexOf('\n');
+              parts[chunk.slice(0, i).trim()] = chunk.slice(i + 1).trim();
+            }
+            const taskM = (parts['Задание'] || '').match(/^(\d+\.\d+)/);
+            let code = parts['Код решения'] || '';
+            code = code.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '');
+            fs.mkdirSync('/tmp/sub', {recursive: true});
+            fs.writeFileSync('/tmp/sub/code.py', code + '\n');
+            core.setOutput('task', taskM ? taskM[1] : '');
+            core.setOutput('has_code', code.trim() ? 'yes' : 'no');
+      - name: Запустить проверку
+        if: steps.parse.outputs.task != '' && steps.parse.outputs.has_code == 'yes'
+        env:
+          TASK: ${{ steps.parse.outputs.task }}
+        run: |
+          set +e
+          python check.py "$TASK" --file /tmp/sub/code.py > /tmp/sub/out.txt 2>&1
+          echo "$?" > /tmp/sub/exit.txt
+          exit 0
+      - name: Ответить в Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const num = context.issue.number;
+            const base = {owner: context.repo.owner, repo: context.repo.repo, issue_number: num};
+            let text, status;
+            if (!fs.existsSync('/tmp/sub/exit.txt')) {
+              text = '⚠️ Не удалось найти задание или код в Issue. Проверь, что выбрано задание и вставлен код, и нажми Edit.';
+              status = 'ошибки';
+            } else {
+              const out = fs.readFileSync('/tmp/sub/out.txt', 'utf8').slice(0, 3000);
+              const code = fs.readFileSync('/tmp/sub/exit.txt', 'utf8').trim();
+              status = code === '0' && out.includes('[ OK ]') ? 'решено' : 'ошибки';
+              text = (status === 'решено' ? '✅ **Решено!** Отличная работа.\n' : '❌ **Есть ошибки.** Исправь код, нажми Edit у Issue — я проверю снова.\n')
+                   + '\n```\n' + out + '\n```';
+            }
+            await github.rest.issues.createComment({...base, body: text});
+            const other = status === 'решено' ? 'ошибки' : 'решено';
+            try { await github.rest.issues.removeLabel({...base, name: other}); } catch (e) {}
+            await github.rest.issues.addLabels({...base, labels: ['сдача', status]});
+            if (status === 'решено') await github.rest.issues.update({...base, state: 'closed', state_reason: 'completed'});

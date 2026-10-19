@@ -1,0 +1,18 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Проекты</title><link rel="stylesheet" href="site.css"></head><body>
+<main class="wrap">
+<div class="crumbs">~/проекты</div><h1>Проекты ребят</h1>
+<p class="m">Сделал свою программу, игру или бота? Покажи! Остальные смогут поставить 👍 и написать комментарий.</p>
+<div class="btns"><a class="btn" id="add" target="_blank" rel="noopener">Показать свой проект →</a></div>
+<h2>Все проекты</h2><div id="pr" class="pr"><div class="m">Загружаю…</div></div>
+</main>
+<script src="site.js"></script>
+<script>
+layout("projects.html","Проекты");
+document.getElementById("add").href=ghUrl("/issues/new?template=project.yml");
+fetchIssues("проект",function(a){
+ var el=document.getElementById("pr");
+ if(!a.length){el.innerHTML='<div class="box">Пока пусто. Будь первым!</div>';return}
+ el.innerHTML=a.map(function(x){var s=sections(x.body),about=(s["Что это за проект и что он умеет"]||"").slice(0,240),nick=s["Ник"]||"аноним";
+  return '<div class="card"><h3>'+esc(x.title.replace(/^\[Проект\]\s*/,""))+'</h3><div class="m">автор: '+esc(nick)+'</div><p>'+esc(about)+'</p><div class="meta"><span>👍 '+((x.reactions&&x.reactions["+1"])||0)+'</span><span>💬 '+x.comments+'</span><a href="'+esc(x.html_url)+'" target="_blank" rel="noopener">смотреть и обсудить →</a></div></div>'}).join("");
+},function(e){document.getElementById("pr").innerHTML='<div class="box bad">Не удалось загрузить список ('+esc(e.message)+'). Возможно, GitHub недоступен или превышен лимит запросов. <a href="'+ghUrl("/issues?q=label%3A%D0%BF%D1%80%D0%BE%D0%B5%D0%BA%D1%82")+'">Открыть на GitHub</a></div>'});
+</script></body></html>
