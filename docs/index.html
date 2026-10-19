@@ -1,19 +1,32 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Python-курс</title><link rel="stylesheet" href="site.css"></head><body>
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Python-курс</title><link rel="stylesheet" href="site.css">
+<script>try{if(!localStorage.getItem("seenStart")&&location.search.indexOf("skip")<0)location.replace("start.html?first=1")}catch(e){}</script></head><body>
 <main class="wrap">
 <section class="hero"><div>
-<h1>Python<span>_курс</span></h1>
-<p>Бесплатный курс по Python: короткие задания, автопроверка за минуту, тест и свои проекты. Пиши код — получай ответ от робота.</p>
-<div class="btns"><a class="btn" href="#tasks">Начать с заданий</a><a class="btn alt" href="quiz.html">Пройти тест</a><a class="btn ghost" href="projects.html">Проекты ребят</a></div>
-<div class="stats" id="stats"></div></div>
-<img src="img/pitosha_wink.png" alt="Питоша"></section>
+<h1>Учись писать код на Python — и сразу проверяй</h1>
+<p class="lead">Короткие задания, подсказки рядом и автопроверка: пишешь решение, отправляешь, через минуту получаешь ответ. Бесплатно.</p>
+<div class="btns"><a class="btn" href="#tasks">К заданиям</a><a class="btn ghost" href="start.html">Как это работает</a></div>
+<p class="m" id="total"></p></div>
+<svg class="art" viewBox="0 0 440 290" role="img" aria-label="Окно редактора кода с программой и результатом проверки">
+ <rect width="440" height="290" rx="14" fill="#0a0e13"/><rect width="440" height="38" rx="14" fill="#121923"/><rect y="24" width="440" height="14" fill="#121923"/>
+ <circle cx="22" cy="19" r="5" fill="#3a4657"/><circle cx="40" cy="19" r="5" fill="#3a4657"/><circle cx="58" cy="19" r="5" fill="#3a4657"/>
+ <text x="220" y="23" fill="#98a5b8" font-family="Consolas,monospace" font-size="12" text-anchor="middle">vizitka.py</text>
+ <g font-family="Consolas,'Courier New',monospace" font-size="15">
+ <text x="24" y="72"><tspan fill="#6cb6ff">name</tspan><tspan fill="#d9e2ee"> = </tspan><tspan fill="#c792ea">input</tspan><tspan fill="#d9e2ee">(</tspan><tspan fill="#f2c14e">"Имя: "</tspan><tspan fill="#d9e2ee">)</tspan></text>
+ <text x="24" y="98"><tspan fill="#6cb6ff">city</tspan><tspan fill="#d9e2ee"> = </tspan><tspan fill="#c792ea">input</tspan><tspan fill="#d9e2ee">(</tspan><tspan fill="#f2c14e">"Город: "</tspan><tspan fill="#d9e2ee">)</tspan></text>
+ <text x="24" y="124"><tspan fill="#c792ea">print</tspan><tspan fill="#d9e2ee">(</tspan><tspan fill="#f2c14e">f"Меня зовут {name}, я из {city}"</tspan><tspan fill="#d9e2ee">)</tspan><tspan class="caret" fill="#3ddc97">▌</tspan></text></g>
+ <rect x="16" y="150" width="408" height="1" fill="#2a3646"/>
+ <g font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#98a5b8"><text x="24" y="178">Имя: Анна</text><text x="24" y="200">Город: Москва</text><text x="24" y="222" fill="#d9e2ee">Меня зовут Анна, я из Москва</text></g>
+ <rect x="16" y="238" width="408" height="38" rx="9" fill="rgba(61,220,151,.14)"/>
+ <path d="M32 257l5 5 10-11" stroke="#3ddc97" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+ <text x="58" y="262" fill="#3ddc97" font-family="Segoe UI,Arial,sans-serif" font-size="14" font-weight="600">Решено! Тесты пройдены</text></svg>
+</section>
 
-<h2>Как это работает</h2>
-<div class="steps">
-<div class="step"><i>1</i><br><b>Выбери задание</b><br><span class="m">Прочитай условие, скопируй заготовку.</span></div>
-<div class="step"><i>2</i><br><b>Напиши код</b><br><span class="m">В VS Code, Thonny или прямо в окне на сайте.</span></div>
-<div class="step"><i>3</i><br><b>Отправь</b><br><span class="m">Кнопка «Отправить на проверку» откроет GitHub с готовой заявкой.</span></div>
-<div class="step"><i>4</i><br><b>Получи ответ</b><br><span class="m">Робот проверит код и напишет ✅ или что не так. Исправь и отправь ещё раз.</span></div>
-</div>
+<ol class="flow">
+ <li><i>шаг 1</i><b>Выбери задание</b><span>Условие и пример — на странице.</span></li>
+ <li><i>шаг 2</i><b>Напиши код</b><span>Прямо в окне на сайте или в своём редакторе.</span></li>
+ <li><i>шаг 3</i><b>Отправь</b><span>Одна кнопка, нужен аккаунт GitHub.</span></li>
+ <li><i>шаг 4</i><b>Получи ответ</b><span>Робот отвечает за минуту: решено или что не так.</span></li>
+</ol>
 
 <h2 id="tasks">Задания</h2>
 <div id="list"></div>
@@ -22,7 +35,9 @@
 <script>
 layout("index.html");
 var L={},ls=[];TASKS.forEach(function(t){if(!L[t.lesson]){L[t.lesson]={t:t.lessonTitle,a:[]};ls.push(t.lesson)}L[t.lesson].a.push(t)});
-document.getElementById("stats").innerHTML='<div class="stat"><b>'+TASKS.length+'</b>заданий</div><div class="stat"><b>'+ls.length+'</b>уроков</div><div class="stat"><b>0 ₽</b>всё бесплатно</div>';
+document.getElementById("total").textContent=TASKS.length+" заданий в "+ls.length+" уроках";
 var done={};try{done=JSON.parse(localStorage.getItem("done")||"{}")}catch(e){}
-document.getElementById("list").innerHTML=ls.map(function(n){var l=L[n];return '<div class="lesson">Урок '+n+'. '+esc(l.t)+'</div><div class="grid">'+l.a.map(function(t){return '<a class="card" href="task.html?id='+t.id+'"><span class="tag">'+(t.func?'функция':'программа')+(done[t.id]?' ✓':'')+'</span><div class="id">'+t.id+'</div><div class="ttl">'+esc(t.title)+'</div><div class="m">'+esc(t.text.replace(/[`*]/g,"").slice(0,70))+'…</div></a>'}).join("")+'</div>'}).join("");
+document.getElementById("list").innerHTML=ls.map(function(n){var l=L[n],c=l.a.filter(function(t){return done[t.id]}).length;
+ return '<section class="lesson"><div class="side">'+lessonIcon(n)+'<h3>Урок '+n+'. '+esc(l.t)+'</h3><div class="prog"><i style="width:'+Math.round(c/l.a.length*100)+'%"></i></div><div class="m" style="font-size:14px">отправлено '+c+' из '+l.a.length+'</div><p style="margin-top:10px"><a href="theory.html?l='+n+'">Теория урока →</a></p></div>'+
+ '<div class="rows">'+l.a.map(function(t){return '<a class="row" href="task.html?id='+t.id+'"><span class="id">'+t.id+'</span><span><span class="ttl">'+esc(t.title)+'</span><span class="desc">'+esc(t.text.replace(/[`*]/g,"").slice(0,90))+'…</span></span><span class="chip'+(done[t.id]?' done':'')+'">'+(done[t.id]?'отправлено':(t.func?'функция':'программа'))+'</span></a>'}).join("")+'</div></section>'}).join("");
 </script></body></html>

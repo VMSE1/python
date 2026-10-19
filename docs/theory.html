@@ -1,0 +1,16 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Теория</title><link rel="stylesheet" href="site.css"></head><body>
+<main class="wrap">
+<div class="crumbs">Теория</div><h1>Короткая теория</h1>
+<p class="m">Главное из каждого урока в маленьких плашках. Примеры можно скопировать и запустить у себя.</p>
+<div class="tabs" id="tabs"></div><div class="plates" id="pl"></div>
+</main>
+<script src="site.js"></script><script src="data/tasks.js"></script><script src="data/theory.js"></script>
+<script>
+layout("theory.html","Теория");
+var names={};TASKS.forEach(function(t){names[t.lesson]=t.lessonTitle});
+var ls=Object.keys(names).map(Number).sort(),cur=+(new URLSearchParams(location.search).get("l"))||ls[0];
+function draw(){document.getElementById("tabs").innerHTML=ls.map(function(n){return '<button class="'+(n===cur?'on':'')+'" data-n="'+n+'">Урок '+n+'. '+esc(names[n])+'</button>'}).join("");
+ document.getElementById("pl").innerHTML=THEORY.filter(function(p){return p.l===cur}).map(plate).join("");
+ Array.prototype.forEach.call(document.querySelectorAll("#tabs button"),function(b){b.onclick=function(){cur=+b.dataset.n;draw();history.replaceState(null,"","?l="+cur)}})}
+draw();
+</script></body></html>
