@@ -43,49 +43,133 @@ def same_text(a, b):
     return [ln.rstrip() for ln in a.strip().splitlines()] == [ln.rstrip() for ln in b.strip().splitlines()]
 
 
+# --- Песочница для чужого кода -------------------------------------------------
+# Код ученика запускается отдельным процессом с ограничениями: без сети и запуска программ,
+# запись только во временную папку, лимиты по времени, памяти и размеру вывода.
+# Это защита «для школы», а не абсолютная изоляция: сам запуск идёт на чистой виртуальной машине GitHub.
+GUARD = r"""
+import sys, os, json, runpy, importlib.util, builtins
+mode, src = sys.argv[1], sys.argv[2]
+work = os.path.realpath(os.getcwd())
+allow_read = {os.path.realpath(src)}
+deny_read = ("/proc", "/sys", "/home", "/root", "/run", "/var", "/mnt", "/boot", "/etc/shadow", "/etc/sudoers")
+bad_import = {"ctypes", "_ctypes", "socket", "_socket", "subprocess", "_posixsubprocess", "multiprocessing",
+              "pty", "ftplib", "smtplib", "telnetlib", "poplib", "imaplib", "webbrowser", "urllib.request",
+              "http.client", "http.server", "socketserver", "xmlrpc", "asyncio.subprocess", "_winapi"}
+bad_events = ("subprocess.", "socket.", "ctypes.", "os.system", "os.exec", "os.posix_spawn", "os.spawn",
+              "os.fork", "os.forkpty", "os.kill", "os.killpg", "os.setuid", "os.setgid", "os.chroot",
+              "os.startfile", "winreg.", "webbrowser.", "pty.", "shutil.chown")
+write_events = {"os.remove", "os.rename", "os.rmdir", "os.mkdir", "os.chmod", "os.link", "os.symlink",
+                "os.truncate", "os.utime", "os.replace", "shutil.copyfile", "shutil.copytree", "shutil.move",
+                "shutil.rmtree", "os.mkfifo", "os.mknod", "os.chown"}
+WFLAGS = os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_APPEND | os.O_TRUNC
+def inside(p):
+    try:
+        p = os.path.realpath(os.fsdecode(p))
+    except Exception:
+        return False
+    return p == work or p.startswith(work + os.sep) or p == os.devnull
+def hook(ev, args):
+    if ev == "import":
+        n = args[0]
+        if n in bad_import or n.split(".")[0] in ("ctypes", "_ctypes", "socket", "subprocess", "multiprocessing"):
+            raise ImportError("модуль «%s» запрещён в проверке" % n)
+    elif ev == "open":
+        path, m, fl = args[0], args[1], args[2]
+        if isinstance(path, int):
+            return
+        w = bool(fl & WFLAGS) if isinstance(fl, int) else False
+        if m and any(c in str(m) for c in "wax+"):
+            w = True
+        if w:
+            if not inside(path):
+                raise PermissionError("запись разрешена только во временную папку проверки")
+        else:
+            rp = os.path.realpath(os.fsdecode(path))
+            if rp in allow_read or rp.startswith(work):
+                return
+            if rp.startswith(deny_read):
+                raise PermissionError("чтение этого пути запрещено")
+    elif ev.startswith(bad_events):
+        raise PermissionError("действие «%s» запрещено в проверке" % ev)
+    elif ev in write_events:
+        for a in args[:2]:
+            if isinstance(a, (str, bytes, os.PathLike)) and not inside(a):
+                raise PermissionError("запись разрешена только во временную папку проверки")
+sys.addaudithook(hook)
+if mode == "prog":
+    sys.argv = [src]
+    runpy.run_path(src, run_name="__main__")
+else:
+    builtins.input = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("input() вызван при импорте"))
+    spec = importlib.util.spec_from_file_location("student", src)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    out = []
+    for call in json.loads(sys.argv[3]):
+        try:
+            res = getattr(mod, sys.argv[4])(*call)
+            out.append({"ok": True, "value": res})
+        except Exception as e:
+            out.append({"ok": False, "error": type(e).__name__ + ": " + str(e)})
+    print("@@RESULT@@" + json.dumps(out, ensure_ascii=False, default=repr))
+"""
+
+MAX_OUT = 200_000
+
+
+def _limits():
+    try:
+        import resource
+        resource.setrlimit(resource.RLIMIT_CPU, (TIMEOUT + 2, TIMEOUT + 2))
+        resource.setrlimit(resource.RLIMIT_AS, (1 << 30, 1 << 30))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (2_000_000, 2_000_000))
+        resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    except Exception:
+        pass
+
+
+def sandbox(args, workdir, stdin=""):
+    """Запустить python в песочнице. Возвращает (код, stdout, stderr) или бросает TimeoutExpired."""
+    env = {"PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1", "LANG": "C.UTF-8", "PATH": "/usr/bin:/bin"}
+    if os.name == "nt":
+        env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", "")
+    with tempfile.TemporaryFile() as fo, tempfile.TemporaryFile() as fe:
+        kw = {"preexec_fn": _limits} if os.name == "posix" else {}
+        p = subprocess.run([sys.executable, "-I", "-c", GUARD] + args, input=stdin.encode("utf-8"),
+                           stdout=fo, stderr=fe, timeout=TIMEOUT, cwd=workdir, env=env, **kw)
+        fo.seek(0); fe.seek(0)
+        return p.returncode, fo.read(MAX_OUT).decode("utf-8", "replace"), fe.read(MAX_OUT).decode("utf-8", "replace")
+
+
 def run_program(path, stdin):
     workdir = tempfile.mkdtemp()
     src = os.path.abspath(path)
     try:
-        r = subprocess.run([sys.executable, src], input="\n".join(stdin) + "\n" if stdin else "",
-                           capture_output=True, text=True, timeout=TIMEOUT, cwd=workdir, encoding="utf-8")
+        code, out, errs = sandbox(["prog", src], workdir, "\n".join(stdin) + "\n" if stdin else "")
     except subprocess.TimeoutExpired:
         return None, "Программа не завершилась за %d с. Возможно, бесконечный цикл или лишний input()." % TIMEOUT, workdir
     err = ""
-    if r.returncode != 0:
-        lines = [ln for ln in r.stderr.strip().splitlines() if ln.strip()]
-        err = lines[-1] if lines else "ошибка выполнения"
-    return r.stdout, err, workdir
-
-
-HARNESS = r"""
-import importlib.util, json, sys, builtins
-builtins.input = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("input() вызван при импорте"))
-spec = importlib.util.spec_from_file_location("student", sys.argv[1])
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
-out = []
-for call in json.loads(sys.argv[2]):
-    try:
-        res = getattr(mod, sys.argv[3])(*call)
-        out.append({"ok": True, "value": res})
-    except Exception as e:
-        out.append({"ok": False, "error": type(e).__name__ + ": " + str(e)})
-print("@@RESULT@@" + json.dumps(out, ensure_ascii=False, default=repr))
-"""
+    if code != 0:
+        if code < 0:
+            err = "программа остановлена: превышен лимит времени, памяти или размера вывода"
+        else:
+            lines = [ln for ln in errs.strip().splitlines() if ln.strip()]
+            err = lines[-1] if lines else "ошибка выполнения"
+    return out, err, workdir
 
 
 def run_function(path, func, calls):
     workdir = tempfile.mkdtemp()
     try:
-        r = subprocess.run([sys.executable, "-c", HARNESS, os.path.abspath(path), json.dumps(calls), func],
-                           capture_output=True, text=True, timeout=TIMEOUT, cwd=workdir, encoding="utf-8")
+        code, out, errs = sandbox(["func", os.path.abspath(path), json.dumps(calls), func], workdir)
     except subprocess.TimeoutExpired:
         return None, "Функция не завершилась за %d с." % TIMEOUT
-    if "@@RESULT@@" not in r.stdout:
-        lines = [ln for ln in r.stderr.strip().splitlines() if ln.strip()]
+    if "@@RESULT@@" not in out:
+        lines = [ln for ln in errs.strip().splitlines() if ln.strip()]
         return None, (lines[-1] if lines else "не удалось загрузить файл")
-    return json.loads(r.stdout.split("@@RESULT@@")[1]), ""
+    return json.loads(out.split("@@RESULT@@")[1]), ""
 
 
 def same(a, b):

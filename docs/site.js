@@ -31,7 +31,16 @@ function lessonIcon(n) { return pix(LESSON_ICONS[(n - 1) % 5]); }
 var ARROW_SVG = '<svg viewBox="0 0 8 8" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true"><path d="M0 3h5V1h1v1h1v1h1v2H7v1H6v1H5V5H0z"/></svg>';
 
 function applyTheme() {}
-function getToken() { try { return sessionStorage.getItem("tk") || localStorage.getItem("tk") || ""; } catch (e) { return ""; } }
+function getToken() {
+  try {
+    var s = sessionStorage.getItem("tk"); if (s) return s;
+    var at = +localStorage.getItem("tkAt") || 0;
+    if (localStorage.getItem("tk") && Date.now() - at > 7 * 864e5) { localStorage.removeItem("tk"); localStorage.removeItem("tkAt"); localStorage.removeItem("teacher"); return ""; }
+    return localStorage.getItem("tk") || "";
+  } catch (e) { return ""; }
+}
+/* защита от показа сайта во фрейме на чужой странице (clickjacking) */
+try { if (window.top !== window.self) { document.documentElement.style.display = "none"; window.top.location = window.self.location; } } catch (e) { document.documentElement.style.display = "none"; }
 function isTeacher() { try { return !!localStorage.getItem("teacher"); } catch (e) { return false; } }
 var PAGES = {
   "tasks.html": ["Задания", "pc"], "theory.html": ["Теория", "folder"], "quiz.html": ["Квизы", "book"],

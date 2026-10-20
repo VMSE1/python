@@ -1,4 +1,4 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Кабинет учителя</title><link rel="stylesheet" href="site.css"></head><body>
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Кабинет учителя</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"></head><body>
 <main class="wrap"><div id="app"></div></main>
 <script src="site.js"></script><script src="data/tasks.js"></script><script src="questions.js"></script>
 <script>
@@ -7,7 +7,7 @@ var OWNER=CFG.repo.split("/")[0],app=document.getElementById("app"),DATA=null;
 function jget(k,d){try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}}
 function ST(){try{return {tk:getToken(),login:localStorage.getItem("teacher")||""}}catch(e){return {tk:"",login:""}}}
 function api(path,tk){return fetch("https://api.github.com"+path,{headers:{Accept:"application/vnd.github+json",Authorization:"Bearer "+tk}})}
-function logout(){try{sessionStorage.removeItem("tk");localStorage.removeItem("tk");localStorage.removeItem("teacher")}catch(e){}location.href="index.html"}
+function logout(){try{sessionStorage.removeItem("tk");localStorage.removeItem("tk");localStorage.removeItem("tkAt");localStorage.removeItem("teacher")}catch(e){}location.href="index.html"}
 
 function gate(msg){
  app.innerHTML='<div class="gate"><div class="crumbs">Только для учителя</div><h1>Вход в кабинет</h1>'+
@@ -23,7 +23,7 @@ function gate(msg){
   b.disabled=true;document.getElementById("gm").className="m";document.getElementById("gm").textContent="Проверяю…";
   api("/user",tk).then(function(r){if(!r.ok)throw new Error(r.status===401?"Токен не подошёл":"Ошибка GitHub "+r.status);return r.json()}).then(function(u){
    if(String(u.login).toLowerCase()!==OWNER.toLowerCase()){throw new Error("Этот аккаунт ("+u.login+") не владелец репозитория")}
-   try{(document.getElementById("rem").checked?localStorage:sessionStorage).setItem("tk",tk);localStorage.setItem("teacher",u.login)}catch(e){}
+   try{var rem=document.getElementById("rem").checked;(rem?localStorage:sessionStorage).setItem("tk",tk);if(rem)localStorage.setItem("tkAt",String(Date.now()));localStorage.setItem("teacher",u.login)}catch(e){}
    location.reload();
   }).catch(function(e){b.disabled=false;var g=document.getElementById("gm");g.className="bad";g.textContent=e.message||"Нет связи с GitHub"});
  };
@@ -40,6 +40,17 @@ function build(issues){
   sub.push({nick:nick,task:tm[1],st:st,url:x.html_url,date:x.updated_at,num:x.number})});
  return {by:by,sub:sub.sort(function(a,b){return b.date<a.date?-1:1})};
 }
+function cell(v){v=String(v==null?"":v);if(/^[=+\-@\t\r]/.test(v))v="'"+v;return /[;"\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function csv(rows){return rows.map(function(r){return r.map(cell).join(";")}).join("\r\n")}
+function qbest(){var q=jget("quizrows",[]),m={};q.forEach(function(r){var k=String(r.n).trim().toLowerCase(),p=Math.round(r.s/r.t*100);if(!m[k]||p>m[k])m[k]=p});return m}
+function sheet(){
+ var names=jget("names",{}),qb=qbest(),ns=Object.keys(DATA.by).sort(),head=["Ученик","Ник"].concat(TASKS.map(function(t){return t.id})).concat(["Решено","Всего заданий","Ошибочных попыток","Последняя активность","Тест, % (лучший)"]);
+ var rows=[head];
+ ns.forEach(function(k){var u=DATA.by[k],c=0,f=0;Object.keys(u.fails).forEach(function(i){f+=u.fails[i]});
+  var cells=TASKS.map(function(t){var v=u.t[t.id];if(v==="ok")c++;return v==="ok"?"решено":(v==="bad"?"ошибки":(v==="wait"?"ждёт":""))});
+  var q=qb[k];if(q==null&&names[k])q=qb[String(names[k]).toLowerCase()];
+  rows.push([names[k]||"",u.nick].concat(cells).concat([c,TASKS.length,f,u.last?u.last.slice(0,16).replace("T"," "):"",q==null?"":q]))});
+ return rows}
 function nm(nick){var n=jget("names",{})[nick.toLowerCase()];return n?esc(n)+' <span class="m">('+esc(nick)+')</span>':esc(nick)}
 function dl(name,text,type){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+text],{type:type||"text/csv"}));a.download=name;a.click()}
 function cabinet(st){
@@ -60,9 +71,9 @@ function tSum(el){
  if(!ns.length){el.innerHTML=h+'<div class="box">Пока нет сдач.</div>';return}
  h+='<div class="box" style="overflow:auto"><table class="matrix"><tr><th>Ученик</th>'+TASKS.map(function(t){return '<th title="'+esc(t.title)+'">'+t.id+'</th>'}).join("")+'<th>Итого</th></tr>';
  ns.forEach(function(k){var u=DATA.by[k],c=0;h+='<tr><td>'+nm(u.nick)+'</td>'+TASKS.map(function(t){var v=u.t[t.id];if(v==="ok")c++;return '<td>'+(v==="ok"?'<span class="ok">●</span>':v==="bad"?'<span class="bad">●</span>':v==="wait"?'<span class="m">○</span>':'')+'</td>'}).join("")+'<td><b>'+c+'</b>/'+TASKS.length+'</td></tr>'});
- h+='</table></div><p class="m" style="font-size:14px"><span class="ok">●</span> решено &nbsp; <span class="bad">●</span> ошибки &nbsp; <span>○</span> ждёт проверки</p><button class="btn ghost" id="csv">Скачать CSV</button>';
+ h+='</table></div><p class="m" style="font-size:14px"><span class="ok">●</span> решено &nbsp; <span class="bad">●</span> ошибки &nbsp; <span>○</span> ждёт проверки</p><div class="btns"><button class="btn go" id="csv">Скачать ведомость (Excel)</button><button class="btn ghost" id="prn">Печать</button></div><p class="m" style="font-size:14px">Файл собирается у тебя в браузере и никуда не отправляется. Колонка «Ученик» берётся из вкладки «Ученики».</p>';
  el.innerHTML=h;
- document.getElementById("csv").onclick=function(){var names=jget("names",{});dl("journal.csv","ученик;ник;"+TASKS.map(function(t){return t.id}).join(";")+";решено\n"+ns.map(function(k){var u=DATA.by[k],c=0;return [(names[k]||""),u.nick].concat(TASKS.map(function(t){var v=u.t[t.id];if(v==="ok")c++;return v==="ok"?1:(v==="bad"?0:"")})).concat([c]).join(";")}).join("\n"))};
+ document.getElementById("csv").onclick=function(){dl("ведомость_"+new Date().toISOString().slice(0,10)+".csv",csv(sheet()))};document.getElementById("prn").onclick=function(){window.print()};
 }
 function tSub(el){
  var em={ok:["решено","chip done"],bad:["ошибки","chip"],wait:["ждёт","chip"]};
@@ -83,12 +94,12 @@ function tQuiz(el){
  function dec(s){return JSON.parse(decodeURIComponent(escape(atob(s.trim()))))}
  document.getElementById("qg").onclick=function(){rows=[];var bad=0,stat={};
   document.getElementById("qi").value.split(/\n+/).forEach(function(l){if(!l.trim())return;try{var o=dec(l),s=0;o.a.forEach(function(a){var q=QUESTIONS[a[0]];if(!q)return;stat[a[0]]=stat[a[0]]||[0,0];stat[a[0]][1]++;if(q.a==a[1]){s++;stat[a[0]][0]++}});rows.push({n:o.n,l:o.l,d:o.d,s:s,t:o.a.length})}catch(e){bad++}});
-  rows.sort(function(a,b){return b.s/b.t-a.s/a.t});
+  rows.sort(function(a,b){return b.s/b.t-a.s/a.t});try{localStorage.setItem("quizrows",JSON.stringify(rows.map(function(r){return {n:String(r.n).slice(0,60),s:r.s,t:r.t,l:r.l,d:r.d}})))}catch(e){}
   var h='<div class="box"><table><tr><th>#</th><th>Ученик</th><th>Тест</th><th>Баллы</th><th>%</th></tr>'+rows.map(function(r,i){return '<tr><td>'+(i+1)+'</td><td>'+nm(r.n)+'</td><td>'+(r.l?'урок '+r.l:'весь курс')+'</td><td>'+r.s+' / '+r.t+'</td><td>'+Math.round(r.s/r.t*100)+'</td></tr>'}).join("")+'</table>'+(bad?'<p class="bad">Не прочитано кодов: '+bad+'</p>':'')+'</div>';
   var ids=Object.keys(stat).sort(function(a,b){return stat[a][0]/stat[a][1]-stat[b][0]/stat[b][1]});
   h+='<div class="box"><b>Самые трудные вопросы</b><table>'+ids.slice(0,6).map(function(i){return '<tr><td>'+stat[i][0]+' / '+stat[i][1]+'</td><td>урок '+QUESTIONS[i].l+': '+esc(QUESTIONS[i].q)+(QUESTIONS[i].code?'<pre>'+esc(QUESTIONS[i].code)+'</pre>':'')+'</td></tr>'}).join("")+'</table></div>';
   document.getElementById("qo").innerHTML=h};
- document.getElementById("qc").onclick=function(){dl("quiz.csv","имя;тест;баллы;всего;процент\n"+rows.map(function(r){return [r.n,r.l||"все",r.s,r.t,Math.round(r.s/r.t*100)].join(";")}).join("\n"))};
+ document.getElementById("qc").onclick=function(){dl("quiz.csv",csv([["имя","тест","баллы","всего","процент"]].concat(rows.map(function(r){return [r.n,r.l||"все",r.s,r.t,Math.round(r.s/r.t*100)]}))))};
 }
 function tLnk(el){
  var L=[["/issues?q=label%3A%D1%81%D0%B4%D0%B0%D1%87%D0%B0","Все заявки","Issues с меткой «сдача»"],["/actions","Проверки","Вкладка Actions: запуски робота"],["/settings/pages","Настройки сайта","Settings → Pages"],["/blob/main/docs/data/theory.js","Плашки теории","открыть файл, карандаш — править"],["/tree/main/lessons","Задания","папка lessons"],["/blob/main/CONTRIBUTING.md","Как добавить задание","инструкция"],["/blob/main/%D0%98%D0%9D%D0%A1%D0%A2%D0%A0%D0%A3%D0%9A%D0%A6%D0%98%D0%AF_%D0%A3%D0%A7%D0%98%D0%A2%D0%95%D0%9B%D0%AE.md","Инструкция учителю","что где лежит"],["/issues/new?template=project.yml","Новый проект","форма «Показать проект»"]];
@@ -96,6 +107,6 @@ function tLnk(el){
 }
 var st=ST();
 if(st.tk&&st.login&&st.login.toLowerCase()===OWNER.toLowerCase()){
- api("/user",st.tk).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(u){if(String(u.login).toLowerCase()!==OWNER.toLowerCase())throw 0;cabinet(st)}).catch(function(){try{sessionStorage.removeItem("tk");localStorage.removeItem("tk");localStorage.removeItem("teacher")}catch(e){}gate("Сессия закончилась. Войди снова.")});
+ api("/user",st.tk).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(u){if(String(u.login).toLowerCase()!==OWNER.toLowerCase())throw 0;cabinet(st)}).catch(function(){try{sessionStorage.removeItem("tk");localStorage.removeItem("tk");localStorage.removeItem("tkAt");localStorage.removeItem("teacher")}catch(e){}gate("Сессия закончилась. Войди снова.")});
 }else gate();
 </script></body></html>

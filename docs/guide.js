@@ -15,12 +15,12 @@
       mock: '<div class="mock">' + chrome("github.com/…/issues/1") + '<div class="bd"><h4>[Сдача] 2.3 snake_42</h4><div class="mk-bot"><span class="mk-av">bot</span><div><b style="color:#2f4bdb">Решено!</b><br><span class="mk-mute">[ OK ] 2.3 Аттракцион</span></div></div><div class="mk-mute">Есть ошибки? <span class="tg" data-o="1" style="border:2px solid #1c2340;border-radius:8px;padding:2px 10px;color:#1c2340;font-weight:600">Edit</span> → исправь → робот проверит снова</div></div></div>' }
   ];
   var CUR = '<svg class="gd-cursor" viewBox="0 0 24 24"><path d="M4 2l16 9-7 2-3 7z" fill="#000" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
-  var timers = [], idx = 0, auto = true, back, stage;
+  var timers = [], idx = 0, auto = true, back, stage, lastPos = null;
   function clear() { timers.forEach(clearTimeout); timers = []; }
   function later(f, ms) { timers.push(setTimeout(f, ms)); }
   function close() {
     clear(); try { localStorage.setItem("seenStart", "1"); } catch (e) {}
-    if (back) { back.remove(); back = null; } document.removeEventListener("keydown", onKey);
+    if (back) { back.remove(); back = null; lastPos = null; } document.removeEventListener("keydown", onKey);
   }
   function onKey(e) { if (e.key === "Escape") close(); else if (e.key === "ArrowRight") go(idx + 1); else if (e.key === "ArrowLeft") go(idx - 1); }
   function go(n) {
@@ -41,10 +41,10 @@
     var tg = Array.prototype.slice.call(stage.querySelectorAll(".tg")).sort(function (a, b) { return a.dataset.o - b.dataset.o; });
     var t = 700, prog = back.querySelector(".gd-prog i");
     function pos(el) { var r = el.getBoundingClientRect(); return { x: r.left - sr.left + r.width * .6, y: r.top - sr.top + r.height * .55 }; }
-    var from = { x: sr.width * .85, y: sr.height * .9 };
-    cur.style.transform = "translate(" + from.x + "px," + from.y + "px)";
+    var from = lastPos || { x: sr.width * .5, y: sr.height * .95 };
+    cur.style.transition = "none"; cur.style.transform = "translate(" + from.x + "px," + from.y + "px)"; void cur.offsetWidth;
     tg.forEach(function (el, i) {
-      later(function () { var p = pos(el); cur.style.transition = "transform .9s cubic-bezier(.3,.8,.3,1)"; cur.style.transform = "translate(" + p.x + "px," + p.y + "px)"; el.classList.add("on"); }, t);
+      later(function () { var p = pos(el); cur.style.transition = "transform .9s cubic-bezier(.3,.8,.3,1)"; cur.style.transform = "translate(" + p.x + "px," + p.y + "px)"; lastPos = p; el.classList.add("on"); }, t);
       later(function () { cur.classList.remove("click"); void cur.offsetWidth; cur.classList.add("click"); mock.dataset.step = String(i + 1); el.classList.remove("on"); }, t + 1100);
       t += 1700;
     });

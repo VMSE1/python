@@ -2,15 +2,18 @@ name: Проверка сдачи
 on:
   issues:
     types: [opened, edited]
-permissions:
-  contents: read
-  issues: write
+permissions: {}
+concurrency:
+  group: grade-${{ github.event.issue.number }}
+  cancel-in-progress: true
 jobs:
   label-project:
     if: startsWith(github.event.issue.title, '[Проект]')
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
             await github.rest.issues.addLabels({owner: context.repo.owner, repo: context.repo.repo,
@@ -18,17 +21,20 @@ jobs:
   grade:
     if: startsWith(github.event.issue.title, '[Сдача]')
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
       - name: Достать задание и код из Issue
         id: parse
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
             const fs = require('fs');
@@ -40,7 +46,7 @@ jobs:
             }
             const taskM = (parts['Задание'] || '').match(/^(\d+\.\d+)/);
             let code = parts['Код решения'] || '';
-            code = code.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '');
+            code = code.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '').slice(0, 20000);
             fs.mkdirSync('/tmp/sub', {recursive: true});
             fs.writeFileSync('/tmp/sub/code.py', code + '\n');
             core.setOutput('task', taskM ? taskM[1] : '');
@@ -51,11 +57,12 @@ jobs:
           TASK: ${{ steps.parse.outputs.task }}
         run: |
           set +e
+          export PYTHONDONTWRITEBYTECODE=1
           python check.py "$TASK" --file /tmp/sub/code.py > /tmp/sub/out.txt 2>&1
           echo "$?" > /tmp/sub/exit.txt
           exit 0
       - name: Ответить в Issue
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
             const fs = require('fs');
@@ -66,7 +73,8 @@ jobs:
               text = '⚠️ Не удалось найти задание или код в Issue. Проверь, что выбрано задание и вставлен код, и нажми Edit.';
               status = 'ошибки';
             } else {
-              const out = fs.readFileSync('/tmp/sub/out.txt', 'utf8').slice(0, 3000);
+              const out = fs.readFileSync('/tmp/sub/out.txt', 'utf8').slice(0, 3000)
+                .replace(/`{3,}/g, "'''").replace(/@/g, '@\u200b').replace(/<!--/g, '< !--');
               const code = fs.readFileSync('/tmp/sub/exit.txt', 'utf8').trim();
               status = code === '0' && out.includes('[ OK ]') ? 'решено' : 'ошибки';
               text = (status === 'решено' ? '✅ **Решено!** Отличная работа.\n' : '❌ **Есть ошибки.** Исправь код, нажми Edit у Issue — я проверю снова.\n')

@@ -17,6 +17,7 @@ var BrowserCheck = (function () {
   }
   return {
     warm: function () { if (!worker) start(); },
+    isReady: function () { return isReady; },
     ready: function (cb) { if (!worker) start(); if (isReady) cb(); else readyCbs.push(cb); },
     run: function (task, code) {
       if (task.starter != null && sameText(code, task.starter)) return Promise.resolve({ ok: false, todo: true, messages: [], sample: "" });
@@ -24,7 +25,7 @@ var BrowserCheck = (function () {
         BrowserCheck.ready(function () {
           var id = ++seq, spec = JSON.stringify({ cases: task.cases || [], funcs: task.funcs || [] });
           pending[id] = { res: resolve, t: setTimeout(function () {
-            delete pending[id]; worker.terminate(); worker = null; BrowserCheck.warm();
+            delete pending[id]; worker.terminate(); worker = null; isReady = false;
             resolve({ ok: false, messages: ["Программа не завершилась за 8 секунд. Возможно, бесконечный цикл или лишний input()."], sample: "" });
           }, 8000) };
           worker.postMessage({ id: id, spec: spec, code: code });
