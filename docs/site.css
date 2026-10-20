@@ -252,3 +252,19 @@ html{scroll-behavior:auto}
 .bubble{animation:none}
 @media(prefers-reduced-motion:no-preference){.bubble{animation:bob 1.2s steps(2) infinite}}
 @media print{.taskbar,.smenu,.tbar .wb,.cab-tabs,.btns,.howto{display:none!important}body{background:#fff;padding:0}main.wrap{width:100%;margin:0;box-shadow:none;background:#fff;padding:0}main.wrap>.in{box-shadow:none;min-height:0;padding:0}.tbar{color:#000}}
+/* подсказки робота, «что дальше», игры */
+.hintbox{background:var(--yellow-soft);border-top:3px solid #000;padding:12px 18px 6px}
+.hintbox h4{margin:0 0 8px;font:400 10px var(--px);color:var(--title)}
+.hint{margin:0 0 10px}.hint b{display:block;color:var(--ink)}.hint p{margin:2px 0 0;font-size:15px}
+.nextbox{margin:18px 0 0;background:#fff;border:3px solid #000;box-shadow:var(--hard)}
+.nextbox h3{margin:0;background:var(--ok);color:#fff;padding:8px 16px;font-size:20px}
+.nx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0}
+.nx-c{padding:14px 16px;display:grid;gap:8px;align-content:start;border-right:3px dashed #9d9cb8;min-width:0}
+.nx-c:last-child{border-right:0}
+.nx-c .btn{justify-self:start;max-width:100%}
+.nx-n{font-size:16px;line-height:1.4}
+.nx-bar,.nx-wk{display:flex;gap:5px}
+.nx-bar i,.nx-wk i{width:22px;height:22px;border:3px solid #55547a;background:#fff;display:block}
+.nx-bar i.on{background:var(--title);border-color:#000}
+.nx-wk i.on{background:var(--yellow);border-color:#000}.nx-wk i.today{outline:3px dashed var(--red);outline-offset:2px}
+@media(max-width:560px){.nx-c{border-right:0;border-bottom:3px dashed #9d9cb8}.nx-c:last-child{border-bottom:0}}
