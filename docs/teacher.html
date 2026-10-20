@@ -33,7 +33,7 @@ function statusOf(x){var l=x.labels.map(function(a){return a.name});return l.ind
 function build(issues){
  var by={},sub=[];
  issues.forEach(function(x){var s=sections(x.body),nick=(s["Ник"]||"?").trim(),tm=(s["Задание"]||"").match(/^(\d+\.\d+)/);if(!tm)return;
-  var st=statusOf(x),k=nick.toLowerCase();by[k]=by[k]||{nick:nick,t:{},fails:{},last:""};
+  var st=statusOf(x),k=nick.toLowerCase();by[k]=by[k]||{nick:nick,t:{},fails:{},last:"",login:"",group:""};if(x.user&&x.user.login)by[k].login=x.user.login;var gr=(s["Группа"]||"").trim();if(gr&&gr!=="_No response_")by[k].group=gr.slice(0,12);
   if(st==="bad")by[k].fails[tm[1]]=(by[k].fails[tm[1]]||0)+1;
   var c=by[k].t[tm[1]];if(!c||st==="ok"||(c!=="ok"&&st!=="wait"))by[k].t[tm[1]]=st;
   if(x.updated_at>by[k].last)by[k].last=x.updated_at;
@@ -81,10 +81,11 @@ function tSub(el){
 }
 function tStu(el){
  var names=jget("names",{}),ks=Object.keys(DATA.by);Object.keys(names).forEach(function(k){if(ks.indexOf(k)<0)ks.push(k)});ks.sort();
- el.innerHTML='<p class="m">Здесь ты сопоставляешь ники с реальными именами. Это хранится <b style="color:var(--text)">только в этом браузере</b>, на GitHub и на сайт ничего не уходит. Сделай выгрузку, чтобы не потерять.</p>'+
- '<div class="box"><table><tr><th>Ник</th><th>Фамилия Имя, класс</th></tr>'+ks.map(function(k){return '<tr><td>'+esc(DATA.by[k]?DATA.by[k].nick:k)+'</td><td><input type="text" data-k="'+esc(k)+'" value="'+esc(names[k]||"")+'" style="max-width:100%" aria-label="Имя для '+esc(k)+'"></td></tr>'}).join("")+'</table>'+
- '<div class="btns"><button class="btn" id="sv">Сохранить</button><button class="btn ghost" id="ex">Выгрузить файл</button><label class="btn ghost" style="cursor:pointer">Загрузить файл<input type="file" id="im" accept=".json" hidden></label></div><span id="sm" class="ok"></span></div>';
+ el.innerHTML='<p class="m">Здесь ты сопоставляешь ники с реальными именами. Это хранится <b style="color:var(--text)">только в этом браузере</b>, на GitHub и на сайт ничего не уходит. Сделай выгрузку, чтобы не потерять. Кнопка «students.csv для робота» готовит файл для приватного репозитория с ведомостью (BotBD): положи его туда вместо `students.csv`.</p>'+
+ '<div class="box"><table><tr><th>Ник</th><th>GitHub</th><th>Группа</th><th>Фамилия Имя</th></tr>'+ks.map(function(k){var d=DATA.by[k]||{};return '<tr><td>'+esc(d.nick||k)+'</td><td class="m">'+esc(d.login||"")+'</td><td class="m">'+esc(d.group||"")+'</td><td><input type="text" data-k="'+esc(k)+'" value="'+esc(names[k]||"")+'" style="max-width:100%" aria-label="Имя для '+esc(k)+'"></td></tr>'}).join("")+'</table>'+
+ '<div class="btns"><button class="btn" id="sv">Сохранить</button><button class="btn ghost" id="ex">Выгрузить файл</button><button class="btn go" id="stc">Выгрузить students.csv для робота</button><label class="btn ghost" style="cursor:pointer">Загрузить файл<input type="file" id="im" accept=".json" hidden></label></div><span id="sm" class="ok"></span></div>';
  document.getElementById("sv").onclick=function(){var o={};Array.prototype.forEach.call(el.querySelectorAll("input[data-k]"),function(i){if(i.value.trim())o[i.dataset.k]=i.value.trim()});try{localStorage.setItem("names",JSON.stringify(o))}catch(e){}document.getElementById("sm").textContent="Сохранено"};
+ document.getElementById("stc").onclick=function(){var nm2=jget("names",{}),rows=[["github","фио","группа","примечание"]];Object.keys(DATA.by).sort().forEach(function(k){var d=DATA.by[k];if(d.login)rows.push([d.login,nm2[k]||"",d.group||"",""])});dl("students.csv",csv(rows))};
  document.getElementById("ex").onclick=function(){dl("ученики.json",JSON.stringify(jget("names",{}),null,1),"application/json")};
  document.getElementById("im").onchange=function(){var f=this.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var o=JSON.parse(String(r.result).replace(/^﻿/,""));localStorage.setItem("names",JSON.stringify(o));tStu(el)}catch(e){alert("Не получилось прочитать файл")}};r.readAsText(f)};
 }

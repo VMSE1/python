@@ -39,7 +39,7 @@ def issue(n, nick, task, status, body_extra="", title=None, updated="2026-10-20T
     labels = [{"name": "сдача"}] + ([{"name": status}] if status else [])
     return {"number": n, "title": title or "[Сдача] %s %s" % (task, nick), "html_url": "https://github.com/VMSE1/python/issues/%d" % n,
             "labels": labels, "updated_at": updated, "reactions": {"+1": 1}, "comments": 0,
-            "body": "### Ник\n\n%s\n\n### Задание\n\n%s — x\n\n### Код решения\n\n```python\nprint(1)\n```%s" % (nick, task, body_extra)}
+            "user": {"login": "gh_" + re.sub(r"\W", "", str(nick))[:12]}, "body": "### Ник\n\n%s\n\n### Группа\n\n9А\n\n### Задание\n\n%s — x\n\n### Код решения\n\n```python\nprint(1)\n```%s" % (nick, task, body_extra)}
 
 
 def mock_github(ctx, issues_by_label, owner="VMSE1", log=None):
@@ -146,10 +146,11 @@ def functional(b, base):
     check("задание: бесконечный цикл обрывается за ~8 с", "8 секунд" in pg.inner_text("#res") and time.time() - t0 < 14, "%.1fs" % (time.time() - t0))
     cls, txt = run_code('name=input("Имя: ")\ncity=input("Город: ")\nprint(f"Меня зовут {name}, я из {city}")', 90000); check("задание: после обрыва проверка снова работает", "pass" in cls, txt[:80])
     pg.fill("#nick", ""); pg.click("#go"); check("отправка: без ника просит ник", "ник" in pg.inner_text("#msg"))
+    pg.fill("#nick", "snake_42"); pg.fill("#group", ""); pg.click("#go"); check("отправка: без группы просит группу", "групп" in pg.inner_text("#msg"))
     with ctx.expect_page() as np:
-        pg.fill("#nick", "snake_42"); pg.click("#go")
+        pg.fill("#nick", "snake_42"); pg.fill("#group", "9А"); pg.click("#go")
     pop = np.value.url; from urllib.parse import unquote
-    pop = unquote(pop); check("отправка: открывается заполненная форма Issue", "issues/new" in pop and "snake_42" in pop and "template=submit.yml" in pop, pop[:90])
+    pop = unquote(unquote(pop)); check("отправка: открывается заполненная форма Issue", "issues/new" in pop and "snake_42" in pop and "template=submit.yml" in pop and "group=9А" in pop, pop[:90])
     # длинный код
     big_fill(pg, "x=1\n" * 5000)
     with ctx.expect_page() as np2: pg.click("#go")
@@ -179,6 +180,11 @@ def teacher(b, base):
     pg.fill("#tk", "ghp_other"); pg.click("#in"); pg.wait_for_selector("#gm:has-text('владелец')"); check("кабинет: чужой аккаунт отклонён", True)
     pg.fill("#tk", "ghp_good"); pg.click("#in"); pg.wait_for_selector(".kpi", timeout=10000)
     check("кабинет: владелец входит, видна сводка", pg.locator(".kpi").count() == 4)
+    pg.click("#tb button >> nth=2"); pg.wait_for_selector("#stc")
+    with pg.expect_download() as d2: pg.click("#stc")
+    stc = open(d2.value.path(), encoding="utf-8-sig", newline="").read().split("\r\n")
+    check("кабинет: students.csv для робота (github;фио;группа)", stc[0] == "github;фио;группа;примечание" and any(l.startswith("gh_anna;;9А") for l in stc), stc[:3])
+    pg.click("#tb button >> nth=0")
     check("кабинет: пункт появился в «Пуске»", "Кабинет" in pg.evaluate("document.querySelector('#smenu').textContent"))
     check("кабинет: токен в sessionStorage, не в localStorage", pg.evaluate("!!sessionStorage.tk && !localStorage.tk"))
     pg.click("#tb button >> nth=3"); pg.fill("#qi", base64.b64encode(json.dumps({"n": "anna", "l": 0, "d": "x", "a": [[0, 0], [1, 1]]}).encode()).decode()); pg.click("#qg"); pg.wait_for_timeout(200)

@@ -42,12 +42,19 @@ body:
     attributes:
       value: |
         Робот запустит твой код на тестах и напишет результат в комментарии. Если есть ошибки — исправь код, нажми «Edit» у этого Issue, и проверка запустится снова.
-        **Не пиши настоящую фамилию: Issue виден всем.** Придумай ник и скажи его учителю.
+        **Не пиши фамилию и имя: Issue виден всем.** Придумай ник и скажи его учителю. Твой GitHub-аккаунт и группа попадут в приватную ведомость учителя.
   - type: input
     id: nick
     attributes:
       label: Ник
       description: Твой псевдоним (например, snake_42)
+    validations:
+      required: true
+  - type: input
+    id: group
+    attributes:
+      label: Группа
+      description: Номер группы, например 9А. Нет группы? Напиши «нет»
     validations:
       required: true
   - type: dropdown
