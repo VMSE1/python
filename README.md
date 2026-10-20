@@ -37,6 +37,9 @@ python check.py 2.4
 | 1.2 | Площадь прямоугольника | [открыть](lessons/lesson1/task_2_ploshchad) |
 | 1.3 | Километры в метры | [открыть](lessons/lesson1/task_3_konverter) |
 | 1.4 | Минуты в часы | [открыть](lessons/lesson1/task_4_vremya) |
+| 1.5 | Длина имени | [открыть](lessons/lesson1/task_5_dlina) |
+| 1.6 | Среднее трёх оценок | [открыть](lessons/lesson1/task_6_srednee) |
+| 1.7 | Чек из магазина | [открыть](lessons/lesson1/task_7_chek) |
 | | **Урок 2. Условия** | |
 | 2.1 | Светофор | [открыть](lessons/lesson2/task_1_svetofor) |
 | 2.2 | Оценка по баллам | [открыть](lessons/lesson2/task_2_otsenka) |

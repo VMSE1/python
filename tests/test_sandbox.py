@@ -82,7 +82,7 @@ class Legit(unittest.TestCase):
         self.assertEqual((out.strip(), err), ("4.0", ""))
 
     def test_tasks_found(self):
-        self.assertGreaterEqual(len(check.load_tasks()), 22)
+        self.assertGreaterEqual(len(check.load_tasks()), 25)
 
 
 if __name__ == "__main__":

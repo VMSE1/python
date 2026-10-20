@@ -48,6 +48,15 @@ window.THEORY=[
   "k": ""
  },
  {
+  "id": "l1-len",
+  "l": 1,
+  "t": "len() — длина строки",
+  "x": "Считает символы в строке (буквы, пробелы, знаки). Результат это число, его можно вставить в f-строку.",
+  "c": "word = \"Привет\"\nprint(len(word))\nprint(f\"Букв: {len(word)}\")",
+  "stdin": null,
+  "k": ""
+ },
+ {
   "id": "l1-math",
   "l": 1,
   "t": "Арифметика",
@@ -288,6 +297,21 @@ window.THEORY_MAP={
  ],
  "1.4": [
   "l1-math",
+  "l1-fstring"
+ ],
+ "1.5": [
+  "l1-len",
+  "l1-input",
+  "l1-fstring"
+ ],
+ "1.6": [
+  "l1-math",
+  "l1-types",
+  "l1-input"
+ ],
+ "1.7": [
+  "l1-input",
+  "l1-types",
   "l1-fstring"
  ],
  "2.1": [

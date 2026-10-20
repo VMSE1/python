@@ -112,7 +112,7 @@ def functional(b, base):
     pg.goto(base + "index.html"); pg.wait_for_timeout(300)
     check("desktop: 8 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 8 and "id=1.1" in pg.get_attribute("#cont", "href"))
     pg.click("a.ico >> nth=0"); pg.wait_for_url("**/tasks.html"); check("иконка «Задания» открывает карту", "tasks.html" in pg.url)
-    check("карта: 22 квадрата, один «следующий»", pg.locator(".node").count() == 22 and pg.locator(".node.next").count() == 1)
+    check("карта: 25 квадратов, один «следующий»", pg.locator(".node").count() == 25 and pg.locator(".node.next").count() == 1)
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
     pg.click("#startBtn"); check("«Пуск» открывает меню (11 пунктов)", pg.locator("#smenu.on a").count() == 11, pg.locator("#smenu.on a").count())
