@@ -9,7 +9,8 @@ RES = []
 
 
 def big_fill(pg, text):
-    pg.evaluate("t=>{const a=document.getElementById('code');a.value=t;a.dispatchEvent(new Event('input',{bubbles:true}))}", text)
+    """Кладёт код в поле в обход защиты: работает только в тестовом стенде (см. new_ctx), на сайте этого хода нет."""
+    pg.evaluate("t=>Honest._fill(document.getElementById('code'),t)", text)
 
 
 def check(name, ok, info=""):
@@ -62,8 +63,16 @@ def mock_github(ctx, issues_by_label, owner="VMSE1", log=None):
     ctx.route("https://api.github.com/**", handler)
 
 
-def new_ctx(b, w=1280, h=820, mobile=False, seen=True):
+def _honest_test(route):
+    r = route.fetch(); body = r.text()
+    assert "var TEST = false;" in body
+    route.fulfill(response=r, body=body.replace("var TEST = false;", "var TEST = true;"))
+
+
+def new_ctx(b, w=1280, h=820, mobile=False, seen=True, raw=False):
+    """raw=True: настоящий honest.js без тестового хода (для проверки самой защиты)."""
     ctx = b.new_context(viewport={"width": w, "height": h}, is_mobile=mobile, device_scale_factor=2 if mobile else 1, accept_downloads=True)
+    if not raw: ctx.route("**/honest.js", _honest_test)
     if seen: ctx.add_init_script("localStorage.seenStart='1';localStorage.visited='1'")
     return ctx
 
@@ -429,7 +438,7 @@ def hn_hash(text):
 def honest(b, base):
     print("\n== ЧЕСТНЫЙ ВВОД ==")
     from urllib.parse import unquote
-    ctx = new_ctx(b); ctx.grant_permissions(["clipboard-read", "clipboard-write"]); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    ctx = new_ctx(b, raw=True); ctx.grant_permissions(["clipboard-read", "clipboard-write"]); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
     pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code")
     start = pg.input_value("#code")
     pg.evaluate("navigator.clipboard.writeText('print(\"вставлено\")')"); pg.focus("#code"); pg.keyboard.press("Control+End"); pg.keyboard.press("Control+V")
@@ -457,6 +466,38 @@ def honest(b, base):
     with ctx.expect_page() as np3: pg.click("#go")
     m3 = _re.search(r"meta=(v1;[^&]*)", unquote(unquote(np3.value.url)))
     check("честный ввод: «Сбросить» обнуляет счётчик", m3 and "t=0;p=0;b=0;e=0" in m3.group(1), m3 and m3.group(1))
+    # обход через консоль разработчика (F12)
+    pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code"); pg.evaluate("localStorage.clear()"); pg.reload(); pg.wait_for_selector("#code")
+    s0 = pg.input_value("#code"); META = "Honest.meta(document.getElementById('code'))"
+    pg.evaluate("document.getElementById('code').value='print(\"подставлено из консоли\")'")
+    check("F12: ta.value = «...» из консоли ничего не меняет", pg.input_value("#code") == s0 and "скриптом" in pg.inner_text("#hn"), pg.input_value("#code")[:40])
+    pg.evaluate("Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(document.getElementById('code'),'print(\"в обход\")')")
+    pg.fill("#nick", "snake_42"); pg.fill("#group", "9А")
+    with ctx.expect_page() as npx: pg.click("#go")
+    raw = unquote(unquote(npx.value.url)); mm = _re.search(r"meta=(v1;[^&]*)", raw)
+    check("F12: через родной setter код не уходит в заявку, откат и пометка", "в обход" not in raw and mm and ";e=" in mm.group(1) and int(dict(p.split("=") for p in mm.group(1).split(";")[1:])["e"]) >= 2 and pg.input_value("#code") == s0, raw[-160:])
+    pg.evaluate("document.getElementById('code').dispatchEvent(new InputEvent('input',{inputType:'insertText',data:'x=1',bubbles:true}))")
+    check("F12: подделанное событие ввода игнорируется", pg.input_value("#code") == s0)
+    pg.focus("#code"); pg.keyboard.press("Control+End")
+    pg.evaluate("document.execCommand('insertText',false,'print(\"очень длинная вставка из консоли через execCommand\")')")
+    check("F12: execCommand с длинным текстом блокируется", "очень длинная" not in pg.input_value("#code"))
+    pg.evaluate("for(let i=0;i<6;i++)document.execCommand('insertText',false,'abcdefghijklmnopqrstuvwx')")
+    got = pg.input_value("#code").count("abcdefghijklmnopqrstuvwx")
+    check("F12: нарезка на куски и быстрая вставка упирается в предел скорости", got <= 1, got)
+    pg.keyboard.type("ok")
+    pg.evaluate("Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(document.getElementById('code'),'print(\"тихо подменил\")')")
+    pg.keyboard.type("z"); pg.keyboard.press("Control+End"); pg.keyboard.type("y")
+    check("F12: подмена откатывается на следующем нажатии клавиши", "тихо подменил" not in pg.input_value("#code") and pg.input_value("#code").endswith("y") and "ok" in pg.input_value("#code"), pg.input_value("#code")[-60:])
+    pg.keyboard.press("Control+Z"); pg.keyboard.press("Control+Z")
+    ee = pg.evaluate(META)
+    check("честный ввод: отмена Ctrl+Z не считается подменой", "e=" in ee)
+    pg.evaluate("localStorage.setItem('code_1.1','print(\"подкинуто в хранилище\")')"); pg.reload(); pg.wait_for_selector("#code")
+    ee2 = dict(p.split("=") for p in pg.evaluate(META).split(";")[1:])
+    check("F12: код, подкинутый в localStorage, помечается", int(ee2["e"]) >= 1, ee2)
+    pg.evaluate("document.getElementById('code').value='x'")
+    pg.click("#chk"); pg.wait_for_selector("#res.on:not(.wait)", timeout=60000)
+    check("F12: проверка идёт по набранному, а не по подставленному", "заготовка" in pg.inner_text("#res") or "Пока не так" in pg.inner_text("#res"), pg.inner_text("#res")[:80])
+    pg.evaluate("window.__hijack=1;Honest.code=function(t){return 'print(1)'}")
     check("честный ввод: нет ошибок в консоли", not bag, bag[:3]); ctx.close()
     # кабинет: пометки в «Заявках»
     code = "print(1)"

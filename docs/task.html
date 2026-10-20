@@ -2,6 +2,7 @@
 <main class="wrap" id="main"></main>
 <script src="site.js"></script><script src="honest.js"></script><script src="offline.js"></script><script src="data/tasks.js"></script><script src="data/theory.js"></script><script src="runner/check.js"></script><script src="data/clips.js"></script><script src="explainer.js"></script><script src="hints.js"></script><script src="games.js"></script><script src="reward.js"></script>
 <script>
+(function(){
 layout("tasks.html","Задание");
 var ARROW='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 var OKI='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
@@ -23,7 +24,7 @@ m.innerHTML='<div class="crumbs"><a href="tasks.html">← Все задания<
 '<div class="stepper" id="stp"><div class="st on" id="s1"><i>1</i>Код</div><span class="ln"></span><div class="st" id="s2"><i>2</i>Проверка</div><span class="ln"></span><div class="st" id="s3"><i>3</i>Отправка</div></div>'+
 '<p class="cond">'+md(t.text)+'</p>'+ex+
 '<div class="toolbar"><button class="btn sm ghost" id="hintB">Подсказка</button></div><div class="box" id="hint" style="display:none;margin-top:8px"><p>'+md(t.hint||"")+'</p></div>'+
-'<div class="editor" style="margin-top:16px"><div class="bar2"><i></i><i></i><i></i><span>'+esc(t.file)+'</span></div><textarea id="code" spellcheck="false" aria-label="Код решения"></textarea></div><div class="m" id="hn" role="status" style="font-size:14px;min-height:1.4em">Код набирай сам: вставка отключена. Так он лучше запоминается.</div>'+
+'<div class="editor" style="margin-top:16px"><div class="bar2"><i></i><i></i><i></i><span>'+esc(t.file)+'</span></div><textarea id="code" autocomplete="off" spellcheck="false" aria-label="Код решения"></textarea></div><div class="m" id="hn" role="status" style="font-size:14px;min-height:1.4em">Код набирай сам: вставка отключена. Так он лучше запоминается.</div>'+
 '<div class="toolbar"><button class="btn big go" id="chk">Проверить здесь</button><span class="sp"></span><button class="btn sm ghost" id="cp">Копировать</button><button class="btn sm ghost" id="dl">Скачать .py</button><button class="btn sm ghost" id="rs">Сбросить</button></div>'+
 '<div class="res" id="res"></div><div id="next"></div>'+
 '<div class="sendbox" id="send"><input type="text" id="nick" maxlength="30" placeholder="твой ник" value="'+esc(nick)+'" aria-label="Ник (не фамилия)"><input type="text" id="group" maxlength="12" placeholder="группа (9А)" value="'+esc(grp)+'" aria-label="Номер группы, например 9А. Нет группы: нет"><button class="btn alt go" id="go">Отправить учителю</button><button class="q" id="q" title="Как это работает" aria-label="Как отправить">?</button><span id="msg" class="m" style="font-size:14px"></span></div>'+
@@ -34,26 +35,25 @@ Explainer.bind(m);
 var ta=document.getElementById("code"),key="code_"+t.id,saved=null;
 try{saved=localStorage.getItem(key)}catch(e){}
 ta.value=saved!==null?saved:t.starter;
-Honest.attach(ta,{id:t.id,onBlock:function(k){var h=document.getElementById("hn");h.className="bad";h.textContent=k==="bulk"?"Слишком много текста за раз. Набирай код сам, по частям.":"Вставка отключена. Набери код сам: так ты его запомнишь."}});
+Honest.attach(ta,{id:t.id,starter:t.starter,onBlock:function(k){var h=document.getElementById("hn");h.className="bad";h.textContent=k==="bulk"?"Слишком много текста за раз. Набирай код сам, по частям.":k==="script"?"Код нельзя подставить скриптом. Набери его сам.":"Вставка отключена. Набери код сам: так ты его запомнишь."}});
 function step(n,ok){["s1","s2","s3"].forEach(function(s,k){var e=document.getElementById(s);e.className="st"+(k<n?" ok":(k===n?" on":""));e.firstChild.innerHTML=k<n?OKI:(k+1)});}
 function refreshSteps(){var d=load("done"),p=load("passed");step(d[t.id]?3:(p[t.id]?2:0));document.getElementById("send").className="sendbox"+(p[t.id]&&!d[t.id]?" ready":"")}
 refreshSteps();if(load("passed")[t.id])Reward.show(document.getElementById("next"),t);
 ta.oninput=function(){try{localStorage.setItem(key,ta.value)}catch(e){}};
-ta.onkeydown=function(e){if(e.key==="Tab"){e.preventDefault();var s=ta.selectionStart;ta.value=ta.value.slice(0,s)+"    "+ta.value.slice(ta.selectionEnd);ta.selectionStart=ta.selectionEnd=s+4;ta._hn.sync();ta.oninput()}};
 document.getElementById("hintB").onclick=function(){var h=document.getElementById("hint");h.style.display=h.style.display==="none"?"block":"none"};
-document.getElementById("cp").onclick=function(){copyText(ta.value,this)};
-document.getElementById("rs").onclick=function(){if(confirm("Вернуть заготовку? Твой код пропадёт.")){ta.value=t.starter;ta.oninput();ta._hn.reset()}};
-document.getElementById("dl").onclick=function(){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+ta.value],{type:"text/x-python"}));a.download=t.file;a.click()};
+document.getElementById("cp").onclick=function(){copyText(Honest.code(ta),this)};
+document.getElementById("rs").onclick=function(){if(confirm("Вернуть заготовку? Твой код пропадёт.")){Honest.restart(ta);ta.oninput()}};
+document.getElementById("dl").onclick=function(){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+Honest.code(ta)],{type:"text/x-python"}));a.download=t.file;a.click()};
 document.getElementById("q").onclick=function(){window.openGuide&&window.openGuide(3)};
 var warmed=false;function warmOnce(){if(!warmed){warmed=true;var c=navigator.connection;if(c&&c.saveData)return;BrowserCheck.warm()}}
 ta.addEventListener('focus',warmOnce,{once:true});ta.addEventListener('input',warmOnce,{once:true});
 var res=document.getElementById("res"),chk=document.getElementById("chk");
 chk.onclick=function(){
  res.className="res on wait";res.innerHTML='<div class="rh">'+(BrowserCheck.isReady()?'Проверяю…':'Первый запуск: загружаю проверку (около 13 МБ, один раз). Подожди…')+'</div>';chk.disabled=true;
- BrowserCheck.run(t,ta.value).then(function(r){chk.disabled=false;
+ BrowserCheck.run(t,Honest.code(ta)).then(function(r){chk.disabled=false;
   if(r.todo){res.className="res on fail";res.innerHTML='<div class="rh">'+BADI+'Пока тут только заготовка. Напиши решение.</div>';return}
   if(r.ok){res.className="res on pass";res.innerHTML='<div class="rh">'+OKI+'Все тесты пройдены. Отправь решение учителю</div>';var p=load("passed");p[t.id]=1;save("passed",p);refreshSteps();Streak.touch();Reward.show(document.getElementById("next"),t);document.getElementById("go").focus()}
-  else{res.className="res on fail";res.innerHTML='<div class="rh">'+BADI+'Пока не так</div><ul>'+r.messages.map(function(x){return "<li>"+esc(x)+"</li>"}).join("")+'</ul>'+(r.sample?'<pre>'+esc(r.sample.slice(0,400))+'</pre>':"")+Hints.html(Hints.explain(ta.value,t,r))}
+  else{res.className="res on fail";res.innerHTML='<div class="rh">'+BADI+'Пока не так</div><ul>'+r.messages.map(function(x){return "<li>"+esc(x)+"</li>"}).join("")+'</ul>'+(r.sample?'<pre>'+esc(r.sample.slice(0,400))+'</pre>':"")+Hints.html(Hints.explain(Honest.code(ta),t,r))}
  });
 };
 document.getElementById("go").onclick=function(){
@@ -62,7 +62,7 @@ document.getElementById("go").onclick=function(){
  if(!g){msg.className="bad";msg.textContent="Впиши номер группы, например 9А. Нет группы: напиши «нет».";document.getElementById("group").focus();return}
  try{localStorage.setItem("nick",n);localStorage.setItem("group",g)}catch(e){}
  var base="/issues/new?template=submit.yml&title="+encodeURIComponent("[Сдача] "+t.id+" "+n)+"&nick="+encodeURIComponent(n)+"&group="+encodeURIComponent(g)+"&task="+encodeURIComponent(t.id+" — "+t.title)+"&meta="+encodeURIComponent(Honest.meta(ta));
- var url=ghUrl(base+"&code="+encodeURIComponent(ta.value));
+ var url=ghUrl(base+"&code="+encodeURIComponent(Honest.code(ta)));
  if(url.length>7500){msg.className="warn";msg.textContent="Код длинный: нажми «Копировать» и вставь его на GitHub.";url=ghUrl(base)}
  else{msg.className="ok";msg.textContent="Открываю GitHub → нажми Submit new issue"}
  var d=load("done");d[t.id]=1;save("done",d);refreshSteps();
@@ -74,11 +74,12 @@ document.getElementById("mk").onclick=function(){
  if(!f){tm.className="bad";tm.textContent="Впиши фамилию и имя.";document.getElementById("tok").value="";return}
  if(!g){tm.className="bad";tm.textContent="Впиши группу в поле выше (например 9А). Нет группы: напиши «нет».";document.getElementById("tok").value="";document.getElementById("group").focus();return}
  try{localStorage.setItem("fio",f);localStorage.setItem("group",g)}catch(e){}
- var p=load("passed"),tok=Offline.pack({n:f,g:g,t:t.id,c:ta.value,m:Honest.meta(ta),ok:!!p[t.id]});
+ var p=load("passed"),tok=Offline.pack({n:f,g:g,t:t.id,c:Honest.code(ta),m:Honest.meta(ta),ok:!!p[t.id]});
  document.getElementById("tok").value=tok;tm.className="ok";tm.textContent=p[t.id]?"Готово. Отправь этот код учителю.":"Готово. Но код пока не прошёл проверку здесь. Нажми «Проверить здесь» или отправь как есть: учитель проверит сам.";
  var d=load("done");d[t.id]=1;save("done",d);refreshSteps();
 };
 document.getElementById("tcp").onclick=function(){copyText(document.getElementById("tok").value,this)};
 document.getElementById("tdl").onclick=function(){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([document.getElementById("tok").value+"\n"],{type:"text/plain"}));a.download="сдача_"+t.id+".txt";a.click()};
 }
+})();
 </script></body></html>
