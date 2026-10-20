@@ -32,7 +32,7 @@ def serve():
     return srv, "http://127.0.0.1:%d/" % srv.server_address[1]
 
 
-PAGES = ["index.html", "tasks.html", "theory.html", "quiz.html", "projects.html", "teacher.html", "cloud.html", "slides.html", "task.html?id=1.1", "task.html?id=5.4", "theory.html?l=3"]
+PAGES = ["index.html", "tasks.html", "theory.html", "quiz.html", "projects.html", "teacher.html", "cloud.html", "slides.html", "video.html", "task.html?id=1.1", "task.html?id=5.4", "theory.html?l=3"]
 
 
 def issue(n, nick, task, status, body_extra="", title=None, updated="2026-10-20T10:00:00Z"):
@@ -110,12 +110,12 @@ def functional(b, base):
     ctx = new_ctx(b); mock_github(ctx, {"проект": [issue(1, "ann", "1.1", None, title="[Проект] Бот")], "сдача": []})
     pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
     pg.goto(base + "index.html"); pg.wait_for_timeout(300)
-    check("desktop: 7 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 7 and "id=1.1" in pg.get_attribute("#cont", "href"))
+    check("desktop: 8 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 8 and "id=1.1" in pg.get_attribute("#cont", "href"))
     pg.click("a.ico >> nth=0"); pg.wait_for_url("**/tasks.html"); check("иконка «Задания» открывает карту", "tasks.html" in pg.url)
     check("карта: 22 квадрата, один «следующий»", pg.locator(".node").count() == 22 and pg.locator(".node.next").count() == 1)
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
-    pg.click("#startBtn"); check("«Пуск» открывает меню (10 пунктов)", pg.locator("#smenu.on a").count() == 10, pg.locator("#smenu.on a").count())
+    pg.click("#startBtn"); check("«Пуск» открывает меню (11 пунктов)", pg.locator("#smenu.on a").count() == 11, pg.locator("#smenu.on a").count())
     pg.keyboard.press("Escape"); check("Esc закрывает меню", pg.locator("#smenu.on").count() == 0)
     pg.click("#startBtn"); pg.mouse.click(900, 300); check("клик вне меню закрывает его", pg.locator("#smenu.on").count() == 0)
     # проекты
@@ -514,8 +514,59 @@ def offline(b, base):
     check("без GitHub: нет ошибок в консоли (учитель)", not bag, bag[:3]); ctx.close()
 
 
+def video(b, base):
+    print("\n== ВИДЕОРАЗБОРЫ ==")
+    ctx = new_ctx(b); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    pg.goto(base + "video.html"); pg.wait_for_selector(".vcard")
+    n = pg.locator(".vcard").count()
+    check("видео: на странице 13 карточек (гид, 2 задания, 10 тем)", n == 13, n)
+    # настоящие решения из роликов проходят настоящую проверку
+    for cid in ["guide", "task-2.2", "task-3.4"]:
+        ok = pg.evaluate("""async id=>{const c=Explainer.byId(id),t=TASKS.filter(x=>x.id===c.task)[0];
+          const r=await BrowserCheck.run(t,c.keep+c.typed);return r.ok}""", cid) if pg.evaluate("typeof BrowserCheck") != "undefined" else None
+        if ok is None:
+            pg.goto(base + "task.html?id=" + {"guide": "1.2", "task-2.2": "2.2", "task-3.4": "3.4"}[cid]); pg.wait_for_selector("#code")
+            ok = pg.evaluate("""async id=>{const c=Explainer.byId(id),t=TASKS.filter(x=>x.id===c.task)[0];
+              const r=await BrowserCheck.run(t,c.keep+c.typed);return r.ok}""", cid)
+            pg.goto(base + "video.html"); pg.wait_for_selector(".vcard")
+        check("видео: решение в ролике %s проходит проверку" % cid, ok is True, ok)
+    # все ролики: плеер не падает на любом моменте времени, подписи не пустые
+    res = pg.evaluate("""()=>{const out=[];for(const c of CLIPS){const h=document.createElement('div');document.body.appendChild(h);
+      const P=Explainer.mount(h,c,{paused:true});let empty=0,steps=0;
+      for(let i=0;i<=40;i++){P.seek(P.dur*i/40);const t=h.querySelector('.xp-cap .tx').textContent;if(!t.trim())empty++;steps++}
+      out.push([c.id,P.dur,empty]);P.destroy();h.remove()}return out}""")
+    check("видео: все 13 роликов проигрываются без ошибок", len(res) == 13 and all(r[2] == 0 for r in res), [r for r in res if r[2]])
+    check("видео: длина роликов 20-100 секунд", all(20 <= r[1] <= 100 for r in res), [(r[0], round(r[1])) for r in res if not 20 <= r[1] <= 100])
+    # карточка открывает окно, Esc закрывает
+    pg.click(".vcard >> nth=0"); pg.wait_for_selector(".xm .xp-stage")
+    check("видео: карточка открывает плеер", pg.locator(".xm-back").count() == 1)
+    pg.click(".xm [data-a=pp]"); pg.wait_for_timeout(300); t1 = pg.input_value(".xm input[type=range]")
+    pg.wait_for_timeout(700); t2 = pg.input_value(".xm input[type=range]")
+    check("видео: пауза останавливает время", t1 == t2, (t1, t2))
+    pg.fill(".xm input[type=range]", "20"); pg.wait_for_timeout(200)
+    check("видео: перемотка меняет подпись", "Пишем код" in pg.inner_text(".xm .xp-cap") or "Проверка" in pg.inner_text(".xm .xp-cap") or pg.inner_text(".xm .xp-cap .n") != "Условие", pg.inner_text(".xm .xp-cap"))
+    pg.keyboard.press("Escape"); check("видео: Esc закрывает плеер", pg.locator(".xm-back").count() == 0)
+    # теория, задание, главный экран
+    pg.goto(base + "theory.html?l=3"); pg.wait_for_selector(".vcard")
+    check("теория: у урока 3 есть видеоразборы (for, while, списки, функции)", pg.locator(".vcard").count() == 4, pg.locator(".vcard").count())
+    pg.click(".vcard >> nth=0"); pg.wait_for_selector(".xm .xp-stage"); pg.keyboard.press("Escape")
+    pg.goto(base + "task.html?id=2.2"); pg.wait_for_selector("#code")
+    check("задание 2.2: в боковой колонке есть «Видеоразбор»", "Смотреть задание" in pg.inner_text(".aside"))
+    pg.click("[data-clip=task-2\\.2]"); pg.wait_for_selector(".xm .xp-stage")
+    check("задание 2.2: видео открывается", "2.2" in pg.inner_text(".xm .xh")); pg.keyboard.press("Escape")
+    pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code")
+    check("задание 1.1: тематические ролики есть, а «Смотреть задание» нет", "Смотреть задание" not in pg.inner_text(".aside") and pg.locator(".aside [data-clip]").count() >= 1)
+    pg.goto(base + "index.html"); pg.wait_for_selector("#vg"); pg.click("#vg"); pg.wait_for_selector(".xm .xp-stage")
+    check("главный экран: кнопка «Видеогид» открывает гид", "Как сдать" in pg.inner_text(".xm .xh")); pg.keyboard.press("Escape")
+    # телефон: страница не ползёт вбок, плеер помещается
+    ctx2 = new_ctx(b, 390, 800, mobile=True); p2 = ctx2.new_page(); p2.goto(base + "video.html"); p2.wait_for_selector(".vcard"); p2.click(".vcard >> nth=0"); p2.wait_for_selector(".xm .xp-stage")
+    w = p2.evaluate("[document.documentElement.scrollWidth, innerWidth, document.querySelector('.xp-screen').getBoundingClientRect().width]")
+    check("видео: на телефоне нет горизонтальной прокрутки", w[0] <= w[1] + 1 and w[2] <= w[1], w); ctx2.close()
+    check("видео: нет ошибок в консоли", not bag, bag[:3]); ctx.close()
+
+
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox"])

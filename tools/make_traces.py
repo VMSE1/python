@@ -36,9 +36,13 @@ def trace(code, inputs):
     steps.append({"l": -1, "v": {k: short(v) for k, v in g.items() if not k.startswith("__") and k not in ("input", "print") and not callable(v)}, "o": "".join(out)})
     return steps
 
-res = {k: {"code": c, "inputs": i, "steps": trace(c, i)} for k, (c, i) in SNIPPETS.items()}
-here = os.path.dirname(os.path.abspath(__file__))
-dst = os.path.join(here, "..", "docs", "decks", "traces.js")
-with open(dst, "w", encoding="utf-8", newline="\n") as f:
-    f.write("/* Сгенерировано tools/make_traces.py. Не править руками. */\nvar TRACES = " + json.dumps(res, ensure_ascii=False) + ";\n")
-print("примеров:", len(res), "шагов:", sum(len(v["steps"]) for v in res.values()))
+def main():
+    res = {k: {"code": c, "inputs": i, "steps": trace(c, i)} for k, (c, i) in SNIPPETS.items()}
+    here = os.path.dirname(os.path.abspath(__file__))
+    dst = os.path.join(here, "..", "docs", "decks", "traces.js")
+    with open(dst, "w", encoding="utf-8", newline="\n") as f:
+        f.write("/* Сгенерировано tools/make_traces.py. Не править руками. */\nvar TRACES = " + json.dumps(res, ensure_ascii=False) + ";\n")
+    print("примеров:", len(res), "шагов:", sum(len(v["steps"]) for v in res.values()))
+
+if __name__ == "__main__":
+    main()

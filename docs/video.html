@@ -1,0 +1,21 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Видеоразборы</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="explainer.css"></head><body>
+<main class="wrap">
+<div class="crumbs">Видеоразборы</div><h1>Видеоразборы</h1>
+<p class="m">Короткие ролики на 30 секунд — 1 минуту. Нажми на карточку: ролик можно ставить на паузу и перематывать.</p>
+<h2>Как пользоваться сайтом</h2><div class="vgrid" id="v-guide"></div>
+<h2>Разбор заданий</h2><div class="vgrid" id="v-task"></div>
+<h2>Теория</h2><div id="v-th"></div>
+</main>
+<script src="site.js"></script><script src="data/tasks.js"></script><script src="data/theory.js"></script><script src="data/clips.js"></script><script src="explainer.js"></script>
+<script>
+layout("video.html","Видеоразборы");
+var C=window.CLIPS,names={};TASKS.forEach(function(t){names[t.lesson]=t.lessonTitle});
+function g(f){return C.filter(f).map(Explainer.card).join("")}
+document.getElementById("v-guide").innerHTML=g(function(c){return c.id==="guide"});
+document.getElementById("v-task").innerHTML=g(function(c){return c.type==="task"&&c.id!=="guide"});
+document.getElementById("v-th").innerHTML=Object.keys(names).map(Number).sort().map(function(l){
+ var a=C.filter(function(c){return c.type==="trace"&&c.l===l});if(!a.length)return "";
+ return '<h3 style="margin:18px 0 10px">Урок '+l+'. '+esc(names[l])+'</h3><div class="vgrid">'+a.map(Explainer.card).join("")+'</div>'}).join("");
+Explainer.bind(document);
+var q=new URLSearchParams(location.search).get("v");if(q&&Explainer.byId(q))Explainer.modal(q);
+</script></body></html>

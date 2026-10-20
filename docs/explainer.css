@@ -1,0 +1,82 @@
+/* Видеоразборы: плеер на настоящих стилях сайта. Сцена 1120x630 масштабируется под ширину окна */
+.xp{display:grid;gap:12px;min-width:0}
+.xp-screen{position:relative;width:100%;aspect-ratio:16/9;background:var(--paper);border:3px solid #000;box-shadow:var(--hard);overflow:hidden;container-type:inline-size}
+.xp-stage{position:absolute;left:0;top:0;width:1120px;height:630px;transform-origin:0 0;background:var(--paper);overflow:hidden;font-size:16px;line-height:1.5;color:var(--ink)}
+.xp-stage *{box-sizing:border-box}
+.xbar{position:absolute;left:0;right:0;top:0;height:40px;z-index:30;background:var(--title);color:#fff;font:400 13px/40px var(--px);padding-left:16px;border-bottom:3px solid #000}
+.xcam{position:absolute;left:0;top:40px;width:1120px;will-change:transform}
+.xk{position:relative;padding:18px 30px 60px}
+.xp-stage .task-grid{grid-template-columns:minmax(0,1fr) 330px!important;gap:30px}
+.xp-stage .aside{position:static;max-height:none;overflow:visible}
+.xp-stage .stepper .ln{display:block!important}
+.xp-stage .stepper .st{font-size:inherit!important}
+.xp-stage .btn.sm{font-size:14px!important}.xp-stage .btn.big{font-size:19px!important}
+.xp-stage .io .term header,.xp-stage .editor .bar2,.xp-stage .cond::before{font-size:9.3px!important}
+.xp-stage .sendbox input{max-width:230px!important}
+.xcode{margin:0;font:400 15px/1.6 var(--mono);color:var(--code-text);padding:14px 16px;min-height:150px;white-space:pre;overflow:hidden}
+.xcode .cr{display:inline-block;width:.6em;height:1.15em;background:#ffe44d;vertical-align:-.2em}
+.xmsg{min-height:1.4em;font-size:14px}
+.xcur{position:absolute;left:0;top:0;width:26px;height:30px;z-index:20;pointer-events:none;filter:drop-shadow(2px 2px 0 rgba(0,0,0,.35))}
+.xcur svg{width:100%;height:100%;display:block}
+.xring{position:absolute;left:0;top:0;width:44px;height:44px;margin:-22px 0 0 -22px;border:4px solid #c01a2f;border-radius:50%;z-index:19;opacity:0;pointer-events:none}
+.xkey{position:absolute;z-index:21;background:#fff;border:3px solid #000;box-shadow:var(--hard);font:400 15px var(--px);padding:10px 14px;opacity:0;pointer-events:none}
+.xgh{position:absolute;left:150px;width:820px;z-index:22;background:#fff;border:3px solid #000;box-shadow:8px 8px 0 #000;opacity:0;pointer-events:none}
+.xgh .u{background:#c0c0c0;border-bottom:3px solid #000;padding:7px 14px;font-size:14px;color:#222}
+.xgh .b{padding:16px 20px;display:grid;gap:10px}
+.xgh h4{margin:0;font-size:20px}
+.xgh .f{border:2px solid #55547a;background:#f6f6fb;padding:6px 10px;font-size:14px;white-space:pre-wrap}
+.xgh .green{justify-self:start;background:#2da44e;color:#fff;border:3px solid #000;box-shadow:3px 3px 0 #000;padding:10px 20px;font:600 17px var(--mono)}
+.xgh .green.press{box-shadow:0 0 0 #000;transform:translate(3px,3px)}
+.xbot{display:grid;gap:6px;background:#fff;border:3px solid #000;box-shadow:var(--hard);padding:14px 18px;margin-top:18px;opacity:0}
+.xbot b.ok{font-size:18px}
+.xp-stage .btn.press{box-shadow:0 0 0 #000;transform:translate(3px,3px)}
+.xp-stage .tkn{width:100%;min-height:58px;font:400 13px/1.4 var(--mono);background:var(--code-bg);color:var(--code-text);border:3px solid #000;padding:8px 10px;word-break:break-all}
+/* теория */
+.xt{position:absolute;left:0;right:0;top:40px;bottom:0;display:grid;grid-template-columns:1.15fr 1fr;gap:26px;padding:22px 28px}
+.xt .editor{margin:0}
+.xt .xcode{font-size:19px;padding:12px 0;min-height:0}
+.xl{display:block;padding:1px 14px 1px 0;border-left:6px solid transparent;opacity:0;transition:opacity .25s}
+.xl.show{opacity:1}
+.xl i{display:inline-block;width:34px;text-align:right;color:#8c8bb6;font-style:normal;padding-right:12px}
+.xl.on{background:#ffe44d;color:#000;border-left-color:#c01a2f}
+.xl.on i{color:#000}
+.xr{display:grid;grid-template-rows:auto 1fr;gap:18px;min-width:0;align-content:start}
+.xmem{background:#fff;border:3px solid var(--title);box-shadow:var(--hard);min-height:180px}
+.xmem h4{margin:0;background:var(--title);color:#fff;font:400 11px var(--px);padding:6px 12px}
+.xvars{display:flex;flex-wrap:wrap;gap:14px;padding:16px;align-content:flex-start}
+.xv{background:var(--cream);border:3px solid #000;min-width:92px;max-width:100%;text-align:center;box-shadow:3px 3px 0 #000}
+.xv b{display:block;font:400 10px var(--px);background:var(--title);color:#fff;padding:4px 8px}
+.xv span{display:block;padding:10px 12px;font:600 20px var(--mono);overflow-wrap:anywhere}
+.xv small{display:block;font-size:12px;color:var(--muted);padding:0 0 6px}
+.xv.pop{animation:xpop .7s ease-out}
+.xmem .empty{color:var(--muted);padding:6px 2px;font-size:15px}
+@keyframes xpop{0%{transform:scale(1.3);background:#ffe44d}100%{transform:scale(1);background:var(--cream)}}
+.xt .io{grid-template-columns:1fr!important}
+.xt .io .term pre{min-height:150px;font-size:17px;padding:12px 16px;line-height:1.55}
+/* оболочка */
+.xp-cap{background:var(--cream);border:3px solid var(--title);box-shadow:var(--hard);padding:12px 16px;font-size:18px;line-height:1.55;min-height:4.2em;display:flex;gap:12px;align-items:flex-start}
+.xp-cap .n{flex:none;font:400 10px var(--px);background:var(--title);color:#fff;padding:5px 8px;margin-top:4px}
+.xp-ctl{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.xp-ctl input[type=range]{flex:1;min-width:140px;accent-color:var(--title)}
+.xp-time{font-variant-numeric:tabular-nums;min-width:6.4em;text-align:right;font-size:15px}
+.xp-ch{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:0;padding:0;list-style:none}
+.xp-ch button{width:100%;text-align:left;background:#fff;border:3px solid #55547a;padding:7px 10px;font:600 14px var(--mono);color:var(--ink);cursor:pointer;min-height:44px}
+.xp-ch button.on{background:var(--title);border-color:#000;color:#fff}
+.xp-ch button:focus-visible,.xp-ctl button:focus-visible,.xp-ctl input:focus-visible{outline:3px dashed #c01a2f;outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.xring,.xv.pop{animation:none}.xring{display:none}}
+/* окно-плеер поверх страницы */
+.xm-back{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:12px}
+.xm{background:var(--paper);border:3px solid #000;box-shadow:8px 8px 0 #000;width:min(980px,100%);max-height:100%;overflow:auto;display:grid}
+.xm .xh{background:var(--title);color:#fff;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;font:400 11px var(--px)}
+.xm .xb{padding:14px;display:grid;gap:12px;min-width:0}
+/* страница «Видео» и карточки */
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px;margin:0 0 26px}
+.vcard{background:#fff;border:3px solid var(--title);box-shadow:var(--hard);display:grid;grid-template-rows:auto 1fr auto;min-width:0;text-align:left;font:inherit;color:var(--ink);cursor:pointer;padding:0}
+.vcard .th{background:var(--code-bg);color:var(--code-text);font:400 12px/1.5 var(--mono);padding:12px 14px;height:96px;overflow:hidden;white-space:pre;position:relative}
+.vcard .th::after{content:"";position:absolute;right:10px;bottom:10px;width:0;height:0;border-left:18px solid #ffe44d;border-top:11px solid transparent;border-bottom:11px solid transparent}
+.vcard .tx{padding:10px 14px;display:grid;gap:4px}
+.vcard h3{margin:0;font-size:16px;line-height:1.35}
+.vcard .m{font-size:13.5px}
+.vcard .ft{background:var(--cream);border-top:3px solid var(--title);padding:6px 14px;font:400 9.5px var(--px)}
+.vcard:hover{transform:translate(-1px,-1px)}
+.vcard:focus-visible{outline:4px dashed #c01a2f;outline-offset:3px}

@@ -1,21 +1,21 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Python-курс</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"></head><body class="desk">
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Python-курс</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="explainer.css"></head><body class="desk">
 <div class="deskwrap">
 <nav class="icons" id="icons" aria-label="Рабочий стол"></nav>
 <section class="dlg" id="dlg" aria-labelledby="dt"><div class="tbar"><span id="dt" class="ti">Python-курс</span></div><div class="body">
 <h2>Добро пожаловать!</h2>
 <div class="nx" id="nx"></div>
-<div class="btns"><a class="btn big go" id="cont" href="tasks.html">Начать</a><button class="btn ghost" id="how">Как это работает?</button></div>
+<div class="btns"><a class="btn big go" id="cont" href="tasks.html">Начать</a><button class="btn ghost" id="how">Как это работает?</button><button class="btn ghost" id="vg" type="button">Видеогид</button></div>
 </div></section>
 <div class="ghost-logo" aria-hidden="true">PYTHON</div>
 </div>
-<script src="site.js"></script><script src="data/tasks.js"></script>
+<script src="site.js"></script><script src="data/tasks.js"></script><script src="data/theory.js"></script><script src="data/clips.js"></script><script src="explainer.js"></script>
 <script>
 layout("desk");
 function load(k){try{return JSON.parse(localStorage.getItem(k)||"{}")}catch(e){return {}}}
 var sent=load("done"),passed=load("passed"),seen=false;try{seen=!!localStorage.getItem("visited")}catch(e){}
 var nextT=TASKS.filter(function(t){return !sent[t.id]&&!passed[t.id]})[0]||null;
 var cnt=TASKS.filter(function(t){return sent[t.id]}).length;
-var ic=[["tasks.html","pc","Задания",cnt+" из "+TASKS.length],["theory.html","folder","Теория","шпаргалки"],["quiz.html","book","Квизы","проверь себя"],["projects.html","disk","Проекты","работы ребят"],["cloud.html","win","Облако слов","пиши слова"],["slides.html","doc","Презентации","с кодом внутри"]];
+var ic=[["tasks.html","pc","Задания",cnt+" из "+TASKS.length],["theory.html","folder","Теория","шпаргалки"],["quiz.html","book","Квизы","проверь себя"],["projects.html","disk","Проекты","работы ребят"],["cloud.html","win","Облако слов","пиши слова"],["slides.html","doc","Презентации","с кодом внутри"],["video.html","video","Видеоразборы","30 секунд"]];
 if(isTeacher())ic.push(["teacher.html","key","Кабинет","для учителя"]);
 ic.push(["#how","help","Как это работает","инструкция"]);
 document.getElementById("icons").innerHTML=ic.map(function(x,i){return '<a class="ico" href="'+x[0]+'" '+(x[0]==="#how"?'id="icoHow"':"")+'>'+(i===0&&!seen?'<span class="bubble">Нажми сюда!</span>':"")+pix(x[1])+'<span>'+x[2]+'</span><small>'+x[3]+'</small></a>'}).join("");
@@ -25,6 +25,7 @@ if(nextT){var started=Object.keys(sent).length||Object.keys(passed).length;
  cont.textContent=started?"Продолжить":"Начать";cont.href="task.html?id="+nextT.id}
 else{document.getElementById("nx").innerHTML=pix("check")+'<div><b>Все задания отправлены!</b><span class="m">Загляни в «Проекты» и покажи свою работу.</span></div>';cont.textContent="К заданиям"}
 function how(e){if(e)e.preventDefault();window.openGuide&&window.openGuide(0)}
+document.getElementById("vg").onclick=function(){Explainer.modal("guide")};
 document.getElementById("how").onclick=how;document.getElementById("icoHow").onclick=how;
 try{if(!localStorage.getItem("seenStart")){window.__guideAuto=true;if(window.openGuide)window.openGuide(0)}}catch(e){}
 </script></body></html>
