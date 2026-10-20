@@ -5,7 +5,7 @@
 <script>
 var Q=window.QUESTIONS,app=document.getElementById("app"),st={};
 function shuf(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}return a}
-function start(){app.innerHTML='<div class="box"><p>Введи имя и фамилию, выбери урок.</p><p><input id="nm" placeholder="Имя Фамилия" maxlength="40"></p><p><select id="ls"><option value="0">Весь курс (все вопросы)</option>'+[1,2,3,4,5].map(function(n){return '<option value="'+n+'">Урок '+n+'</option>'}).join("")+'</select></p><p><button class="btn" id="go">Начать</button></p><p class="m">Результат не отправляется сам. В конце ты получишь код — пришли его учителю.</p></div>';
+function start(){app.innerHTML='<div class="box"><p>Введи имя и фамилию, выбери урок.</p><p><input id="nm" placeholder="Имя Фамилия" maxlength="40"></p><p><select id="ls"><option value="0">Весь курс (все вопросы)</option>'+[1,2,3,4,5].map(function(n){return '<option value="'+n+'">Урок '+n+'</option>'}).join("")+'</select></p><p><button class="btn go" id="go">Начать</button></p><p class="m">Результат не отправляется сам. В конце ты получишь код — пришли его учителю.</p></div>';
 document.getElementById("go").onclick=function(){var n=document.getElementById("nm").value.trim();if(!n){alert("Введи имя");return}var l=+document.getElementById("ls").value;
 var qs=Q.filter(function(q){return !l||q.l==l});st={name:n,lesson:l,qs:shuf(qs).map(function(q){return {q:q,ord:shuf([0,1,2,3])}}),i:0,ans:[]};show()}}
 function show(){var it=st.qs[st.i],q=it.q;var h='<div class="m">Вопрос '+(st.i+1)+' из '+st.qs.length+' · урок '+q.l+'</div><div class="bar"><i style="width:'+(st.i/st.qs.length*100)+'%"></i></div><div class="box"><p>'+esc(q.q)+'</p>'+(q.code?'<pre>'+esc(q.code)+'</pre>':'');
@@ -13,7 +13,7 @@ it.ord.forEach(function(k){h+='<button class="o" data-k="'+k+'">'+esc(q.o[k])+'<
 Array.prototype.forEach.call(app.querySelectorAll(".o"),function(b){b.onclick=function(){pick(+b.dataset.k)}})}
 function pick(k){var it=st.qs[st.i],q=it.q;st.ans.push([q.id,k]);
 Array.prototype.forEach.call(app.querySelectorAll(".o"),function(b){var kk=+b.dataset.k;b.disabled=true;if(kk==q.a)b.className="o ok";else if(kk==k)b.className="o bad"});
-document.getElementById("fb").innerHTML='<div class="box"><p class="'+(k==q.a?"g":"r")+'">'+(k==q.a?"Верно":"Неверно")+'</p><p>'+esc(q.why)+'</p><button class="btn" id="nx">'+(st.i+1<st.qs.length?"Дальше":"Показать результат")+'</button></div>';
+document.getElementById("fb").innerHTML='<div class="box"><p class="'+(k==q.a?"g":"r")+'">'+(k==q.a?"Верно":"Неверно")+'</p><p>'+esc(q.why)+'</p><button class="btn go" id="nx">'+(st.i+1<st.qs.length?"Дальше":"Показать результат")+'</button></div>';
 document.getElementById("nx").onclick=function(){st.i++;st.i<st.qs.length?show():fin()}}
 function enc(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o))))}
 function fin(){var s=0;st.ans.forEach(function(a){if(Q[a[0]].a==a[1])s++});var code=enc({n:st.name,l:st.lesson,d:new Date().toISOString().slice(0,16),a:st.ans});

@@ -1,0 +1,2 @@
+Onest, Unbounded, Marck Script, IBM Plex Mono — свободные шрифты по лицензии SIL Open Font License 1.1 (https://openfontlicense.org).
+Файлы взяты из пакетов fontsource (npm): @fontsource-variable/onest, @fontsource-variable/unbounded, @fontsource/marck-script, @fontsource/ibm-plex-mono.

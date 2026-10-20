@@ -22,9 +22,9 @@ m.innerHTML='<div class="crumbs"><a href="index.html#map">← Карта кур�
 '<p class="cond">'+md(t.text)+'</p>'+ex+
 '<div class="toolbar"><button class="btn sm ghost" id="hintB">Подсказка</button></div><div class="box" id="hint" style="display:none;margin-top:8px"><p>'+md(t.hint||"")+'</p></div>'+
 '<div class="editor" style="margin-top:16px"><div class="bar2"><i></i><i></i><i></i><span>'+esc(t.file)+'</span></div><textarea id="code" spellcheck="false" aria-label="Код решения"></textarea></div>'+
-'<div class="toolbar"><button class="btn big" id="chk">Проверить здесь</button><span class="sp"></span><button class="btn sm ghost" id="cp">Копировать</button><button class="btn sm ghost" id="dl">Скачать .py</button><button class="btn sm ghost" id="rs">Сбросить</button></div>'+
+'<div class="toolbar"><button class="btn big go" id="chk">Проверить здесь</button><span class="sp"></span><button class="btn sm ghost" id="cp">Копировать</button><button class="btn sm ghost" id="dl">Скачать .py</button><button class="btn sm ghost" id="rs">Сбросить</button></div>'+
 '<div class="res" id="res"></div>'+
-'<div class="sendbox" id="send"><input type="text" id="nick" maxlength="30" placeholder="твой ник" value="'+esc(nick)+'" aria-label="Ник (не фамилия)"><button class="btn" id="go">Отправить учителю</button><button class="q" id="q" title="Как это работает" aria-label="Как отправить">?</button><span id="msg" class="m" style="font-size:14px"></span></div>'+
+'<div class="sendbox" id="send"><input type="text" id="nick" maxlength="30" placeholder="твой ник" value="'+esc(nick)+'" aria-label="Ник (не фамилия)"><button class="btn alt go" id="go">Отправить учителю</button><button class="q" id="q" title="Как это работает" aria-label="Как отправить">?</button><span id="msg" class="m" style="font-size:14px"></span></div>'+
 '<div class="pager"><span>'+(prev?'<a class="btn ghost" href="task.html?id='+prev.id+'">← '+prev.id+'</a>':'')+'</span><span>'+(next?'<a class="btn ghost" href="task.html?id='+next.id+'">'+next.id+' →</a>':'')+'</span></div></div>'+
 '<aside class="aside"><h2>Шпаргалка</h2>'+pl.map(plate).join("")+'<p class="m" style="font-size:14px"><a href="theory.html?l='+t.lesson+'">Вся теория урока →</a></p></aside></div>';
 var ta=document.getElementById("code"),key="code_"+t.id,saved=null;
