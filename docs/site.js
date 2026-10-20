@@ -64,7 +64,7 @@ function layout(active, title) {
     }
   }
   var items = [["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"]];
-  if (teacher) items.push(["teacher.html", "Кабинет учителя", "key"]);
+  items.push(["teacher.html", teacher ? "Кабинет учителя" : "Вход для учителя", "key"]);
   var menu = items.map(function (x) { return '<li><a href="' + x[0] + '">' + pix(x[2]) + x[1] + "</a></li>"; }).join("") +
     '<hr><li><a href="#" id="guideBtn">' + pix("help") + 'Как это работает</a></li>' +
     '<li><a href="index.html">' + pix("win") + 'Рабочий стол</a></li>' +

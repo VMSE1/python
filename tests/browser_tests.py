@@ -115,7 +115,7 @@ def functional(b, base):
     check("карта: 22 квадрата, один «следующий»", pg.locator(".node").count() == 22 and pg.locator(".node.next").count() == 1)
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
-    pg.click("#startBtn"); check("«Пуск» открывает меню (9 пунктов)", pg.locator("#smenu.on a").count() == 9, pg.locator("#smenu.on a").count())
+    pg.click("#startBtn"); check("«Пуск» открывает меню (10 пунктов)", pg.locator("#smenu.on a").count() == 10, pg.locator("#smenu.on a").count())
     pg.keyboard.press("Escape"); check("Esc закрывает меню", pg.locator("#smenu.on").count() == 0)
     pg.click("#startBtn"); pg.mouse.click(900, 300); check("клик вне меню закрывает его", pg.locator("#smenu.on").count() == 0)
     # проекты
