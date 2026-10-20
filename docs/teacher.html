@@ -11,13 +11,10 @@ function logout(){try{sessionStorage.removeItem("tk");localStorage.removeItem("t
 
 function gate(msg){
  app.innerHTML='<div class="gate"><div class="crumbs">Только для учителя</div><h1>Вход в кабинет</h1>'+
- '<p class="m">Кабинет откроется только владельцу репозитория — аккаунту <b style="color:var(--text)">'+esc(OWNER)+'</b>. Ученикам эта вкладка не показывается.</p>'+
- '<div class="box"><b>1.</b> Создай токен без прав: <a href="https://github.com/settings/tokens/new?description=python-course-teacher&amp;scopes=" target="_blank" rel="noopener">github.com/settings/tokens/new</a><br>'+
- '<span class="m">Срок — 90 дней, <b>ни одной галочки</b> в Select scopes, внизу Generate token.</span><br><br>'+
- '<b>2.</b> Скопируй токен (начинается с <code>ghp_</code>) и вставь:<br><input type="text" id="tk" placeholder="ghp_…" style="max-width:100%;margin:8px 0" autocomplete="off" spellcheck="false">'+
+ '<p class="m">Только для владельца репозитория (аккаунт <b style="color:var(--text)">'+esc(OWNER)+'</b>).</p>'+
+ '<div class="box"><label for="tk">Токен</label><input type="text" id="tk" placeholder="ghp_…" style="max-width:100%;margin:8px 0" autocomplete="off" spellcheck="false">'+
  '<label class="m" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rem"> запомнить на этом компьютере</label>'+
- '<p style="margin:12px 0 0"><button class="btn" id="in">Войти</button></p><p id="gm" class="'+(msg?'bad':'m')+'" style="margin-top:10px">'+esc(msg||"")+'</p></div>'+
- '<p class="m" style="font-size:14px">Токен без прав нужен, только чтобы GitHub подтвердил, что это ты. Он хранится в этом браузере и отправляется только на api.github.com. Заодно лимит запросов вырастает с 60 до 5000 в час.</p></div>';
+ '<p style="margin:12px 0 0"><button class="btn" id="in">Войти</button></p><p id="gm" class="'+(msg?'bad':'m')+'" style="margin-top:10px">'+esc(msg||"")+'</p></div></div>';
  document.getElementById("in").onclick=function(){
   var tk=document.getElementById("tk").value.trim(),b=this;if(!tk){return}
   b.disabled=true;document.getElementById("gm").className="m";document.getElementById("gm").textContent="Проверяю…";
