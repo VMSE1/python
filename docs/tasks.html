@@ -1,0 +1,21 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Задания</title><link rel="stylesheet" href="site.css"></head><body>
+<main class="wrap">
+<h1>Выбери задание</h1>
+<div class="howto"><svg class="pix" viewBox="0 0 8 8" fill="#3a1aa0" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 3h5V1h1v1h1v1h1v2H7v1H6v1H5V5H0z"/></svg><span><b>Нажми на квадрат с номером</b> — откроется задание. Задания идут по порядку, мигающая красная рамка показывает, где ты остановился.</span></div>
+<div class="legend"><span><i></i>не начато</span><span><i class="p"></i>проверено здесь</span><span><i class="s"></i>отправлено учителю</span><span><i class="n"></i>следующее</span></div>
+<div id="list"></div>
+</main>
+<script src="site.js"></script><script src="data/tasks.js"></script>
+<script>
+layout("tasks.html","Задания");
+var CHK=pix('check');
+function load(k){try{return JSON.parse(localStorage.getItem(k)||"{}")}catch(e){return {}}}
+var sent=load("done"),passed=load("passed");
+var L={},ls=[];TASKS.forEach(function(t){if(!L[t.lesson]){L[t.lesson]={t:t.lessonTitle,a:[]};ls.push(t.lesson)}L[t.lesson].a.push(t)});
+var nextT=TASKS.filter(function(t){return !sent[t.id]&&!passed[t.id]})[0]||null;
+document.getElementById("list").innerHTML=ls.map(function(n){var l=L[n],c=l.a.filter(function(t){return sent[t.id]}).length,R=18,C=2*Math.PI*R,off=C*(1-c/l.a.length);
+ var nodes=l.a.map(function(t,i){var cls=sent[t.id]?"sent":(passed[t.id]?"passed":(nextT&&nextT.id===t.id?"next":""));
+  return (i?'<span class="ln'+(sent[l.a[i-1].id]?' done':'')+'"></span>':'')+'<a class="node '+cls+'" href="task.html?id='+t.id+'" data-t="'+esc(t.title)+'" aria-label="'+t.id+' '+esc(t.title)+'">'+(sent[t.id]?CHK:t.id)+'</a>'}).join("");
+ return '<section class="track"><div class="head">'+lessonIcon(n)+'<div><h3>Урок '+n+'</h3><div class="sub">'+esc(l.t)+'</div></div><span class="cnt" title="Отправлено заданий">'+c+' / '+l.a.length+'</span></div><div class="path">'+nodes+'</div></section>'}).join("");
+try{localStorage.setItem("visited","1")}catch(e){}
+</script></body></html>

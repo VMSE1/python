@@ -8,43 +8,75 @@ function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").repla
 function md(s) { return esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>"); }
 function ghUrl(path) { return "https://github.com/" + CFG.repo + (path || ""); }
 
-/* Иконки: один набор, одна толщина линии */
-var ICON = {
-  logo: '<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="9" fill="#ffd84a" stroke="#1c2340" stroke-width="2.4"/><path d="M12.5 11.5L8 16l4.5 4.5M19.5 11.5L24 16l-4.5 4.5M17.3 9.5l-2.6 13" stroke="#1c2340" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>',
-  l1: '<svg viewBox="0 0 56 56" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="9" width="46" height="38" rx="8" fill="var(--st3)"/><path d="M5 20h46"/><path d="M15 31l7 5-7 5M27 41h12"/></svg>',
-  l2: '<svg viewBox="0 0 56 56" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M28 15v10M28 25L12 41M28 25l16 16"/><circle cx="28" cy="10" r="6" fill="var(--yellow)"/><circle cx="12" cy="46" r="6" fill="var(--st2)"/><circle cx="44" cy="46" r="6" fill="var(--st3)"/></svg>',
-  l3: '<svg viewBox="0 0 56 56" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="28" cy="28" r="20" fill="var(--st5)"/><path d="M39 21a13 13 0 00-22-2M17 35a13 13 0 0022 2"/><path d="M40 11v10H30M16 45V35h10"/></svg>',
-  l4: '<svg viewBox="0 0 56 56" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="44" height="44" rx="10" fill="var(--st4)"/><path d="M22 14c-5 0-6 2-6 6v3c0 3-2 5-5 5 3 0 5 2 5 5v3c0 4 1 6 6 6M34 14c5 0 6 2 6 6v3c0 3 2 5 5 5-3 0-5 2-5 5v3c0 4-1 6-6 6"/></svg>',
-  l5: '<svg viewBox="0 0 56 56" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M28 5l18 6.5V26c0 11-7.5 19.5-18 24C17.500 45.500 10 37 10 26V11.500z" fill="var(--st1)"/><path d="M19 28l7 7 12-13"/></svg>'
+/* Пиксельные иконки: карта символов -> палитра, рисуется SVG с чёткими квадратами */
+var PAL = { K: "#1a0f4d", W: "#ffffff", G: "#c0c0c0", D: "#808080", Y: "#ffe44d", O: "#c9a000", B: "#3a1aa0", L: "#4aa3ff", R: "#d03030", P: "#7a1a8a", N: "#2a9a2a", T: "#2f7777", C: "#fffbdc" };
+var PIX = {
+  pc: ["................", "..KKKKKKKKKKKK..", "..KGGGGGGGGGGK..", "..KGKKKKKKKKGK..", "..KGKLLLLLLKGK..", "..KGKLWWLLLKGK..", "..KGKLLLWWLKGK..", "..KGKLLLLLLKGK..", "..KGKKKKKKKKGK..", "..KGGGGGGGNGGK..", "..KKKKKKKKKKKK..", "......KGGK......", "...KKKKGGKKKK...", "..KGGGGGGGGGGK..", "..KKKKKKKKKKKK..", "................"],
+  folder: ["................", "..KKKKK.........", ".KYYYYYK........", ".KYYYYYKKKKKKK..", ".KYWWWWWWWWWWYK.", ".KYWYYYYYYYYYYK.", ".KYYYYYYYYYYYYK.", ".KYYYYYYYYYYYYK.", ".KYYYYYYYYYYYYK.", ".KYYYYYYYYYYYYK.", ".KYYYYYYYYYYYYK.", ".KOOOOOOOOOOOOK.", ".KKKKKKKKKKKKKK.", "................", "................", "................"],
+  book: ["................", "...KKKKKKKKKK...", "..KPPPPPPPPPPK..", "..KPPPPYYYYPPK..", "..KPPPYYPPYYPK..", "..KPPPPPPPYYPK..", "..KPPPPPYYYPPK..", "..KPPPPPYYPPPK..", "..KPPPPPPPPPPK..", "..KPPPPPYYPPPK..", "..KPPPPPPPPPPK..", "..KWWWWWWWWWWK..", "..KWGWGWGWGWGK..", "..KKKKKKKKKKKK..", "................", "................"],
+  disk: ["................", ".KKKKKKKKKKKKK..", ".KBBGGGGGGGBBK..", ".KBBGGGGGGGBBK..", ".KBBGGGGGGGBBK..", ".KBBBBBBBBBBBK..", ".KBBBBBBBBBBBK..", ".KBWWWWWWWWWBK..", ".KBWWKKKKKKWBK..", ".KBWWWWWWWWWBK..", ".KBWWKKKKKKWBK..", ".KBWWWWWWWWWBK..", ".KBBBBBBBBBBBK..", ".KKKKKKKKKKKKK..", "................", "................"],
+  key: ["................", ".....KKKK.......", "....KYYYYK......", "...KYYKKYYK.....", "...KYYKKYYK.....", "....KYYYYK......", ".....KYYK.......", ".....KYK........", ".....KYYK.......", ".....KYK........", ".....KYYYK......", ".....KYK........", ".....KKK........", "................", "................", "................"],
+  help: ["................", "...KKKKKKKKKK...", "..KBBBBBBBBBBK..", ".KBBBBWWWWBBBBK.", ".KBBBWWBBWWBBBK.", ".KBBBBBBBWWBBBK.", ".KBBBBBBWWBBBBK.", ".KBBBBBWWBBBBBK.", ".KBBBBBWWBBBBBK.", ".KBBBBBBBBBBBBK.", ".KBBBBBWWBBBBBK.", ".KBBBBBWWBBBBBK.", "..KBBBBBBBBBBK..", "...KKKKKKKKKK...", "................", "................"],
+  doc: ["................", "..KKKKKKKKK.....", "..KWWWWWWKK.....", "..KWWWWWWKWK....", "..KWBBBBWKKKK...", "..KWWWWWWWWWK...", "..KWBBBBBBBWK...", "..KWWWWWWWWWK...", "..KWBBBBBBBWK...", "..KWWWWWWWWWK...", "..KWBBBBBWWWK...", "..KWWWWWWWWWK...", "..KKKKKKKKKKK...", "................", "................", "................"],
+  check: ["................", "............KK..", "...........KWK..", "..........KWK...", ".........KWK....", ".KK.....KWK.....", ".KWK...KWK......", "..KWK.KWK.......", "...KWKWK........", "....KWK.........", ".....K..........", "................", "................", "................", "................", "................"],
+  win: ["................", ".KKKKKKKKKKKKKK.", ".KBBBBBBBBBBBBK.", ".KBWBBBBBBBBBBK.", ".KGGGGGGGGGGGGK.", ".KGWWWWWWWWWWGK.", ".KGWWWWWWWWWWGK.", ".KGWWWWWWWWWWGK.", ".KGWWWWWWWWWWGK.", ".KGGGGGGGGGGGGK.", ".KKKKKKKKKKKKKK.", "................", "................", "................", "................", "................"]
 };
-function lessonIcon(n) { return ICON["l" + ((n - 1) % 5 + 1)]; }
-
-function applyTheme(t) {
-  if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme");
+function pix(name, cls) {
+  var m = PIX[name]; if (!m) return ""; var r = "";
+  for (var y = 0; y < 16; y++) { var row = (m[y] || ""), x = 0; while (x < 16) { var c = row.charAt(x); if (!c || c === ".") { x++; continue; } var s = x; while (row.charAt(x) === c && x < 16) x++; r += '<rect x="' + s + '" y="' + y + '" width="' + (x - s) + '" height="1" fill="' + PAL[c] + '"/>'; } }
+  return '<svg class="pix ' + (cls || "") + '" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">' + r + "</svg>";
 }
-(function () { try { var t = localStorage.getItem("theme"); if (t) applyTheme(t); } catch (e) {} })();
+var LESSON_ICONS = ["doc", "folder", "book", "disk", "pc"];
+function lessonIcon(n) { return pix(LESSON_ICONS[(n - 1) % 5]); }
+var ARROW_SVG = '<svg viewBox="0 0 8 8" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true"><path d="M0 3h5V1h1v1h1v1h1v2H7v1H6v1H5V5H0z"/></svg>';
 
+function applyTheme() {}
 function getToken() { try { return sessionStorage.getItem("tk") || localStorage.getItem("tk") || ""; } catch (e) { return ""; } }
 function isTeacher() { try { return !!localStorage.getItem("teacher"); } catch (e) { return false; } }
+var PAGES = {
+  "tasks.html": ["Задания", "pc"], "theory.html": ["Теория", "folder"], "quiz.html": ["Квизы", "book"],
+  "projects.html": ["Проекты ребят", "disk"], "teacher.html": ["Кабинет учителя", "key"]
+};
 function layout(active, title) {
-  var items = [["index.html", "Задания"], ["theory.html", "Теория"], ["quiz.html", "Тест"], ["projects.html", "Проекты"]];
-  if (isTeacher()) items.push(["teacher.html", "Кабинет"]);
-  var nav = items.map(function (x) { return '<a href="' + x[0] + '"' + (x[0] === active ? ' class="on"' : "") + ">" + x[1] + "</a>"; }).join("");
+  var desk = active === "desk", pg = PAGES[active] || ["Окно", "win"];
+  var teacher = isTeacher();
   document.head.insertAdjacentHTML("beforeend", '<link rel="stylesheet" href="guide.css">');
-  document.body.insertAdjacentHTML("afterbegin",
-    '<header class="top"><div class="wrap"><a class="logo" href="index.html">' + ICON.logo + 'Python-курс</a><nav>' + nav +
-    '<button id="guideBtn">Как это работает</button><a href="' + ghUrl() + '" target="_blank" rel="noopener">GitHub</a><button id="themeBtn" title="Тема: светлая / тёмная" aria-label="Сменить тему">' + ICON.sun + '</button></nav></div></header>');
+  if (!desk) {
+    var main = document.querySelector("main.wrap");
+    if (main) {
+      var ttl = "C:\\Python\\" + (title || pg[0]);
+      main.innerHTML = '<div class="tbar">' + pix(pg[1]) + '<span class="ti">' + esc(ttl) + '</span>' +
+        '<a class="wb" id="wBack" href="index.html" title="Назад">&#9664;<span> Назад</span></a>' +
+        '<a class="wb" href="index.html" title="Закрыть окно и вернуться на рабочий стол">&#10005;<span> Закрыть</span></a></div><div class="in">' + main.innerHTML + "</div>";
+      document.getElementById("wBack").onclick = function (e) {
+        var ok = false; try { ok = history.length > 1 && document.referrer && new URL(document.referrer).origin === location.origin; } catch (x) {}
+        if (ok) { e.preventDefault(); history.back(); }
+      };
+    }
+  }
+  var items = [["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"]];
+  if (teacher) items.push(["teacher.html", "Кабинет учителя", "key"]);
+  var menu = items.map(function (x) { return '<li><a href="' + x[0] + '">' + pix(x[2]) + x[1] + "</a></li>"; }).join("") +
+    '<hr><li><a href="#" id="guideBtn">' + pix("help") + 'Как это работает</a></li>' +
+    '<li><a href="index.html">' + pix("win") + 'Рабочий стол</a></li>' +
+    '<li><a href="' + ghUrl() + '" target="_blank" rel="noopener">' + pix("doc") + 'Исходники (GitHub)</a></li>';
+  document.body.insertAdjacentHTML("beforeend",
+    '<div class="smenu" id="smenu"><div class="side">PYTHON</div><ul>' + menu + '</ul></div>' +
+    '<div class="taskbar"><button class="start" id="startBtn" aria-expanded="false" aria-controls="smenu">' + pix("win") + 'Пуск</button>' +
+    (desk ? "" : '<a class="tbtn" href="' + (location.pathname.split("/").pop() || "index.html") + location.search + '">' + pix(pg[1]) + esc(title || pg[0]) + "</a>") +
+    '<div class="clock" id="clock"></div></div>');
+  var sm = document.getElementById("smenu"), sb = document.getElementById("startBtn");
+  function setMenu(on) { sm.classList.toggle("on", on); sb.setAttribute("aria-expanded", on ? "true" : "false"); }
+  sb.onclick = function (e) { e.stopPropagation(); setMenu(!sm.classList.contains("on")); };
+  document.addEventListener("click", function (e) { if (!sm.contains(e.target)) setMenu(false); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") setMenu(false); });
+  function tick() { var d = new Date(), p = function (n) { return (n < 10 ? "0" : "") + n; };
+    document.getElementById("clock").innerHTML = "<div><b>" + p(d.getHours()) + ":" + p(d.getMinutes()) + "</b><small>" + p(d.getDate()) + "." + p(d.getMonth() + 1) + "." + d.getFullYear() + "</small></div>"; }
+  tick(); setInterval(tick, 20000);
   var gs = document.createElement("script"); gs.src = "guide.js";
   gs.onload = function () { if (/[?&]guide=1/.test(location.search)) window.openGuide(0); if (window.__guideAuto) window.openGuide(0); };
   document.body.appendChild(gs);
-  document.getElementById("guideBtn").onclick = function () { if (window.openGuide) window.openGuide(0); };
-  document.getElementById("themeBtn").onclick = function () {
-    var cur = document.documentElement.getAttribute("data-theme") || "light";
-    var next = cur === "light" ? "dark" : "light"; applyTheme(next); try { localStorage.setItem("theme", next); } catch (e) {}
-  };
-  document.body.insertAdjacentHTML("beforeend",
-    '<footer><div class="wrap">Python-курс · бесплатный и открытый · <a href="' + ghUrl() + '" target="_blank" rel="noopener">исходники</a></div></footer>');
+  document.getElementById("guideBtn").onclick = function (e) { e.preventDefault(); setMenu(false); if (window.openGuide) window.openGuide(0); };
   if (title) document.title = title + " · Python-курс";
 }
 function copyText(text, btn) {

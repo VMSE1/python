@@ -1,24 +1,43 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Тест</title><link rel="stylesheet" href="site.css"></head><body>
-<main class="wrap"><div class="crumbs">Тест</div><h1>Тест по Python</h1><p class="m">41 вопрос по пяти урокам. После каждого ответа — пояснение. В конце получишь код результата: отправь его учителю.</p><div id="app"></div></main>
-<script src="site.js"></script><script src="questions.js"></script>
-<script>layout("quiz.html","Тест");</script>
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Квизы</title><link rel="stylesheet" href="site.css"></head><body>
+<main class="wrap"><div id="app"></div></main>
+<script src="site.js"></script><script src="data/tasks.js"></script><script src="questions.js"></script>
+<script>layout("quiz.html","Квизы");</script>
 <script>
-var Q=window.QUESTIONS,app=document.getElementById("app"),st={};
+var Q=window.QUESTIONS,app=document.getElementById("app").parentNode.querySelector("#app"),st={},LT={};
+TASKS.forEach(function(t){LT[t.lesson]=t.lessonTitle});
 function shuf(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}return a}
-function start(){app.innerHTML='<div class="box"><p>Введи имя и фамилию, выбери урок.</p><p><input id="nm" placeholder="Имя Фамилия" maxlength="40"></p><p><select id="ls"><option value="0">Весь курс (все вопросы)</option>'+[1,2,3,4,5].map(function(n){return '<option value="'+n+'">Урок '+n+'</option>'}).join("")+'</select></p><p><button class="btn go" id="go">Начать</button></p><p class="m">Результат не отправляется сам. В конце ты получишь код — пришли его учителю.</p></div>';
-document.getElementById("go").onclick=function(){var n=document.getElementById("nm").value.trim();if(!n){alert("Введи имя");return}var l=+document.getElementById("ls").value;
-var qs=Q.filter(function(q){return !l||q.l==l});st={name:n,lesson:l,qs:shuf(qs).map(function(q){return {q:q,ord:shuf([0,1,2,3])}}),i:0,ans:[]};show()}}
-function show(){var it=st.qs[st.i],q=it.q;var h='<div class="m">Вопрос '+(st.i+1)+' из '+st.qs.length+' · урок '+q.l+'</div><div class="bar"><i style="width:'+(st.i/st.qs.length*100)+'%"></i></div><div class="box"><p>'+esc(q.q)+'</p>'+(q.code?'<pre>'+esc(q.code)+'</pre>':'');
-it.ord.forEach(function(k){h+='<button class="o" data-k="'+k+'">'+esc(q.o[k])+'</button>'});h+='</div><div id="fb"></div>';app.innerHTML=h;
-Array.prototype.forEach.call(app.querySelectorAll(".o"),function(b){b.onclick=function(){pick(+b.dataset.k)}})}
-function pick(k){var it=st.qs[st.i],q=it.q;st.ans.push([q.id,k]);
-Array.prototype.forEach.call(app.querySelectorAll(".o"),function(b){var kk=+b.dataset.k;b.disabled=true;if(kk==q.a)b.className="o ok";else if(kk==k)b.className="o bad"});
-document.getElementById("fb").innerHTML='<div class="box"><p class="'+(k==q.a?"g":"r")+'">'+(k==q.a?"Верно":"Неверно")+'</p><p>'+esc(q.why)+'</p><button class="btn go" id="nx">'+(st.i+1<st.qs.length?"Дальше":"Показать результат")+'</button></div>';
-document.getElementById("nx").onclick=function(){st.i++;st.i<st.qs.length?show():fin()}}
+function mins(n){return Math.max(2,Math.round(n*0.5))}
+function list(){
+ var rows=[[0,"Весь курс","Все уроки сразу",Q.length]].concat([1,2,3,4,5].filter(function(n){return LT[n]}).map(function(n){return [n,"Урок "+n+". "+LT[n],"",Q.filter(function(q){return q.l==n}).length]}));
+ app.innerHTML='<h1>Выбери квиз</h1><div class="howto"><svg class="pix" viewBox="0 0 8 8" fill="#3a1aa0" shape-rendering="crispEdges" aria-hidden="true"><path d="M0 3h5V1h1v1h1v1h1v2H7v1H6v1H5V5H0z"/></svg><span><b>Нажми на строку</b> с нужным квизом. Можно проходить сколько угодно раз.</span></div><div class="qlist">'+rows.map(function(r){return '<button class="qrow" data-l="'+r[0]+'">'+pix("book")+'<span>'+esc(r[1])+'<small>'+(r[2]?r[2]+" · ":"")+r[3]+' вопр.</small></span><span class="go">Открыть</span></button>'}).join("")+'</div>';
+ Array.prototype.forEach.call(app.querySelectorAll(".qrow"),function(b){b.onclick=function(){intro(+b.dataset.l)}});
+}
+function intro(l){
+ var n=Q.filter(function(q){return !l||q.l==l}).length,ttl=l?"Урок "+l+". "+LT[l]:"Весь курс";var nm="";try{nm=localStorage.getItem("qname")||""}catch(e){}
+ app.innerHTML='<div class="intro">'+pix("book")+'<h1>Квиз: '+esc(ttl)+'</h1><p>Выбирай один ответ. После каждого вопроса будет пояснение. В конце получишь код результата: скопируй его и отправь учителю.</p><p><b>'+n+' вопросов · ~'+mins(n)+' мин</b></p>'+
+ '<div class="in2"><label class="fl" for="nm">Как тебя записать? (имя и фамилия или ник)</label><input id="nm" maxlength="40" placeholder="Например: Аня Иванова" value="'+esc(nm)+'"><div id="er" class="bad"></div></div>'+
+ '<button class="btn big go" id="go">Начать квиз</button><button class="btn ghost" id="bk">Другой квиз</button></div>';
+ document.getElementById("bk").onclick=list;
+ document.getElementById("go").onclick=function(){var v=document.getElementById("nm").value.trim();if(!v){document.getElementById("er").textContent="Впиши имя, чтобы учитель понял, чей результат.";document.getElementById("nm").focus();return}
+  try{localStorage.setItem("qname",v)}catch(e){}
+  var qs=Q.filter(function(q){return !l||q.l==l});st={name:v,lesson:l,qs:shuf(qs).map(function(q){return {q:q,ord:shuf([0,1,2,3])}}),i:0,ans:[],score:0};show()}
+}
+var LET=["А","Б","В","Г"];
+function show(){var it=st.qs[st.i],q=it.q,segs="";
+ for(var s=0;s<st.qs.length;s++)segs+='<i class="'+(s<st.i?"d":(s===st.i?"c":""))+'"></i>';
+ var h='<div class="qtop"><span>Вопрос '+(st.i+1)+' из '+st.qs.length+'</span><span>Верно: '+st.score+'</span></div><div class="segs">'+segs+'</div><p class="qq">'+esc(q.q)+'</p>'+(q.code?'<pre>'+esc(q.code)+'</pre>':'');
+ it.ord.forEach(function(k,j){h+='<button class="o" data-k="'+k+'"><b>'+LET[j]+'</b><span>'+esc(q.o[k])+'</span></button>'});h+='<div id="fb"></div>';app.innerHTML=h;
+ Array.prototype.forEach.call(app.querySelectorAll(".o"),function(b){b.onclick=function(){pick(+b.dataset.k)}})}
+function pick(k){var it=st.qs[st.i],q=it.q;st.ans.push([q.id,k]);if(k==q.a)st.score++;
+ Array.prototype.forEach.call(app.querySelectorAll(".o"),function(b){var kk=+b.dataset.k;b.disabled=true;if(kk==q.a)b.className="o ok";else if(kk==k)b.className="o bad"});
+ var last=st.i+1>=st.qs.length;
+ document.getElementById("fb").innerHTML='<div class="fb"><p class="v '+(k==q.a?"g":"r")+'">'+(k==q.a?"Верно!":"Неверно")+'</p><p>'+esc(q.why)+'</p><button class="btn go" id="nx">'+(last?"Показать результат":"Дальше")+'</button></div>';
+ var nx=document.getElementById("nx");nx.focus();nx.scrollIntoView({block:"nearest",behavior:"smooth"});
+ nx.onclick=function(){st.i++;st.i<st.qs.length?show():fin()}}
 function enc(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o))))}
-function fin(){var s=0;st.ans.forEach(function(a){if(Q[a[0]].a==a[1])s++});var code=enc({n:st.name,l:st.lesson,d:new Date().toISOString().slice(0,16),a:st.ans});
-var p=Math.round(s/st.qs.length*100);
-app.innerHTML='<h2>Результат: '+s+' из '+st.qs.length+' ('+p+'%)</h2><div class="box"><p>Скопируй код и отправь учителю:</p><textarea class="code" id="cd" readonly style="min-height:110px;white-space:pre-wrap;word-break:break-all">'+code+'</textarea><p><button class="btn" id="cp">Скопировать код</button> <button class="btn ghost" id="rs">Пройти заново</button></p></div>';
-document.getElementById("cp").onclick=function(){var t=document.getElementById("cd");t.select();try{document.execCommand("copy")}catch(e){}this.textContent="Скопировано"};document.getElementById("rs").onclick=start}
-start();
+function fin(){var s=st.score,code=enc({n:st.name,l:st.lesson,d:new Date().toISOString().slice(0,16),a:st.ans});
+ var p=Math.round(s/st.qs.length*100);
+ app.innerHTML='<div class="intro">'+pix(p>=70?"check":"book")+'<h1>Результат: '+s+' из '+st.qs.length+' ('+p+'%)</h1><p>'+(p>=85?"Отлично!":p>=60?"Хорошо. Загляни в «Теорию» и повтори ошибки.":"Повтори теорию и попробуй ещё раз.")+'</p></div><div class="box"><p><b>Шаг 1.</b> Нажми «Копировать код».</p><textarea class="code" id="cd" readonly style="min-height:110px;white-space:pre-wrap;word-break:break-all;width:100%">'+code+'</textarea><p style="margin-top:12px"><b>Шаг 2.</b> Отправь его учителю.</p><div class="btns" style="margin:8px 0 0"><button class="btn go" id="cp">Копировать код</button><button class="btn ghost" id="rs">Пройти ещё раз</button><a class="btn ghost" href="quiz.html">Другие квизы</a></div></div>';
+ document.getElementById("cp").onclick=function(){var t=document.getElementById("cd");t.select();try{document.execCommand("copy")}catch(e){}if(navigator.clipboard)navigator.clipboard.writeText(t.value).catch(function(){});this.textContent="Скопировано!"};document.getElementById("rs").onclick=function(){intro(st.lesson)}}
+list();
 </script></body></html>
