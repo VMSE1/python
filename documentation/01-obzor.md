@@ -47,6 +47,7 @@
 | Карта курса, пошаговые задания | `tasks.html`, `task.html` |
 | Проверка кода в браузере (Pyodide) | `task.html` |
 | Сдача через GitHub Issues + проверка роботом | `.github/workflows/grade.yml` |
+| Сдача без GitHub: код сдачи, перепроверка в кабинете | `task.html`, `teacher.html`, `offline.js` |
 | Квизы с кодом результата для учителя | `quiz.html` |
 | Теория-шпаргалки | `theory.html` |
 | Проекты учеников | `projects.html` |

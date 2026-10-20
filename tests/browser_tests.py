@@ -205,19 +205,19 @@ def teacher(b, base):
     pg.fill("#tk", "ghp_other"); pg.click("#in"); pg.wait_for_selector("#gm:has-text('владелец')"); check("кабинет: чужой аккаунт отклонён", True)
     pg.fill("#tk", "ghp_good"); pg.click("#in"); pg.wait_for_selector(".kpi", timeout=10000)
     check("кабинет: владелец входит, видна сводка", pg.locator(".kpi").count() == 4)
-    pg.click("#tb button >> nth=2"); pg.wait_for_selector("#stc")
+    pg.click("#tb button >> nth=3"); pg.wait_for_selector("#stc")
     with pg.expect_download() as d2: pg.click("#stc")
     stc = open(d2.value.path(), encoding="utf-8-sig", newline="").read().split("\r\n")
     check("кабинет: students.csv для робота (github;фио;группа)", stc[0] == "github;фио;группа;примечание" and any(l.startswith("gh_anna;;9А") for l in stc), stc[:3])
     pg.click("#tb button >> nth=0")
     check("кабинет: пункт появился в «Пуске»", "Кабинет" in pg.evaluate("document.querySelector('#smenu').textContent"))
     check("кабинет: токен в sessionStorage, не в localStorage", pg.evaluate("!!sessionStorage.tk && !localStorage.tk"))
-    pg.click("#tb button >> nth=3"); pg.fill("#qi", base64.b64encode(json.dumps({"n": "anna", "l": 0, "d": "x", "a": [[0, 0], [1, 1]]}).encode()).decode()); pg.click("#qg"); pg.wait_for_timeout(200)
+    pg.click("#tb button >> nth=4"); pg.fill("#qi", base64.b64encode(json.dumps({"n": "anna", "l": 0, "d": "x", "a": [[0, 0], [1, 1]]}).encode()).decode()); pg.click("#qg"); pg.wait_for_timeout(200)
     pg.click("#tb button >> nth=0"); pg.wait_for_selector("#csv")
     with pg.expect_download() as d: pg.click("#csv")
     path = d.value.path(); data = open(path, encoding="utf-8-sig", newline="").read()
     lines = data.split("\r\n")
-    check("выгрузка: ведомость скачивается (CSV, ; , BOM)", len(lines) >= 5 and lines[0].startswith("Ученик;Ник;1.1"), "строк=%d, заголовок=%r" % (len(lines), lines[0][:30]))
+    check("выгрузка: ведомость скачивается (CSV, ; , BOM)", len(lines) >= 5 and lines[0].startswith("Ученик;Ник;Группа;1.1"), "строк=%d, заголовок=%r" % (len(lines), lines[0][:30]))
     check("выгрузка: формулы в ячейках нейтрализованы (CSV-инъекция)", not any(re.match(r'^=|;=|;"=', l) for l in lines[1:]) and any("'=HYPERLINK" in l for l in lines), [l for l in lines if "HYPER" in l])
     check("выгрузка: подтянут результат теста ученика", any(l.startswith(";anna") and l.rstrip().endswith(";0") is False for l in lines) or "Тест, %" in lines[0])
     pg.click("#tb button >> nth=1"); pg.wait_for_timeout(200)
@@ -474,8 +474,48 @@ def honest(b, base):
     ctx.close()
 
 
+def offline(b, base):
+    print("\n== БЕЗ GITHUB ==")
+    ctx = new_ctx(b); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code")
+    good = 'name=input("Имя: ")\ncity=input("Город: ")\nprint(f"Меня зовут {name}, я из {city}")'
+    big_fill(pg, good); pg.click("#off summary")
+    pg.fill("#group", "9А"); pg.click("#mk")
+    check("без GitHub: без фамилии код не выдаётся", pg.input_value("#tok") == "" and "фамилию" in pg.inner_text("#tmsg"))
+    pg.fill("#fio", "Иванов Иван"); pg.click("#mk"); tok = pg.input_value("#tok")
+    u = pg.evaluate("t=>Offline.unpack(t)", tok)
+    check("без GitHub: код сдачи собирается и читается обратно", tok.startswith("PYC1:") and u and u["n"] == "Иванов Иван" and u["g"] == "9А" and u["t"] == "1.1" and u["c"] == good and u["valid"] is True, (tok[:30], u and u["t"]))
+    big_fill(pg, 'print("не то")'); pg.click("#mk"); tok_bad = pg.input_value("#tok")
+    pg.fill("#fio", "Петров Пётр"); pg.click("#mk"); tok_bad = pg.input_value("#tok")
+    check("без GitHub: код сдачи есть и у неверного решения", tok_bad.startswith("PYC1:") and tok_bad != tok)
+    tam = tok[:-6] + ("AAAAAA" if not tok.endswith("AAAAAA") else "BBBBBB")
+    check("без GitHub: испорченный код не принимается", pg.evaluate("t=>{const o=Offline.unpack(t);return !o||!o.valid}", tam))
+    msg = "Привет!\nвот мой код:\n" + tok[:70] + "\n" + tok[70:] + "\nи ещё\n" + tok_bad + "\n" + tam
+    check("без GitHub: коды находятся в тексте даже с переносами строк", pg.evaluate("t=>Offline.find(t).length", msg) == 3)
+    check("без GitHub: нет ошибок в консоли (ученик)", not bag, bag[:3]); ctx.close()
+    # учитель
+    ctx = new_ctx(b); mock_github(ctx, {"сдача": [issue(1, "anna", "1.1", "решено")], "проект": []}); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    pg.goto(base + "teacher.html"); pg.wait_for_selector(".gate"); pg.fill("#tk", "ghp_good"); pg.click("#in"); pg.wait_for_selector(".kpi", timeout=10000)
+    pg.click("#tb button >> nth=2"); pg.wait_for_selector("#oi")
+    pg.fill("#oi", msg); pg.click("#og"); pg.wait_for_selector("#om:has-text('Проверено')", timeout=120000)
+    t = pg.inner_text("#oo")
+    check("без GitHub: кабинет перепроверяет коды сам", "Иванов Иван" in t and "решено" in t and "Петров Пётр" in t and "ошибки" in t, t[:200])
+    check("без GitHub: испорченный код посчитан", "Повреждённых кодов: 1" in pg.inner_text("#om"), pg.inner_text("#om"))
+    pg.click("#tb button >> nth=0"); pg.wait_for_selector("#csv"); sm = pg.inner_text("#tab")
+    check("без GitHub: ученики попадают в сводку вместе с GitHub-учениками", "Иванов Иван" in sm and "anna" in sm and "Петров Пётр" in sm)
+    with pg.expect_download() as d: pg.click("#csv")
+    rows = open(d.value.path(), encoding="utf-8-sig", newline="").read().split("\r\n")
+    iv = [r for r in rows if r.startswith("Иванов Иван")]
+    check("без GitHub: в Excel есть группа и результат", rows[0].startswith("Ученик;Ник;Группа") and iv and ";9А;" in iv[0] and "решено" in iv[0], iv[:1])
+    pg.click("#tb button >> nth=1"); t2 = pg.inner_text("#tab")
+    check("без GitHub: в «Заявках» пометка «без GitHub»", "без GitHub" in t2)
+    pg.reload(); pg.wait_for_selector(".kpi", timeout=10000); pg.wait_for_selector("#csv")
+    check("без GitHub: список переживает перезагрузку", "Иванов Иван" in pg.inner_text("#tab"))
+    check("без GitHub: нет ошибок в консоли (учитель)", not bag, bag[:3]); ctx.close()
+
+
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox"])

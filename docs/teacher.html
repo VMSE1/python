@@ -1,6 +1,6 @@
 <!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Кабинет учителя</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"></head><body>
 <main class="wrap"><div id="app"></div></main>
-<script src="site.js"></script><script src="honest.js"></script><script src="data/tasks.js"></script><script src="questions.js"></script>
+<script src="site.js"></script><script src="honest.js"></script><script src="offline.js"></script><script src="runner/check.js"></script><script src="data/tasks.js"></script><script src="questions.js"></script>
 <script>
 layout("teacher.html","Кабинет");
 var OWNER=CFG.repo.split("/")[0],app=document.getElementById("app"),DATA=null;
@@ -26,6 +26,19 @@ function gate(msg){
  };
 }
 
+var ISS=[];
+function offRows(){return jget("offrows",[])}
+function mergeOff(d){
+ offRows().forEach(function(r){
+  var k=r.n.toLowerCase(),u=d.by[k]=d.by[k]||{nick:r.n,t:{},fails:{},last:"",login:"",group:r.g==="нет"?"":r.g,warn:0,off:true};
+  var st=r.ok?"ok":"bad",c=u.t[r.t];if(!c||st==="ok"||(c!=="ok"&&st!=="wait"))u.t[r.t]=st;
+  if(st==="bad")u.fails[r.t]=(u.fails[r.t]||0)+1;
+  var iso=r.ts?new Date(r.ts).toISOString():"";if(iso>u.last)u.last=iso;
+  if(r.vl==="warn")u.warn++;
+  d.sub.push({nick:r.n,task:r.t,st:st,url:"",date:iso||new Date().toISOString(),num:0,vd:{level:r.vl,reasons:r.vw||[]},off:true,msg:r.msg||""});
+ });
+ d.sub.sort(function(a,b){return a.date<b.date?1:-1});
+ return d}
 function statusOf(x){var l=x.labels.map(function(a){return a.name});return l.indexOf("решено")>=0?"ok":(l.indexOf("ошибки")>=0?"bad":"wait")}
 function build(issues){
  var by={},sub=[];
@@ -42,24 +55,24 @@ function cell(v){v=String(v==null?"":v);if(/^[=+\-@\t\r]/.test(v))v="'"+v;return
 function csv(rows){return rows.map(function(r){return r.map(cell).join(";")}).join("\r\n")}
 function qbest(){var q=jget("quizrows",[]),m={};q.forEach(function(r){var k=String(r.n).trim().toLowerCase(),p=Math.round(r.s/r.t*100);if(!m[k]||p>m[k])m[k]=p});return m}
 function sheet(){
- var names=jget("names",{}),qb=qbest(),ns=Object.keys(DATA.by).sort(),head=["Ученик","Ник"].concat(TASKS.map(function(t){return t.id})).concat(["Решено","Всего заданий","Ошибочных попыток","Последняя активность","Тест, % (лучший)","Сдач с подозрением на вставку"]);
+ var names=jget("names",{}),qb=qbest(),ns=Object.keys(DATA.by).sort(),head=["Ученик","Ник","Группа"].concat(TASKS.map(function(t){return t.id})).concat(["Решено","Всего заданий","Ошибочных попыток","Последняя активность","Тест, % (лучший)","Сдач с подозрением на вставку"]);
  var rows=[head];
  ns.forEach(function(k){var u=DATA.by[k],c=0,f=0;Object.keys(u.fails).forEach(function(i){f+=u.fails[i]});
   var cells=TASKS.map(function(t){var v=u.t[t.id];if(v==="ok")c++;return v==="ok"?"решено":(v==="bad"?"ошибки":(v==="wait"?"ждёт":""))});
   var q=qb[k];if(q==null&&names[k])q=qb[String(names[k]).toLowerCase()];
-  rows.push([names[k]||"",u.nick].concat(cells).concat([c,TASKS.length,f,u.last?u.last.slice(0,16).replace("T"," "):"",q==null?"":q,u.warn]))});
+  rows.push([names[k]||(u.off?u.nick:""),u.nick,u.group||""].concat(cells).concat([c,TASKS.length,f,u.last?u.last.slice(0,16).replace("T"," "):"",q==null?"":q,u.warn]))});
  return rows}
 function nm(nick){var n=jget("names",{})[nick.toLowerCase()];return n?esc(n)+' <span class="m">('+esc(nick)+')</span>':esc(nick)}
 function dl(name,text,type){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+text],{type:type||"text/csv"}));a.download=name;a.click()}
 function cabinet(st){
  app.innerHTML='<div class="crumbs">Кабинет учителя · вы вошли как '+esc(st.login)+' · <a href="#" id="out">выйти</a></div><h1>Кабинет</h1><div class="cab-tabs" id="tb"></div><div id="tab"><span class="m">Загружаю данные…</span></div>';
  document.getElementById("out").onclick=function(e){e.preventDefault();logout()};
- var tabs=[["sum","Сводка"],["sub","Заявки"],["stu","Ученики"],["quiz","Тест"],["lnk","Управление"]],cur="sum";
+ var tabs=[["sum","Сводка"],["sub","Заявки"],["off","Без GitHub"],["stu","Ученики"],["quiz","Тест"],["lnk","Управление"]],cur="sum";
  function draw(){document.getElementById("tb").innerHTML=tabs.map(function(t){return '<button data-k="'+t[0]+'" class="'+(t[0]===cur?'on':'')+'">'+t[1]+'</button>'}).join("");
   Array.prototype.forEach.call(document.querySelectorAll("#tb button"),function(b){b.onclick=function(){cur=b.dataset.k;draw();show()}});}
- function show(){var el=document.getElementById("tab");if(!DATA&&cur!=="quiz"&&cur!=="lnk"){el.innerHTML='<span class="m">Загружаю данные…</span>';return}({sum:tSum,sub:tSub,stu:tStu,quiz:tQuiz,lnk:tLnk})[cur](el)}
+ function show(){var el=document.getElementById("tab");if(!DATA&&cur!=="quiz"&&cur!=="lnk"&&cur!=="off"){el.innerHTML='<span class="m">Загружаю данные…</span>';return}({sum:tSum,sub:tSub,off:tOff,stu:tStu,quiz:tQuiz,lnk:tLnk})[cur](el)}
  draw();
- fetchIssues("сдача",function(a){DATA=build(a);show()},function(e){document.getElementById("tab").innerHTML='<div class="box bad">Не загрузилось ('+esc(e.message)+'). '+(e.message==="401"?'Токен устарел — <a href="#" id="o2">войти заново</a>.':'Проверь связь с GitHub.')+'</div>';var o=document.getElementById("o2");if(o)o.onclick=function(ev){ev.preventDefault();logout()}});
+ fetchIssues("сдача",function(a){ISS=a;DATA=mergeOff(build(a));show()},function(e){document.getElementById("tab").innerHTML='<div class="box bad">Не загрузилось ('+esc(e.message)+'). '+(e.message==="401"?'Токен устарел — <a href="#" id="o2">войти заново</a>.':'Проверь связь с GitHub.')+'</div>';var o=document.getElementById("o2");if(o)o.onclick=function(ev){ev.preventDefault();logout()}});
 }
 function tSum(el){
  var ns=Object.keys(DATA.by).sort(),solved=0,wait=0,stuck=[];
@@ -75,7 +88,36 @@ function tSum(el){
 }
 function tSub(el){
  var em={ok:["решено","chip done"],bad:["ошибки","chip"],wait:["ждёт","chip"]};
- el.innerHTML='<div class="box"><table><tr><th>Ученик</th><th>Задание</th><th>Статус</th><th>Обновлено</th><th>Как набран код</th><th></th></tr>'+DATA.sub.slice(0,80).map(function(s){return '<tr><td>'+nm(s.nick)+'</td><td>'+s.task+'</td><td><span class="'+em[s.st][1]+'">'+em[s.st][0]+'</span></td><td class="m">'+new Date(s.date).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+'</td><td>'+(s.vd.level==="ok"?'<span class="ok">набран сам</span>':'<span class="'+(s.vd.level==="warn"?"bad":"m")+'" title="'+esc(s.vd.reasons.join("; "))+'">'+(s.vd.level==="warn"?"⚠ ":"")+esc(s.vd.reasons.join("; "))+'</span>')+'</td><td><a href="'+esc(s.url)+'" target="_blank" rel="noopener">открыть</a></td></tr>'}).join("")+'</table></div>';
+ el.innerHTML='<div class="box"><table><tr><th>Ученик</th><th>Задание</th><th>Статус</th><th>Обновлено</th><th>Как набран код</th><th></th></tr>'+DATA.sub.slice(0,80).map(function(s){return '<tr><td>'+nm(s.nick)+'</td><td>'+s.task+'</td><td><span class="'+em[s.st][1]+'">'+em[s.st][0]+'</span></td><td class="m">'+new Date(s.date).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+'</td><td>'+(s.vd.level==="ok"?'<span class="ok">набран сам</span>':'<span class="'+(s.vd.level==="warn"?"bad":"m")+'" title="'+esc(s.vd.reasons.join("; "))+'">'+(s.vd.level==="warn"?"⚠ ":"")+esc(s.vd.reasons.join("; "))+'</span>')+'</td><td>'+(s.url?'<a href="'+esc(s.url)+'" target="_blank" rel="noopener">открыть</a>':'<span class="m">без GitHub</span>')+'</td></tr>'}).join("")+'</table></div>';
+}
+function tOff(el){
+ var rows=offRows();
+ el.innerHTML='<p class="m">Ученики без GitHub присылают «код сдачи» (строка, начинающаяся с PYC1:) в мессенджер, на почту или файлом. Вставь коды сюда или загрузи файлы. Сайт сам перепроверит каждый код.</p>'+
+ '<textarea class="code" id="oi" style="min-height:120px;border-radius:10px;width:100%" placeholder="Вставь коды сдачи, можно сразу много" aria-label="Коды сдачи"></textarea>'+
+ '<div class="btns"><button class="btn go" id="og">Разобрать и проверить</button><label class="btn ghost" style="cursor:pointer">Загрузить файлы<input type="file" id="of" accept=".txt,text/plain" multiple hidden></label><button class="btn ghost" id="oc">Очистить список</button></div>'+
+ '<p class="m" id="om" role="status"></p><div id="oo"></div>';
+ function list(){var rs=offRows();document.getElementById("oo").innerHTML=rs.length?'<div class="box" style="overflow:auto"><table><tr><th>Ученик</th><th>Группа</th><th>Задание</th><th>Результат</th><th>Как набран код</th></tr>'+rs.slice().sort(function(a,b){return a.ts<b.ts?1:-1}).map(function(r){return '<tr><td>'+esc(r.n)+'</td><td class="m">'+esc(r.g)+'</td><td>'+esc(r.t)+'</td><td>'+(r.ok?'<span class="ok">решено</span>':'<span class="bad" title="'+esc(r.msg||"")+'">ошибки</span>')+'</td><td class="'+(r.vl==="warn"?"bad":"m")+'">'+(r.vl==="ok"?"набран сам":(r.vl==="warn"?"⚠ ":"")+esc((r.vw||[]).join("; ")))+'</td></tr>'}).join("")+'</table></div>':'<div class="box">Пока пусто.</div>'}
+ list();
+ function add(text){
+  var toks=Offline.find(text),om=document.getElementById("om"),bad=0,items=[];
+  toks.forEach(function(t){var o=Offline.unpack(t);if(!o||!o.valid)bad++;else items.push(o)});
+  if(!toks.length){om.className="bad";om.textContent="Не нашёл ни одного кода (он начинается с PYC1:).";return}
+  var i=0,ok=0;
+  (function next(){
+   if(i>=items.length){om.className=bad?"warn":"ok";om.textContent="Проверено: "+ok+" из "+toks.length+(bad?". Повреждённых кодов: "+bad+" (попроси прислать ещё раз).":".");list();DATA&&(DATA=mergeOff(build(ISS)));return}
+   var o=items[i++],task=TASKS.filter(function(x){return x.id===o.t})[0];
+   om.className="m";om.textContent="Проверяю "+i+" из "+items.length+(BrowserCheck.isReady()?"…":". Первый раз грузится проверка (около 13 МБ), подожди…");
+   if(!task){bad++;next();return}
+   BrowserCheck.run(task,o.c).then(function(r){
+    var vd=Honest.verdict(Honest.parse(o.m),o.c),rs=offRows().filter(function(x){return !(x.n.toLowerCase()===o.n.toLowerCase()&&x.t===o.t&&x.ts===o.ts)});
+    rs.push({n:o.n,g:o.g,t:o.t,ok:!!r.ok,ts:o.ts||Date.now(),vl:vd.level,vw:vd.reasons,msg:(r.messages||[]).join("; ").slice(0,200)});
+    rs=rs.slice(-400);try{localStorage.setItem("offrows",JSON.stringify(rs))}catch(e){}
+    ok++;next()});
+  })();
+ }
+ document.getElementById("og").onclick=function(){add(document.getElementById("oi").value)};
+ document.getElementById("of").onchange=function(){var fs=Array.prototype.slice.call(this.files||[]).slice(0,100),txt=[],n=0;if(!fs.length)return;fs.forEach(function(f){var r=new FileReader();r.onload=function(){txt.push(String(r.result).slice(0,200000));if(++n===fs.length)add(txt.join("\n"))};r.readAsText(f)})};
+ document.getElementById("oc").onclick=function(){if(confirm("Убрать все проверенные коды без GitHub из списка?")){try{localStorage.removeItem("offrows")}catch(e){}if(DATA)DATA=build(ISS);tOff(el)}};
 }
 function tStu(el){
  var names=jget("names",{}),ks=Object.keys(DATA.by);Object.keys(names).forEach(function(k){if(ks.indexOf(k)<0)ks.push(k)});ks.sort();
