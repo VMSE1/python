@@ -44,7 +44,7 @@ try { if (window.top !== window.self) { document.documentElement.style.display =
 function isTeacher() { try { return !!localStorage.getItem("teacher"); } catch (e) { return false; } }
 var PAGES = {
   "tasks.html": ["Задания", "pc"], "theory.html": ["Теория", "folder"], "quiz.html": ["Квизы", "book"],
-  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "teacher.html": ["Кабинет учителя", "key"]
+  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "teacher.html": ["Кабинет учителя", "key"]
 };
 function layout(active, title) {
   var desk = active === "desk", pg = PAGES[active] || ["Окно", "win"];
@@ -63,7 +63,7 @@ function layout(active, title) {
       };
     }
   }
-  var items = [["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"]];
+  var items = [["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"]];
   if (teacher) items.push(["teacher.html", "Кабинет учителя", "key"]);
   var menu = items.map(function (x) { return '<li><a href="' + x[0] + '">' + pix(x[2]) + x[1] + "</a></li>"; }).join("") +
     '<hr><li><a href="#" id="guideBtn">' + pix("help") + 'Как это работает</a></li>' +

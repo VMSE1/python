@@ -18,6 +18,17 @@ jobs:
           script: |
             await github.rest.issues.addLabels({owner: context.repo.owner, repo: context.repo.repo,
               issue_number: context.issue.number, labels: ['проект']});
+  label-cloud:
+    if: startsWith(github.event.issue.title, '[Облако]')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            await github.rest.issues.addLabels({owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number, labels: ['облако']});
   grade:
     if: startsWith(github.event.issue.title, '[Сдача]')
     runs-on: ubuntu-latest

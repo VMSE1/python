@@ -1,0 +1,23 @@
+name: "Слово в облако"
+description: Добавь до 5 слов в облако слов по теме
+title: "[Облако] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Слова попадут в общее облако на сайте курса. Чем больше людей написали слово, тем крупнее оно.
+        Пиши по теме, без личных данных. Один человек считается один раз за слово.
+  - type: input
+    id: topic
+    attributes:
+      label: Тема
+      description: Ту, которую назвал учитель, например «Что такое Python»
+    validations:
+      required: true
+  - type: input
+    id: words
+    attributes:
+      label: Слова
+      description: До 5 слов через запятую
+    validations:
+      required: true

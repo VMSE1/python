@@ -1,17 +1,53 @@
-/* Облако слов. Только отрисовка, без хранения.
-   WordCloud.render(элемент, слова[, {width, height, max}])
-   слова: массив строк ["питон","цикл","питон"] или объектов [{text:"питон", count:3}]. */
+/* Облако слов.
+   WordCloud.render(элемент, слова[, {width, height, max}])  — рисует облако (SVG).
+   WordCloud.topics(issues)          — темы из заявок «[Облако]»: [{name, key, n}].
+   WordCloud.fromIssues(issues, key) — слова темы: [{text, count}], где count = число разных людей.
+   Слова: массив строк ["питон","цикл"] или объектов [{text:"питон", count:3}]. */
 var WordCloud = (function () {
   var COLORS = ["#3a1aa0", "#b3261e", "#1b6b5a", "#8a5a00", "#2f7777", "#6a1b9a"];
+  var MAX_WORDS = 5, MAX_LEN = 24, MAX_TOPIC = 40;
+  function clean(t) {
+    return String(t == null ? "" : t).toLowerCase().replace(/[^0-9a-zа-яё_+#\- ]/gi, "").replace(/\s+/g, " ").trim().slice(0, MAX_LEN);
+  }
+  function topicKey(t) { return String(t == null ? "" : t).toLowerCase().replace(/[^0-9a-zа-яё ]/gi, "").replace(/\s+/g, " ").trim().slice(0, MAX_TOPIC); }
   function count(words, max) {
     var m = {};
     (words || []).forEach(function (w) {
       var t = typeof w === "string" ? w : w && w.text, n = typeof w === "string" ? 1 : Math.max(1, +(w && w.count) || 1);
-      t = String(t == null ? "" : t).toLowerCase().replace(/[^0-9a-zа-яё_+#\- ]/gi, "").replace(/\s+/g, " ").trim().slice(0, 24);
-      if (t) m[t] = (m[t] || 0) + n;
+      t = clean(t); if (t) m[t] = (m[t] || 0) + n;
     });
     return Object.keys(m).map(function (k) { return { text: k, n: m[k] }; })
       .sort(function (a, b) { return b.n - a.n || (a.text < b.text ? -1 : 1); }).slice(0, max || 60);
+  }
+  /* Заявка учитывается, если у неё нет метки «скрыто» (так учитель убирает лишнее). */
+  function parse(issues) {
+    var out = [];
+    (issues || []).forEach(function (x) {
+      if (!x || (x.labels || []).some(function (l) { return l && l.name === "скрыто"; })) return;
+      var s = typeof sections === "function" ? sections(x.body) : {};
+      var name = String(s["Тема"] || "").trim().slice(0, MAX_TOPIC), key = topicKey(name);
+      if (!key || !s["Слова"]) return;
+      var who = (x.user && x.user.login) || "#" + x.number, seen = {}, ws = [];
+      String(s["Слова"]).split(/[,;\n]/).forEach(function (w) { w = clean(w); if (w && !seen[w] && ws.length < MAX_WORDS) { seen[w] = 1; ws.push(w); } });
+      if (ws.length) out.push({ name: name, key: key, who: who, words: ws });
+    });
+    return out;
+  }
+  function topics(issues) {
+    var m = {};
+    parse(issues).forEach(function (p) { var t = m[p.key] || (m[p.key] = { name: p.name, key: p.key, n: 0 }); t.n++; });
+    return Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.n - a.n || (a.key < b.key ? -1 : 1); });
+  }
+  function fromIssues(issues, key) {
+    var by = {}, people = {};
+    parse(issues).forEach(function (p) {
+      if (p.key !== key) return;
+      people[p.who] = 1;
+      p.words.forEach(function (w) { (by[w] || (by[w] = {}))[p.who] = 1; }); /* один человек = один голос за слово */
+    });
+    var list = Object.keys(by).map(function (w) { return { text: w, count: Object.keys(by[w]).length }; });
+    list.people = Object.keys(people).length;
+    return list;
   }
   function hit(a, b) { return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y); }
   function layout(items, W, H) {
@@ -49,5 +85,5 @@ var WordCloud = (function () {
     el.textContent = ""; el.appendChild(svg);
     return items.length;
   }
-  return { render: render, count: count };
+  return { render: render, count: count, clean: clean, topicKey: topicKey, topics: topics, fromIssues: fromIssues, parse: parse };
 })();

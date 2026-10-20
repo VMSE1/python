@@ -32,7 +32,7 @@ def serve():
     return srv, "http://127.0.0.1:%d/" % srv.server_address[1]
 
 
-PAGES = ["index.html", "tasks.html", "theory.html", "quiz.html", "projects.html", "teacher.html", "cloud.html", "task.html?id=1.1", "task.html?id=5.4", "theory.html?l=3"]
+PAGES = ["index.html", "tasks.html", "theory.html", "quiz.html", "projects.html", "teacher.html", "cloud.html", "slides.html", "task.html?id=1.1", "task.html?id=5.4", "theory.html?l=3"]
 
 
 def issue(n, nick, task, status, body_extra="", title=None, updated="2026-10-20T10:00:00Z"):
@@ -110,12 +110,12 @@ def functional(b, base):
     ctx = new_ctx(b); mock_github(ctx, {"проект": [issue(1, "ann", "1.1", None, title="[Проект] Бот")], "сдача": []})
     pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
     pg.goto(base + "index.html"); pg.wait_for_timeout(300)
-    check("desktop: 5 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 5 and "id=1.1" in pg.get_attribute("#cont", "href"))
+    check("desktop: 7 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 7 and "id=1.1" in pg.get_attribute("#cont", "href"))
     pg.click("a.ico >> nth=0"); pg.wait_for_url("**/tasks.html"); check("иконка «Задания» открывает карту", "tasks.html" in pg.url)
     check("карта: 22 квадрата, один «следующий»", pg.locator(".node").count() == 22 and pg.locator(".node.next").count() == 1)
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
-    pg.click("#startBtn"); check("«Пуск» открывает меню (7 пунктов)", pg.locator("#smenu.on a").count() == 7, pg.locator("#smenu.on a").count())
+    pg.click("#startBtn"); check("«Пуск» открывает меню (9 пунктов)", pg.locator("#smenu.on a").count() == 9, pg.locator("#smenu.on a").count())
     pg.keyboard.press("Escape"); check("Esc закрывает меню", pg.locator("#smenu.on").count() == 0)
     pg.click("#startBtn"); pg.mouse.click(900, 300); check("клик вне меню закрывает его", pg.locator("#smenu.on").count() == 0)
     # проекты
@@ -158,12 +158,29 @@ def functional(b, base):
     check("функциональные: нет ошибок в консоли", not bag, bag[:3])
     ctx.close()
     # облако слов
-    ctx = new_ctx(b); pg = ctx.new_page(); pg.goto(base + "cloud.html"); pg.wait_for_selector("#cloud svg text")
-    n0 = pg.locator("#cloud svg text").count()
-    pg.fill("#w", "<img src=x onerror=window.xss=1>"); pg.click("#add"); pg.fill("#w", "питон"); pg.press("#w", "Enter")
-    check("облако: слова добавляются, повтор склеивается", pg.locator("#cloud svg text").count() >= n0 and n0 >= 5)
-    check("облако: HTML в слове не исполняется", pg.evaluate("window.xss") is None and pg.locator("#cloud img").count() == 0)
-    pg.click("#clr"); check("облако: пустое состояние", "Пока пусто" in pg.inner_text("#cloud"))
+    def ci(n, login, topic, words, hidden=False):
+        return {"number": n, "title": "[Облако] " + topic, "html_url": "https://github.com/VMSE1/python/issues/%d" % n, "labels": [{"name": "облако"}] + ([{"name": "скрыто"}] if hidden else []),
+                "user": {"login": login}, "body": "### Тема\n\n%s\n\n### Слова\n\n%s" % (topic, words)}
+    cl = [ci(1, "anna", "Что такое Python", "Питон, цикл, змея"), ci(2, "ivan", "что такое python!", "питон, Функция"), ci(3, "ivan", "Что такое Python", "питон, питон, а, б, в, г, д"),
+          ci(4, "spam", "Что такое Python", "СПАМ", hidden=True), ci(5, "olga", "Циклы", "for, while, <img src=x onerror=window.xss=1>")]
+    ctx = new_ctx(b); mock_github(ctx, {"облако": cl}); pg = ctx.new_page(); pg.goto(base + "cloud.html"); pg.wait_for_selector("#cloud svg text")
+    opts = pg.eval_on_selector_all("#tp option", "e=>e.map(x=>x.textContent)")
+    check("облако: темы из заявок (регистр и знаки склеены, + «Новая тема»)", len(opts) == 3 and opts[0].startswith("Что такое Python (3)") and opts[2].startswith("+"), opts)
+    words = pg.eval_on_selector_all("#cloud svg text", "e=>e.map(x=>x.childNodes[0].textContent)")
+    check("облако: скрытая заявка не попадает, слова склеены", "спам" not in words and words.count("питон") == 1 and "цикл" in words, words)
+    check("облако: один человек = один голос (питон у anna и ivan = 2 чел.)", "питон" in pg.inner_text("#top") and "2 чел." in pg.inner_text("#top"), pg.inner_text("#top"))
+    check("облако: не больше 5 слов от одной заявки", "д" not in words and "г" in words, words)
+    href = unquote(pg.get_attribute("#add", "href"))
+    check("облако: без слов кнопка выключена", pg.get_attribute("#add", "aria-disabled") == "true")
+    pg.fill("#w", "кот, пёс"); href = unquote(pg.get_attribute("#add", "href"))
+    check("облако: ссылка на заявку с темой и словами", "template=cloud.yml" in href and "topic=Что такое Python" in href and "words=кот, пёс" in href and pg.get_attribute("#add", "aria-disabled") == "false", href)
+    pg.select_option("#tp", index=1); pg.wait_for_timeout(100)
+    check("облако: другая тема, HTML в слове не исполняется", pg.evaluate("window.xss") is None and pg.locator("#cloud img").count() == 0 and "for" in pg.inner_text("#top"))
+    pg.select_option("#tp", index=2); pg.fill("#nt", "Моя тема"); pg.fill("#w", "раз"); href = unquote(pg.get_attribute("#add", "href"))
+    check("облако: новая тема попадает в ссылку", "topic=Моя тема" in href and pg.locator("#nt").is_visible(), href)
+    ctx.close()
+    ctx = new_ctx(b); mock_github(ctx, {"облако": []}); pg = ctx.new_page(); pg.goto(base + "cloud.html"); pg.wait_for_selector("#top", state="attached"); pg.wait_for_timeout(400)
+    check("облако: пустое состояние", "Придумай тему" in pg.inner_text("#cloud"), pg.inner_text("#cloud"))
     ctx.close()
     # инструкция
     ctx = new_ctx(b, seen=False); pg = ctx.new_page(); pg.goto(base + "index.html"); pg.wait_for_selector(".gd")
@@ -305,8 +322,105 @@ def stress(b, base):
     ctx.close()
 
 
+def slides(b, base):
+    print("\n== ПРЕЗЕНТАЦИЯ ==")
+    ctx = new_ctx(b, 1366, 820); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    S = ".sl.on "
+    def go(n): pg.goto(base + "slides.html#%d" % n); pg.wait_for_selector(S + ".sl-h"); pg.wait_for_selector(S + ".go:not([disabled]), " + S + ".sl-h", state="attached")
+    def ready(): pg.wait_for_selector(S + ".rn .go:not([disabled])")
+    pg.goto(base + "slides.html"); pg.wait_for_selector(S + ".sl-h")
+    check("презентация: 23 слайда, открыт первый", pg.locator(".sl").count() == 23 and "1 / 23" in pg.inner_text("#pg"))
+    pg.keyboard.press("ArrowRight"); pg.keyboard.press("ArrowRight")
+    check("презентация: стрелка → листает", "3 / 23" in pg.inner_text("#pg"))
+    for _ in range(3): pg.keyboard.press("ArrowRight")
+    check("презентация: пункты на слайде открываются по одному (3 из 5)", pg.locator(S + ".frag.show").count() == 3 and "Показать" in pg.inner_text("#next"), pg.locator(S + ".frag.show").count())
+    for _ in range(2): pg.keyboard.press("ArrowRight")
+    pg.keyboard.press("ArrowRight")
+    check("презентация: после всех пунктов идёт следующий слайд", "4 / 23" in pg.inner_text("#pg"))
+    pg.keyboard.press("ArrowLeft"); check("презентация: ← возвращает, пункты на месте", "3 / 23" in pg.inner_text("#pg") and pg.locator(S + ".frag.show").count() == 5)
+    pg.keyboard.press("End"); a = "23 / 23" in pg.inner_text("#pg"); pg.keyboard.press("Home"); check("презентация: Home/End", a and "1 / 23" in pg.inner_text("#pg"))
+    pg.click("#tocb"); check("презентация: оглавление открывается", pg.locator("#toc").is_visible() and pg.locator("#toc a").count() == 23)
+    pg.click("#toc a >> nth=11"); check("презентация: переход из оглавления", "12 / 23" in pg.inner_text("#pg") and not pg.locator("#toc").is_visible())
+    check("презентация: адрес запоминает слайд", pg.url.endswith("#12"))
+    pg.goto(base + "slides.html#9"); pg.wait_for_selector(S + ".ex")
+    for expr, want in [("2 + 3 * 2", "8"), ("(2 + 3) * 2", "10"), ("7 / 2", "3.5"), ("10 / 5", "2.0"), ("-7 // 2", "-4"), ("7 % 3", "1"), ("2 ** 3 ** 2", "512"), ("-2 ** 2", "-4"), ("1 / 0", "ZeroDivisionError"), ("2 +", "SyntaxError"), ("2 $ 3", "SyntaxError")]:
+        pg.fill(S + ".ex", expr); got = pg.inner_text(S + ".out")
+        check("презентация: калькулятор %s → %s" % (expr, want), want in got, got)
+    # запуск кода: print
+    go(8); ready(); pg.click(S + ".sp"); pg.click(S + ".sp")
+    check("презентация: «Шаг» подсвечивает строку и показывает вывод", pg.locator(S + ".ln.cur").count() == 1 and "Привет, мир!" in pg.inner_text(S + ".rn-o pre"), pg.inner_text(S + ".rn-o pre"))
+    pg.click(S + ".rs"); check("презентация: «Сначала» очищает", pg.inner_text(S + ".rn-o pre") == "" and pg.locator(S + ".ln.cur").count() == 0)
+    pg.click(S + ".go"); pg.wait_for_selector(S + ".st:text('Готово')", timeout=15000)
+    check("презентация: «Запустить» доходит до конца, вывод верный", pg.inner_text(S + ".rn-o pre").strip() == "Привет, мир!\n5\nГородской помощник", pg.inner_text(S + ".rn-o pre"))
+    go(10); ready(); pg.click(S + ".go"); pg.wait_for_selector(S + ".st:text('Готово')", timeout=15000)
+    check("презентация: переменные показываются (name, distance)", "Анна" in pg.inner_text(S + ".rn-v") and "1.5" in pg.inner_text(S + ".rn-v") and "Привет, Анна" in pg.inner_text(S + ".rn-o pre"))
+    go(14); ready(); seen = False
+    for _ in range(10):
+        pg.click(S + ".sp"); seen = seen or pg.locator(S + ".fn-n.on").count() == 1
+    check("презентация: функция подсвечивается, когда выполняется", seen and "на метро" in pg.inner_text(S + ".rn-o pre"))
+    go(15); ready()
+    for _ in range(12): pg.click(S + ".sp")
+    check("презентация: append добавляет 4-й элемент списка", pg.locator(S + ".cl[data-i='3']").is_visible())
+    pg.click(S + ".cl[data-i='1']"); check("презентация: клик по элементу списка", "cities[1]" in pg.inner_text(S + ".cr") and "Химки" in pg.inner_text(S + ".cr"))
+    # циклы, табы
+    go(12); ready(); pg.click(S + ".tab[data-t='range']"); pg.wait_for_selector(S + ".tb-range .go:not([disabled])")
+    pg.click(S + ".tb-range .go"); pg.wait_for_selector(S + ".tb-range .st:text('Готово')", timeout=15000)
+    check("презентация: цикл range(3) печатает Шаг 0..2", "Шаг 2" in pg.inner_text(S + ".tb-range .rn-o pre") and not pg.locator(S + ".tb-for").is_visible())
+    # условия: ползунок
+    go(13)
+    pg.eval_on_selector(S + ".sl-r", "e=>{e.value=10;e.dispatchEvent(new Event('input'))}")
+    check("презентация: ползунок 10 км → «на метро», подсвечены 3 строки", "на метро" in pg.inner_text(S + ".rsl") and pg.locator(S + ".ln.cur").count() == 3)
+    pg.eval_on_selector(S + ".sl-r", "e=>{e.value=2;e.dispatchEvent(new Event('input'))}")
+    check("презентация: ползунок 2 км (граница) → «пешком»", "пешком" in pg.inner_text(S + ".rsl"))
+    # игра про границы
+    go(17)
+    for i, ans in enumerate([0, 1, 1, 2]):
+        pg.click(S + ".a[data-i='%d']" % ans); ok = "Верно" in pg.inner_text(S + ".rsl")
+        if not ok: check("презентация: граница %d угадана" % i, False, pg.inner_text(S + ".rsl"))
+        pg.click(S + ".nx")
+    check("презентация: игра про границы: 4 из 4", "4 из 4" in pg.inner_text(S + ".qd"), pg.inner_text(S + ".qd"))
+    # алгоритм
+    go(7); pg.click(S + ".run"); pg.wait_for_selector(S + ".rsl:text('Чай готов')", timeout=8000)
+    pg.click(S + ".mix"); pg.click(S + ".run"); pg.wait_for_selector(S + ".rsl:text('Ошибка')", timeout=8000)
+    check("презентация: порядок шагов важен (верный и перепутанный)", True)
+    # цикл разработки
+    go(6); pg.click(S + ".play"); pg.wait_for_selector(S + ".nd.done >> nth=4", timeout=8000); check("презентация: цикл программы проигрывается", True)
+    # схема
+    go(16); pg.click(S + ".pk[data-n='Мария']"); pg.wait_for_selector(S + ".rsl:text('на метро')", timeout=8000)
+    check("презентация: схема для 12 км приводит к «метро»", "Мария, рекомендуемый способ: на метро." in pg.inner_text(S + ".rsl"))
+    # живая консоль
+    go(20)
+    for n in ["Анна", "Илья", "Мария"]:
+        pg.click(S + ".sc[data-n='%s']" % n); pg.wait_for_timeout(1500)
+    check("презентация: три сценария проходят", "Все три сценария проходят" in pg.inner_text(S + ".tl"), pg.inner_text(S + ".tl"))
+    pg.fill(S + ".ds", "abc"); pg.click(S + ".go"); pg.wait_for_timeout(1700)
+    check("презентация: «abc» даёт ValueError", "ValueError" in pg.inner_text(S + ".co"))
+    pg.fill(S + ".nm", "<img src=x onerror=window.xss=1>"); pg.fill(S + ".ds", "3"); pg.click(S + ".go"); pg.wait_for_timeout(1700)
+    check("презентация: HTML в имени не исполняется", pg.evaluate("window.xss") is None and pg.locator(S + " img").count() == 0)
+    go(21)
+    for i in range(5): pg.locator(S + "input[type=checkbox]").nth(i).check()
+    check("презентация: чек-лист заполняется", "Все пять шагов" in pg.inner_text(S + ".rsl"))
+    check("презентация: нет ошибок в консоли", not bag, bag[:3]); ctx.close()
+    # телефон: ни на одном слайде нет горизонтального скролла
+    ctx = new_ctx(b, 390, 780, mobile=True); pg = ctx.new_page(); bag = []; attach_errors(pg, bag); bad = []
+    pg.goto(base + "slides.html"); pg.wait_for_selector(S + ".sl-h")
+    for k in range(1, 24):
+        pg.evaluate("location.hash='#%d'" % k); pg.wait_for_timeout(120)
+        ov = pg.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+        if ov > 0: bad.append((k, ov))
+    check("презентация @390: на всех 23 слайдах нет горизонтального скролла", not bad, bad)
+    check("презентация @390: нет ошибок", not bag, bag[:3]); ctx.close()
+    # ноутбук: ничего не обрезано
+    ctx = new_ctx(b, 1366, 768); pg = ctx.new_page(); pg.goto(base + "slides.html"); pg.wait_for_selector(S + ".sl-h"); clip = []
+    for k in range(1, 24):
+        pg.evaluate("location.hash='#%d'" % k); pg.wait_for_timeout(120)
+        m = pg.evaluate("(()=>{const st=document.getElementById('stage').getBoundingClientRect();let m=-999;document.querySelectorAll('.sl.on .sl-b > *').forEach(e=>{m=Math.max(m,e.getBoundingClientRect().bottom-st.bottom)});return m})()")
+        if m > 1: clip.append((k, round(m)))
+    check("презентация @1366x768: ничто не выходит за слайд", not clip, clip); ctx.close()
+
+
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox"])

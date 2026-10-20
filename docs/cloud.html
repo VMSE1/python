@@ -1,17 +1,63 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Облако слов</title><link rel="stylesheet" href="site.css"></head><body>
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Облако слов</title><link rel="stylesheet" href="site.css"></head><body>
 <main class="wrap">
 <div class="crumbs">Облако слов</div><h1>Облако слов</h1>
-<p class="m">Пока это заготовка: слова вводятся тут же и никуда не сохраняются. Откуда брать слова и где показывать, решим позже.</p>
-<div class="btns"><input id="w" maxlength="24" placeholder="Слово по теме" aria-label="Слово по теме"> <button class="btn" id="add">Добавить</button> <button class="btn" id="clr">Очистить</button></div>
-<div id="cloud" class="box"></div>
+<p class="m">Выбери тему, напиши до 5 слов и нажми «Добавить». Откроется GitHub с готовой заявкой: нажми там <b>Submit new issue</b>. Потом вернись сюда и нажми «Обновить». Чем больше людей написали слово, тем крупнее оно.</p>
+<div class="box" id="ctl">
+ <label for="tp">Тема</label>
+ <select id="tp" aria-label="Тема облака"></select>
+ <input id="nt" maxlength="40" placeholder="Название новой темы" aria-label="Название новой темы" hidden>
+ <label for="w">Твои слова (через запятую, до 5)</label>
+ <input id="w" maxlength="120" placeholder="например: цикл, функция, список" aria-label="Твои слова">
+ <div class="btns"><a class="btn big" id="add" target="_blank" rel="noopener" href="#">Добавить в облако</a> <button class="btn" id="rf">Обновить</button></div>
+ <div class="m" id="msg" role="status"></div>
+</div>
+<div id="cloud" class="box"><div class="m">Загружаю…</div></div>
+<div class="m" id="who"></div>
+<div id="top"></div>
+<p class="m" id="tn"></p>
 </main>
 <script src="site.js"></script><script src="cloud.js"></script>
 <script>
 layout("cloud.html","Облако слов");
-var words=["python","цикл","переменная","функция","цикл","список","python","if"];
-function draw(){var n=WordCloud.render(document.getElementById("cloud"),words);if(!n)document.getElementById("cloud").textContent="Пока пусто. Добавь первое слово."}
-document.getElementById("add").onclick=function(){var i=document.getElementById("w");if(i.value.trim()){words.push(i.value);i.value="";draw()}};
-document.getElementById("w").onkeydown=function(e){if(e.key==="Enter")document.getElementById("add").click()};
-document.getElementById("clr").onclick=function(){words=[];draw()};
-draw();
+var issues=[],NEW="__new__",$=function(i){return document.getElementById(i)};
+var wantName=(new URLSearchParams(location.search).get("t")||"").slice(0,40),wantKey=WordCloud.topicKey(wantName);
+function curName(){var v=$("tp").value;return v===NEW?$("nt").value.trim():($("tp").selectedOptions[0]||{}).textContent.replace(/\s*\(\d+\)$/,"")}
+function fillTopics(){
+ var ts=WordCloud.topics(issues),sel=$("tp"),keep=sel.value||wantKey;sel.textContent="";
+ ts.forEach(function(t){var o=document.createElement("option");o.value=t.key;o.textContent=t.name+" ("+t.n+")";sel.appendChild(o)});
+ var o=document.createElement("option");o.value=NEW;o.textContent=ts.length?"+ Новая тема…":"+ Создать первую тему…";sel.appendChild(o);
+ sel.value=keep&&(ts.some(function(t){return t.key===keep})||keep===NEW)?keep:(wantKey?NEW:(ts[0]?ts[0].key:NEW));
+ if(sel.value===NEW&&wantName&&!$("nt").value)$("nt").value=wantName;
+}
+function draw(){
+ var k=$("tp").value,isNew=k===NEW;$("nt").hidden=!isNew;
+ var list=isNew?[]:WordCloud.fromIssues(issues,k);
+ var n=WordCloud.render($("cloud"),list);
+ if(!n)$("cloud").textContent=isNew?"Придумай тему и добавь первые слова.":"В этой теме пока нет слов. Добавь первое!";
+ $("who").textContent=n?("Участников: "+list.people+", разных слов: "+list.length):"";
+ var rows=list.slice().sort(function(a,b){return b.count-a.count||(a.text<b.text?-1:1)}).slice(0,10);
+ var t=$("top");t.textContent="";
+ if(rows.length){var tb=document.createElement("table");tb.className="tbl";
+  rows.forEach(function(r){var tr=tb.insertRow();tr.insertCell().textContent=r.text;tr.insertCell().textContent=r.count+" чел."});
+  t.appendChild(tb)}
+ link();
+}
+function link(){
+ var name=curName(),words=$("w").value.trim(),ok=!!name&&!!WordCloud.clean(words.split(",")[0]);
+ var a=$("add");
+ a.href=ok?ghUrl("/issues/new?template=cloud.yml&title="+encodeURIComponent("[Облако] "+name)+"&topic="+encodeURIComponent(name)+"&words="+encodeURIComponent(words)):"#";
+ a.setAttribute("aria-disabled",ok?"false":"true");a.style.opacity=ok?"1":".5";
+}
+function load(){
+ $("msg").textContent="Обновляю…";
+ fetchIssues("облако",function(a){issues=a;fillTopics();draw();$("msg").textContent=""},
+  function(e){$("cloud").textContent="";$("msg").textContent="Не удалось загрузить облако ("+e.message+"). Проверь интернет и нажми «Обновить».";fillTopics();link()});
+}
+$("tp").onchange=draw;$("nt").oninput=link;$("w").oninput=link;$("rf").onclick=load;
+$("add").onclick=function(e){
+ if($("add").getAttribute("aria-disabled")==="true"){e.preventDefault();$("msg").textContent="Выбери или назови тему и напиши хотя бы одно слово.";return}
+ $("msg").textContent="Заявка открылась в новой вкладке. Нажми там Submit new issue, потом вернись сюда и нажми «Обновить».";
+};
+if(isTeacher())$("tn").textContent="Учитель: чтобы убрать лишнее слово, поставь заявке метку «скрыто» (Issues → нужная заявка → Labels). После «Обновить» она исчезнет из облака.";
+load();
 </script></body></html>
