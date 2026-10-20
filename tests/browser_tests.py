@@ -32,7 +32,7 @@ def serve():
     return srv, "http://127.0.0.1:%d/" % srv.server_address[1]
 
 
-PAGES = ["index.html", "tasks.html", "theory.html", "quiz.html", "projects.html", "teacher.html", "task.html?id=1.1", "task.html?id=5.4", "theory.html?l=3"]
+PAGES = ["index.html", "tasks.html", "theory.html", "quiz.html", "projects.html", "teacher.html", "cloud.html", "task.html?id=1.1", "task.html?id=5.4", "theory.html?l=3"]
 
 
 def issue(n, nick, task, status, body_extra="", title=None, updated="2026-10-20T10:00:00Z"):
@@ -156,6 +156,14 @@ def functional(b, base):
     with ctx.expect_page() as np2: pg.click("#go")
     check("отправка: очень длинный код не ломает URL (запасной путь)", len(np2.value.url) < 8000 and "code=" not in np2.value.url)
     check("функциональные: нет ошибок в консоли", not bag, bag[:3])
+    ctx.close()
+    # облако слов
+    ctx = new_ctx(b); pg = ctx.new_page(); pg.goto(base + "cloud.html"); pg.wait_for_selector("#cloud svg text")
+    n0 = pg.locator("#cloud svg text").count()
+    pg.fill("#w", "<img src=x onerror=window.xss=1>"); pg.click("#add"); pg.fill("#w", "питон"); pg.press("#w", "Enter")
+    check("облако: слова добавляются, повтор склеивается", pg.locator("#cloud svg text").count() >= n0 and n0 >= 5)
+    check("облако: HTML в слове не исполняется", pg.evaluate("window.xss") is None and pg.locator("#cloud img").count() == 0)
+    pg.click("#clr"); check("облако: пустое состояние", "Пока пусто" in pg.inner_text("#cloud"))
     ctx.close()
     # инструкция
     ctx = new_ctx(b, seen=False); pg = ctx.new_page(); pg.goto(base + "index.html"); pg.wait_for_selector(".gd")
