@@ -138,11 +138,11 @@ def functional(b, base):
     starter = pg.input_value("#code"); pg.click("#code"); pg.wait_for_timeout(300)
     check("задание: Pyodide начинает грузиться после первого фокуса", any("pyodide" in u for u in req))
     def run_code(code, tmo=60000):
-        pg.fill("#code", code); pg.click("#chk"); pg.wait_for_selector("#res.on:not(.wait)", timeout=tmo); return pg.get_attribute("#res", "class"), pg.inner_text("#res")
+        big_fill(pg, code); pg.click("#chk"); pg.wait_for_selector("#res.on:not(.wait)", timeout=tmo); return pg.get_attribute("#res", "class"), pg.inner_text("#res")
     cls, txt = run_code(starter); check("задание: заготовка -> «только заготовка»", "fail" in cls and "заготовка" in txt, txt[:60])
     cls, txt = run_code('name=input("Имя: ")\ncity=input("Город: ")\nprint(f"Меня зовут {name}, я из {city}")'); check("задание: верное решение -> зелёный", "pass" in cls, txt[:80])
     cls, txt = run_code('print("не то")'); check("задание: неверное -> красный", "fail" in cls, txt[:80])
-    pg.fill("#code", "while True: pass"); t0 = time.time(); pg.click("#chk"); pg.wait_for_selector("#res.on:not(.wait)", timeout=30000)
+    big_fill(pg, "while True: pass"); t0 = time.time(); pg.click("#chk"); pg.wait_for_selector("#res.on:not(.wait)", timeout=30000)
     check("задание: бесконечный цикл обрывается за ~8 с", "8 секунд" in pg.inner_text("#res") and time.time() - t0 < 14, "%.1fs" % (time.time() - t0))
     cls, txt = run_code('name=input("Имя: ")\ncity=input("Город: ")\nprint(f"Меня зовут {name}, я из {city}")', 90000); check("задание: после обрыва проверка снова работает", "pass" in cls, txt[:80])
     pg.fill("#nick", ""); pg.click("#go"); check("отправка: без ника просит ник", "ник" in pg.inner_text("#msg"))
@@ -314,7 +314,7 @@ def stress(b, base):
     ctx = new_ctx(b); pg = ctx.new_page(); pg.goto(base + "task.html?id=1.2"); pg.click("#code")
     ok = 0; t0 = time.time()
     for i in range(20):
-        pg.fill("#code", 'print("x%d")' % i); pg.click("#chk"); pg.wait_for_selector("#res.on:not(.wait)", timeout=60000); ok += 1
+        big_fill(pg, 'print("x%d")' % i); pg.click("#chk"); pg.wait_for_selector("#res.on:not(.wait)", timeout=60000); ok += 1
     check("нагрузка: 20 проверок подряд в одной вкладке", ok == 20, "%.1fс" % (time.time() - t0))
     big_fill(pg, "x = 1\n" * 50000); pg.click("#chk"); pg.wait_for_selector("#res.on:not(.wait)", timeout=60000)
     check("нагрузка: код 300 КБ не вешает страницу", pg.evaluate("1+1") == 2)
@@ -419,8 +419,63 @@ def slides(b, base):
     check("презентация @1366x768: ничто не выходит за слайд", not clip, clip); ctx.close()
 
 
+def hn_hash(text):
+    t = "\n".join(l.rstrip() for l in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")).strip()
+    h = 0x811c9dc5
+    for byte in t.encode("utf-8"): h = ((h ^ byte) * 0x01000193) & 0xFFFFFFFF
+    return "%08x" % h
+
+
+def honest(b, base):
+    print("\n== ЧЕСТНЫЙ ВВОД ==")
+    from urllib.parse import unquote
+    ctx = new_ctx(b); ctx.grant_permissions(["clipboard-read", "clipboard-write"]); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code")
+    start = pg.input_value("#code")
+    pg.evaluate("navigator.clipboard.writeText('print(\"вставлено\")')"); pg.focus("#code"); pg.keyboard.press("Control+End"); pg.keyboard.press("Control+V")
+    check("честный ввод: Ctrl+V не вставляет текст", pg.input_value("#code") == start and "Вставка отключена" in pg.inner_text("#hn"), pg.input_value("#code")[-30:])
+    pasted = pg.evaluate("""()=>{const a=document.getElementById('code'),d=new DataTransfer();d.setData('text/plain','print(1)');const e=new ClipboardEvent('paste',{clipboardData:d,cancelable:true,bubbles:true});a.dispatchEvent(e);return e.defaultPrevented}""")
+    check("честный ввод: событие вставки отменяется (контекстное меню, Shift+Insert)", pasted is True)
+    pg.keyboard.insert_text("x" * 40)
+    check("честный ввод: сразу много текста (автодополнение ИИ, диктовка) блокируется", pg.input_value("#code") == start and "много текста" in pg.inner_text("#hn"))
+    pg.keyboard.type('print(1)'); pg.keyboard.press("Tab")
+    check("честный ввод: обычный набор работает", pg.input_value("#code").endswith("print(1)    ") or "print(1)" in pg.input_value("#code"))
+    pg.keyboard.press("Backspace"); pg.keyboard.press("Backspace"); pg.keyboard.type("x")
+    pg.fill("#nick", "snake_42"); pg.fill("#group", "9А")
+    with ctx.expect_page() as np: pg.click("#go")
+    raw = unquote(unquote(np.value.url)); import re as _re
+    m = _re.search(r"meta=(v1;[^&]*)", raw); meta = dict(p.split("=") for p in m.group(1).split(";")[1:]) if m else {}
+    final = pg.input_value("#code")
+    check("честный ввод: в заявку уходят метаданные набора", m is not None and int(meta.get("t", 0)) >= 9 and int(meta.get("p", 0)) >= 1 and int(meta.get("b", 0)) == 1, raw[-120:])
+    check("честный ввод: Tab и стирание не считаются подменой", meta.get("e") == "0", meta)
+    check("честный ввод: хеш кода в заявке совпадает с кодом", meta.get("h") == hn_hash(final), (meta.get("h"), hn_hash(final)))
+    pg.reload(); pg.wait_for_selector("#code"); pg.fill("#nick", "snake_42"); pg.fill("#group", "9А")
+    with ctx.expect_page() as np2: pg.click("#go")
+    m2 = _re.search(r"meta=(v1;[^&]*)", unquote(unquote(np2.value.url)))
+    check("честный ввод: счётчик переживает перезагрузку страницы", m2 and "p=" in m2.group(1) and int(dict(p.split("=") for p in m2.group(1).split(";")[1:])["t"]) >= 9)
+    pg.once("dialog", lambda d: d.accept()); pg.click("#rs"); pg.fill("#nick", "snake_42"); pg.fill("#group", "9А")
+    with ctx.expect_page() as np3: pg.click("#go")
+    m3 = _re.search(r"meta=(v1;[^&]*)", unquote(unquote(np3.value.url)))
+    check("честный ввод: «Сбросить» обнуляет счётчик", m3 and "t=0;p=0;b=0;e=0" in m3.group(1), m3 and m3.group(1))
+    check("честный ввод: нет ошибок в консоли", not bag, bag[:3]); ctx.close()
+    # кабинет: пометки в «Заявках»
+    code = "print(1)"
+    good = "v1;t=8;p=0;b=0;e=0;s=10;h=" + hn_hash(code)
+    issues = [issue(1, "anna", "1.1", "решено", "\n\n### Служебное (не меняй)\n\n" + good),
+              issue(2, "boris", "1.1", "решено", "\n\n### Служебное (не меняй)\n\nv1;t=8;p=3;b=0;e=0;s=10;h=" + hn_hash(code)),
+              issue(3, "vera", "1.1", "решено", "\n\n### Служебное (не меняй)\n\nv1;t=8;p=0;b=0;e=0;s=10;h=00000000"),
+              issue(4, "gleb", "1.1", "решено")]
+    ctx = new_ctx(b); mock_github(ctx, {"сдача": issues, "проект": []}); pg = ctx.new_page(); pg.goto(base + "teacher.html"); pg.wait_for_selector(".gate")
+    pg.fill("#tk", "ghp_good"); pg.click("#in"); pg.wait_for_selector(".kpi", timeout=10000)
+    sm = pg.inner_text("#tab")
+    check("кабинет: в сводке ⚠ у тех, кто вставлял или менял код", sm.count("⚠") == 2, sm.count("⚠"))
+    pg.click("#tb button >> nth=1"); pg.wait_for_timeout(200); t = pg.inner_text("#tab")
+    check("кабинет: «Заявки» показывают причины", "набран сам" in t and "пытался вставить: 3" in t and "код изменён после сайта" in t and "не через сайт" in t, t[:300])
+    ctx.close()
+
+
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox"])

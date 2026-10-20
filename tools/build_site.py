@@ -69,10 +69,15 @@ body:
     id: code
     attributes:
       label: Код решения
-      description: Вставь весь файл целиком
+      description: Код подставляется с сайта сам. Не меняй его здесь
       render: python
     validations:
       required: true
+  - type: input
+    id: meta
+    attributes:
+      label: Служебное (не меняй)
+      description: Заполняется сайтом. По нему учитель видит, что код набран самим, а не вставлен
 '''
     with open(os.path.join(ROOT, ".github", "ISSUE_TEMPLATE", "submit.yml"), "w", encoding="utf-8", newline="\n") as f:
         f.write(form)

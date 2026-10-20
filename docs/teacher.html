@@ -1,6 +1,6 @@
 <!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Кабинет учителя</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"></head><body>
 <main class="wrap"><div id="app"></div></main>
-<script src="site.js"></script><script src="data/tasks.js"></script><script src="questions.js"></script>
+<script src="site.js"></script><script src="honest.js"></script><script src="data/tasks.js"></script><script src="questions.js"></script>
 <script>
 layout("teacher.html","Кабинет");
 var OWNER=CFG.repo.split("/")[0],app=document.getElementById("app"),DATA=null;
@@ -30,23 +30,24 @@ function statusOf(x){var l=x.labels.map(function(a){return a.name});return l.ind
 function build(issues){
  var by={},sub=[];
  issues.forEach(function(x){var s=sections(x.body),nick=(s["Ник"]||"?").trim(),tm=(s["Задание"]||"").match(/^(\d+\.\d+)/);if(!tm)return;
-  var st=statusOf(x),k=nick.toLowerCase();by[k]=by[k]||{nick:nick,t:{},fails:{},last:"",login:"",group:""};if(x.user&&x.user.login)by[k].login=x.user.login;var gr=(s["Группа"]||"").trim();if(gr&&gr!=="_No response_")by[k].group=gr.slice(0,12);
+  var st=statusOf(x),k=nick.toLowerCase();by[k]=by[k]||{nick:nick,t:{},fails:{},last:"",login:"",group:"",warn:0};if(x.user&&x.user.login)by[k].login=x.user.login;var gr=(s["Группа"]||"").trim();if(gr&&gr!=="_No response_")by[k].group=gr.slice(0,12);
   if(st==="bad")by[k].fails[tm[1]]=(by[k].fails[tm[1]]||0)+1;
   var c=by[k].t[tm[1]];if(!c||st==="ok"||(c!=="ok"&&st!=="wait"))by[k].t[tm[1]]=st;
   if(x.updated_at>by[k].last)by[k].last=x.updated_at;
-  sub.push({nick:nick,task:tm[1],st:st,url:x.html_url,date:x.updated_at,num:x.number})});
+  var cm=/^```[^\n]*\n([\s\S]*?)\n?```\s*$/.exec((s["Код решения"]||"").trim()),vd=Honest.verdict(Honest.parse(s["Служебное (не меняй)"]),cm?cm[1]:(s["Код решения"]||""));if(vd.level==="warn")by[k].warn++;
+  sub.push({nick:nick,task:tm[1],st:st,url:x.html_url,date:x.updated_at,num:x.number,vd:vd})});
  return {by:by,sub:sub.sort(function(a,b){return b.date<a.date?-1:1})};
 }
 function cell(v){v=String(v==null?"":v);if(/^[=+\-@\t\r]/.test(v))v="'"+v;return /[;"\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
 function csv(rows){return rows.map(function(r){return r.map(cell).join(";")}).join("\r\n")}
 function qbest(){var q=jget("quizrows",[]),m={};q.forEach(function(r){var k=String(r.n).trim().toLowerCase(),p=Math.round(r.s/r.t*100);if(!m[k]||p>m[k])m[k]=p});return m}
 function sheet(){
- var names=jget("names",{}),qb=qbest(),ns=Object.keys(DATA.by).sort(),head=["Ученик","Ник"].concat(TASKS.map(function(t){return t.id})).concat(["Решено","Всего заданий","Ошибочных попыток","Последняя активность","Тест, % (лучший)"]);
+ var names=jget("names",{}),qb=qbest(),ns=Object.keys(DATA.by).sort(),head=["Ученик","Ник"].concat(TASKS.map(function(t){return t.id})).concat(["Решено","Всего заданий","Ошибочных попыток","Последняя активность","Тест, % (лучший)","Сдач с подозрением на вставку"]);
  var rows=[head];
  ns.forEach(function(k){var u=DATA.by[k],c=0,f=0;Object.keys(u.fails).forEach(function(i){f+=u.fails[i]});
   var cells=TASKS.map(function(t){var v=u.t[t.id];if(v==="ok")c++;return v==="ok"?"решено":(v==="bad"?"ошибки":(v==="wait"?"ждёт":""))});
   var q=qb[k];if(q==null&&names[k])q=qb[String(names[k]).toLowerCase()];
-  rows.push([names[k]||"",u.nick].concat(cells).concat([c,TASKS.length,f,u.last?u.last.slice(0,16).replace("T"," "):"",q==null?"":q]))});
+  rows.push([names[k]||"",u.nick].concat(cells).concat([c,TASKS.length,f,u.last?u.last.slice(0,16).replace("T"," "):"",q==null?"":q,u.warn]))});
  return rows}
 function nm(nick){var n=jget("names",{})[nick.toLowerCase()];return n?esc(n)+' <span class="m">('+esc(nick)+')</span>':esc(nick)}
 function dl(name,text,type){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+text],{type:type||"text/csv"}));a.download=name;a.click()}
@@ -67,14 +68,14 @@ function tSum(el){
  if(stuck.length)h+='<div class="callout warn" style="background:color-mix(in srgb,var(--amber) 9%,var(--surface));border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:10px 0"><b>Нужна помощь:</b> '+stuck.map(esc).join(", ")+'</div>';
  if(!ns.length){el.innerHTML=h+'<div class="box">Пока нет сдач.</div>';return}
  h+='<div class="box" style="overflow:auto"><table class="matrix"><tr><th>Ученик</th>'+TASKS.map(function(t){return '<th title="'+esc(t.title)+'">'+t.id+'</th>'}).join("")+'<th>Итого</th></tr>';
- ns.forEach(function(k){var u=DATA.by[k],c=0;h+='<tr><td>'+nm(u.nick)+'</td>'+TASKS.map(function(t){var v=u.t[t.id];if(v==="ok")c++;return '<td>'+(v==="ok"?'<span class="ok">●</span>':v==="bad"?'<span class="bad">●</span>':v==="wait"?'<span class="m">○</span>':'')+'</td>'}).join("")+'<td><b>'+c+'</b>/'+TASKS.length+'</td></tr>'});
+ ns.forEach(function(k){var u=DATA.by[k],c=0;h+='<tr><td>'+nm(u.nick)+(u.warn?' <span class="bad" title="Сдач с подозрением на вставку: '+u.warn+'. Подробности во вкладке «Заявки».">⚠</span>':'')+'</td>'+TASKS.map(function(t){var v=u.t[t.id];if(v==="ok")c++;return '<td>'+(v==="ok"?'<span class="ok">●</span>':v==="bad"?'<span class="bad">●</span>':v==="wait"?'<span class="m">○</span>':'')+'</td>'}).join("")+'<td><b>'+c+'</b>/'+TASKS.length+'</td></tr>'});
  h+='</table></div><p class="m" style="font-size:14px"><span class="ok">●</span> решено &nbsp; <span class="bad">●</span> ошибки &nbsp; <span>○</span> ждёт проверки</p><div class="btns"><button class="btn go" id="csv">Скачать ведомость (Excel)</button><button class="btn ghost" id="prn">Печать</button></div><p class="m" style="font-size:14px">Файл собирается у тебя в браузере и никуда не отправляется. Колонка «Ученик» берётся из вкладки «Ученики».</p>';
  el.innerHTML=h;
  document.getElementById("csv").onclick=function(){dl("ведомость_"+new Date().toISOString().slice(0,10)+".csv",csv(sheet()))};document.getElementById("prn").onclick=function(){window.print()};
 }
 function tSub(el){
  var em={ok:["решено","chip done"],bad:["ошибки","chip"],wait:["ждёт","chip"]};
- el.innerHTML='<div class="box"><table><tr><th>Ученик</th><th>Задание</th><th>Статус</th><th>Обновлено</th><th></th></tr>'+DATA.sub.slice(0,80).map(function(s){return '<tr><td>'+nm(s.nick)+'</td><td>'+s.task+'</td><td><span class="'+em[s.st][1]+'">'+em[s.st][0]+'</span></td><td class="m">'+new Date(s.date).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+'</td><td><a href="'+esc(s.url)+'" target="_blank" rel="noopener">открыть</a></td></tr>'}).join("")+'</table></div>';
+ el.innerHTML='<div class="box"><table><tr><th>Ученик</th><th>Задание</th><th>Статус</th><th>Обновлено</th><th>Как набран код</th><th></th></tr>'+DATA.sub.slice(0,80).map(function(s){return '<tr><td>'+nm(s.nick)+'</td><td>'+s.task+'</td><td><span class="'+em[s.st][1]+'">'+em[s.st][0]+'</span></td><td class="m">'+new Date(s.date).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+'</td><td>'+(s.vd.level==="ok"?'<span class="ok">набран сам</span>':'<span class="'+(s.vd.level==="warn"?"bad":"m")+'" title="'+esc(s.vd.reasons.join("; "))+'">'+(s.vd.level==="warn"?"⚠ ":"")+esc(s.vd.reasons.join("; "))+'</span>')+'</td><td><a href="'+esc(s.url)+'" target="_blank" rel="noopener">открыть</a></td></tr>'}).join("")+'</table></div>';
 }
 function tStu(el){
  var names=jget("names",{}),ks=Object.keys(DATA.by);Object.keys(names).forEach(function(k){if(ks.indexOf(k)<0)ks.push(k)});ks.sort();
