@@ -198,13 +198,13 @@ var Games = (function () {
   function byId(id) { return LIST.filter(function (g) { return g.id === id; })[0]; }
   function mount(host, id) { return IMPL[id](host); }
   function random(not) { var a = LIST.filter(function (g) { return g.id !== not; }); return a[rnd(a.length)].id; }
-  function modal(id) {
+  function modal(id, onClose) {
     var g = byId(id); if (!g || document.querySelector(".xm-back")) return;
     var back = document.createElement("div"); back.className = "xm-back"; back.setAttribute("role", "dialog"); back.setAttribute("aria-modal", "true"); back.setAttribute("aria-label", g.name);
     back.innerHTML = '<div class="xm gm-modal"><div class="xh"><span>Награда: ' + E(g.name) + '</span><button class="btn sm ghost" type="button" id="gm-x">Закрыть</button></div><div class="xb"></div></div>';
     document.body.appendChild(back);
     var inst = mount(back.querySelector(".xb"), id);
-    function close() { inst.destroy(); back.remove(); document.removeEventListener("keydown", esc); }
+    function close() { inst.destroy(); back.remove(); document.removeEventListener("keydown", esc); if (onClose) onClose(); }
     function esc(e) { if (e.key === "Escape") close(); }
     document.addEventListener("keydown", esc); back.querySelector("#gm-x").onclick = close;
     back.addEventListener("click", function (e) { if (e.target === back) close(); }); back.querySelector("#gm-x").focus();

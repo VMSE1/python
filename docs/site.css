@@ -268,3 +268,7 @@ html{scroll-behavior:auto}
 .nx-bar i.on{background:var(--title);border-color:#000}
 .nx-wk i.on{background:var(--yellow);border-color:#000}.nx-wk i.today{outline:3px dashed var(--red);outline-offset:2px}
 @media(max-width:560px){.nx-c{border-right:0;border-bottom:3px dashed #9d9cb8}.nx-c:last-child{border-bottom:0}}
+.nx-choice{padding:14px 16px;display:grid;gap:10px;border-bottom:3px dashed #9d9cb8}
+.nx-btns{display:flex;gap:14px;flex-wrap:wrap;align-items:stretch}
+.nx-btns .btn{max-width:100%;text-align:center}
+.nx-done{align-self:center;color:var(--muted);font-weight:700}

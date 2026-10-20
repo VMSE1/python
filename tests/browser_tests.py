@@ -32,7 +32,7 @@ def serve():
     return srv, "http://127.0.0.1:%d/" % srv.server_address[1]
 
 
-PAGES = ["index.html", "tasks.html", "theory.html", "quiz.html", "projects.html", "teacher.html", "cloud.html", "slides.html", "video.html", "games.html", "task.html?id=1.1", "task.html?id=5.4", "theory.html?l=3"]
+PAGES = ["index.html", "tasks.html", "theory.html", "quiz.html", "projects.html", "teacher.html", "cloud.html", "slides.html", "video.html", "task.html?id=1.1", "task.html?id=5.4", "theory.html?l=3"]
 
 
 def issue(n, nick, task, status, body_extra="", title=None, updated="2026-10-20T10:00:00Z"):
@@ -110,12 +110,12 @@ def functional(b, base):
     ctx = new_ctx(b); mock_github(ctx, {"проект": [issue(1, "ann", "1.1", None, title="[Проект] Бот")], "сдача": []})
     pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
     pg.goto(base + "index.html"); pg.wait_for_timeout(300)
-    check("desktop: 9 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 9 and "id=1.1" in pg.get_attribute("#cont", "href"))
+    check("desktop: 8 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 8 and "id=1.1" in pg.get_attribute("#cont", "href"))
     pg.click("a.ico >> nth=0"); pg.wait_for_url("**/tasks.html"); check("иконка «Задания» открывает карту", "tasks.html" in pg.url)
     check("карта: 22 квадрата, один «следующий»", pg.locator(".node").count() == 22 and pg.locator(".node.next").count() == 1)
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
-    pg.click("#startBtn"); check("«Пуск» открывает меню (12 пунктов)", pg.locator("#smenu.on a").count() == 12, pg.locator("#smenu.on a").count())
+    pg.click("#startBtn"); check("«Пуск» открывает меню (11 пунктов)", pg.locator("#smenu.on a").count() == 11, pg.locator("#smenu.on a").count())
     pg.keyboard.press("Escape"); check("Esc закрывает меню", pg.locator("#smenu.on").count() == 0)
     pg.click("#startBtn"); pg.mouse.click(900, 300); check("клик вне меню закрывает его", pg.locator("#smenu.on").count() == 0)
     # проекты
@@ -565,6 +565,12 @@ def video(b, base):
     check("видео: нет ошибок в консоли", not bag, bag[:3]); ctx.close()
 
 
+def gamepage(pg, base, g):
+    pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code")
+    pg.evaluate("g=>{const h=document.createElement('div');h.id='gh';document.querySelector('main').prepend(h);window.GI=Games.mount(h,g)}", g)
+    pg.wait_for_selector("#gh .gm")
+
+
 def extras(b, base):
     print("\n== ПОДСКАЗКИ, СЕРИЯ, ИГРЫ ==")
     ctx = new_ctx(b); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
@@ -622,26 +628,27 @@ def extras(b, base):
     sol = 'score = int(input("Баллы: "))\nif score >= 85:\n    print("Оценка: 5")\nelif score >= 65:\n    print("Оценка: 4")\nelif score >= 45:\n    print("Оценка: 3")\nelse:\n    print("Оценка: 2")\n'
     big_fill(pg, sol); pg.click("#chk"); pg.wait_for_selector("#nextbox", timeout=90000)
     tx = pg.inner_text("#nextbox")
-    check("что дальше: после проверки показано следующее задание, серия и игра", "Задание 2.2 пройдено" in tx and "2.3" in tx and "Серия началась" in tx and "Мини-игра" in tx, tx[:200])
+    check("что дальше: после проверки выбор «продолжить» или «сыграть», серия", "Задание 2.2 пройдено" in tx and "Продолжить: 2.3" in tx and "Сыграть один раз" in tx and "Серия началась" in tx, tx[:200])
     check("что дальше: серия записана в браузере", pg.evaluate("JSON.parse(localStorage.streak).n") == 1)
     pg.reload(); pg.wait_for_selector("#nextbox")
     check("что дальше: панель видна и после перезагрузки", True)
-    pg.click("[data-play]"); pg.wait_for_selector(".xm .gm")
-    check("что дальше: кнопка «Играть» открывает мини-игру", pg.locator(".xm-back").count() == 1)
+    pg.click("#nx-play"); pg.wait_for_selector(".xm .gm")
+    check("что дальше: «Сыграть один раз» открывает мини-игру", pg.locator(".xm-back").count() == 1)
     pg.keyboard.press("Escape"); check("что дальше: Esc закрывает игру", pg.locator(".xm-back").count() == 0)
+    check("что дальше: после игры кнопки «сыграть» нет, «продолжить» осталась", pg.locator("#nx-play").count() == 0 and "уже сыграна" in pg.inner_text("#nextbox") and pg.locator("#nx-go").count() == 1, pg.inner_text("#nextbox")[:150])
+    pg.reload(); pg.wait_for_selector("#nextbox")
+    check("что дальше: повторно сыграть за то же задание нельзя (и после перезагрузки)", pg.locator("#nx-play").count() == 0 and pg.evaluate("JSON.parse(localStorage.played)['2.2']") == 1)
+    pg.goto(base + "task.html?id=2.3"); pg.wait_for_selector("#code")
+    pg.evaluate("()=>{const p=JSON.parse(localStorage.passed||'{}');p['2.3']=1;localStorage.passed=JSON.stringify(p)}"); pg.reload(); pg.wait_for_selector("#nextbox")
+    check("что дальше: за следующее задание игра снова доступна", pg.locator("#nx-play").count() == 1)
+    pg.goto(base + "index.html"); pg.wait_for_selector("#nx")
+    check("игры: нет ни на рабочем столе, ни в меню, отдельной страницы нет", "Игры" not in pg.inner_text("#icons") and "Игры" not in pg.evaluate("document.querySelector('#smenu').textContent"))
     pg.goto(base + "index.html"); pg.wait_for_selector("#nx")
     check("главный экран: видна серия", "Серия: 1 день" in pg.inner_text(".dlg"), pg.inner_text(".dlg")[:120])
     # 4. игры
-    pg.goto(base + "games.html"); pg.wait_for_selector(".gm")
-    check("игры: 4 игры в списке", pg.locator("#gt button").count() == 4)
-    # сапёр
-    pg.evaluate("window.GI=window.GI||null")
-    pg.click(".mn .c >> nth=40")
+    gamepage(pg, base, "mines"); pg.click("#gh .mn .c >> nth=40")
     r = pg.evaluate("""()=>{const root=document.querySelector('.gm');return [root.dataset.state,document.querySelectorAll('.mn .c.o').length]}""")
     check("сапёр: первый клик безопасен и открывает клетки", r[0] in ("playing", "won") and r[1] >= 1, r)
-    pg.evaluate("""()=>{const bs=[...document.querySelectorAll('.mn .c')];bs[0].dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))}""")
-    check("сапёр: правая кнопка ставит флажок", pg.locator(".mn .c.fl").count() >= 0)
-    # честный тест логики: свой экземпляр с доступом к клеткам
     res = pg.evaluate("""()=>{const h=document.createElement('div');document.body.appendChild(h);const g=Games.mount(h,'mines');const root=h.querySelector('.gm');
       h.querySelector('.mn .c:nth-child(41)').click();const cs=g._cells();const mines=cs.filter(c=>c.m).length;const firstOpen=cs[40].o===1&&!cs[40].m;
       const idx=cs.findIndex(c=>c.m);h.querySelector('.mn .c:nth-child('+(idx+1)+')').click();const lost=root.dataset.state;
@@ -649,28 +656,26 @@ def extras(b, base):
       for(let i=0;i<81;i++){if(!cs2[i].m&&!cs2[i].o)h.querySelector('.mn .c:nth-child('+(i+1)+')').click()}
       const won=root.dataset.state;g.destroy();h.remove();return [mines,firstOpen,lost,won]}""")
     check("сапёр: 10 мин, проигрыш на мине, победа при открытии всех безопасных клеток", res == [10, True, "lost", "won"], res)
-    # змейка
-    pg.goto(base + "games.html?g=snake"); pg.wait_for_selector(".gm-cv")
+    pg.evaluate("window.GI.destroy()")
+    gamepage(pg, base, "snake")
     pg.keyboard.press("ArrowRight"); pg.wait_for_selector(".gm[data-state=playing]", state="attached")
     pg.wait_for_selector(".gm[data-state=over]", state="attached", timeout=6000)
     check("змейка: стартует по стрелке и заканчивается об стену", pg.inner_text(".gm-st").startswith("Конец"), pg.inner_text(".gm-st"))
     pg.click("[data-r]"); check("змейка: «Заново» возвращает к началу", pg.evaluate("document.querySelector('.gm').dataset.state") == "ready")
-    # бегун
-    pg.goto(base + "games.html?g=runner"); pg.wait_for_selector(".gm-cv")
+    gamepage(pg, base, "runner")
     pg.keyboard.press(" "); pg.wait_for_selector(".gm[data-state=playing]", state="attached")
     pg.wait_for_selector(".gm[data-state=over]", state="attached", timeout=20000)
     check("бегун: прыжок запускает игру, без прыжков врезаешься в баг", "Конец" in pg.inner_text(".gm-st"), pg.inner_text(".gm-st"))
-    # лабиринт
     ok = pg.evaluate("Games.MAZE.length===11&&Games.MAZE.every(r=>r.length===15)")
-    pg.goto(base + "games.html?g=maze"); pg.wait_for_selector(".gm-cv")
+    gamepage(pg, base, "maze")
     pg.keyboard.press("ArrowLeft"); pg.wait_for_timeout(1300)
     left = pg.inner_text(".gm-bar")
     check("лабиринт: поле целое, игрок собирает биты", ok and "Бит осталось: 78" not in left and "Жизни" in left, left)
-    pg.click("#gt button >> nth=0"); pg.wait_for_selector(".mn")
-    check("игры: переключение вкладок меняет игру", "Сапёр" in pg.inner_text(".gm-top"))
-    ctx2 = new_ctx(b, 390, 800, mobile=True); p2 = ctx2.new_page(); p2.goto(base + "games.html?g=maze"); p2.wait_for_selector(".gm-cv")
-    w = p2.evaluate("[document.documentElement.scrollWidth, innerWidth]"); p2.goto(base + "games.html?g=mines"); p2.wait_for_selector(".mn"); w2 = p2.evaluate("[document.documentElement.scrollWidth, innerWidth]")
-    check("игры: на телефоне нет горизонтальной прокрутки", w[0] <= w[1] + 1 and w2[0] <= w2[1] + 1, (w, w2)); ctx2.close()
+    ctx2 = new_ctx(b, 390, 800, mobile=True); p2 = ctx2.new_page()
+    ws = []
+    for g in ("maze", "mines", "snake", "runner"):
+        gamepage(p2, base, g); ws.append(p2.evaluate("[document.documentElement.scrollWidth, innerWidth]"))
+    check("игры: на телефоне нет горизонтальной прокрутки", all(w[0] <= w[1] + 1 for w in ws), ws); ctx2.close()
     check("игры и подсказки: нет ошибок в консоли", not bag, bag[:3]); ctx.close()
 
 
