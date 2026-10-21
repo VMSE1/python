@@ -769,8 +769,20 @@ def brief(b, base):
     check("карточка: нет ошибок в консоли", not bag, bag[:3]); ctx.close(); ctx3.close()
 
 
+def chaos(b, base):
+    print("\n== ИСПОРЧЕННЫЕ ДАННЫЕ В БРАУЗЕРЕ ==")
+    junk = ["null", "{", "[]", '"x"', "12", "true", '{"last":"zzz","n":"NaN","days":5}']
+    for n, j in enumerate(junk):
+        ctx = new_ctx(b); ctx.route("https://api.github.com/**", lambda r: r.fulfill(status=200, body="[]", content_type="application/json")); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+        pg.goto(base + "index.html")
+        pg.evaluate("""(j)=>{['streak','played','passed','done','nick','group','fio','hn_1.1','hnc_1.1','code_1.1'].forEach(k=>localStorage.setItem(k,j))}""", j)
+        for u in ("index.html", "tasks.html", "task.html?id=1.1", "task.html?id=9.9", "theory.html", "video.html", "teacher.html", "start.html", "quiz.html", "projects.html", "cloud.html", "slides.html"):
+            pg.goto(base + u); pg.wait_for_timeout(250)
+        check("мусор в хранилище %r: нет ошибок на страницах" % j, not bag, bag[:2]); ctx.close()
+
+
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox"])

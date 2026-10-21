@@ -2,7 +2,7 @@
    Всё хранится в браузере (localStorage), GitHub не нужен. */
 var Streak = (function () {
   function key(d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
-  function load() { try { return JSON.parse(localStorage.getItem("streak") || "{}"); } catch (e) { return {}; } }
+  function load() { try { var v = JSON.parse(localStorage.getItem("streak") || "{}"); return v && typeof v === "object" ? v : {}; } catch (e) { return {}; } }
   function save(o) { try { localStorage.setItem("streak", JSON.stringify(o)); } catch (e) {} }
   function prev(k) { var p = k.split("-"), d = new Date(+p[0], +p[1] - 1, +p[2]); d.setDate(d.getDate() - 1); return key(d); }
   /* now: для тестов можно подставить дату */
@@ -30,7 +30,7 @@ var Streak = (function () {
 })();
 
 var Reward = (function () {
-  function load(k) { try { return JSON.parse(localStorage.getItem(k) || "{}"); } catch (e) { return {}; } }
+  function load(k) { try { var v = JSON.parse(localStorage.getItem(k) || "{}"); return v && typeof v === "object" ? v : {}; } catch (e) { return {}; } }
   function nextTask(t) {
     var p = load("passed"), d = load("done"), i = TASKS.indexOf(t);
     var open = function (x) { return !p[x.id] && !d[x.id]; };

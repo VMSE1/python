@@ -7,7 +7,7 @@ layout("tasks.html","Задание");
 var ARROW='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 var OKI='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
 var BADI='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-function load(k){try{return JSON.parse(localStorage.getItem(k)||"{}")}catch(e){return {}}}
+function load(k){try{var v=JSON.parse(localStorage.getItem(k)||"{}");return v&&typeof v==="object"?v:{}}catch(e){return {}}}
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 var id=new URLSearchParams(location.search).get("id"),t=TASKS.filter(function(x){return x.id===id})[0],m=document.querySelector("#main .in");
 if(!t){m.innerHTML='<h1 style="margin-top:40px">Задание не найдено</h1><p><a href="tasks.html">← к заданиям</a></p>'}else{

@@ -9,7 +9,7 @@
 <script>
 layout("tasks.html","Задания");
 var CHK=pix('check');
-function load(k){try{return JSON.parse(localStorage.getItem(k)||"{}")}catch(e){return {}}}
+function load(k){try{var v=JSON.parse(localStorage.getItem(k)||"{}");return v&&typeof v==="object"?v:{}}catch(e){return {}}}
 var sent=load("done"),passed=load("passed");
 var L={},ls=[];TASKS.forEach(function(t){if(!L[t.lesson]){L[t.lesson]={t:t.lessonTitle,a:[]};ls.push(t.lesson)}L[t.lesson].a.push(t)});
 var nextT=TASKS.filter(function(t){return !sent[t.id]&&!passed[t.id]})[0]||null;
