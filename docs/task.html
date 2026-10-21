@@ -1,6 +1,6 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Задание</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="explainer.css"><link rel="stylesheet" href="games.css"></head><body>
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com https://2-27-53-182.sslip.io wss://2-27-53-182.sslip.io; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Задание</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="explainer.css"><link rel="stylesheet" href="games.css"></head><body>
 <main class="wrap" id="main"></main>
-<script src="site.js"></script><script src="honest.js"></script><script src="offline.js"></script><script src="data/tasks.js"></script><script src="data/theory.js"></script><script src="runner/check.js"></script><script src="data/clips.js"></script><script src="explainer.js"></script><script src="hints.js"></script><script src="games.js"></script><script src="reward.js"></script>
+<script src="site.js"></script><script src="config.js"></script><script src="net.js"></script><script src="honest.js"></script><script src="offline.js"></script><script src="data/tasks.js"></script><script src="data/theory.js"></script><script src="runner/check.js"></script><script src="data/clips.js"></script><script src="explainer.js"></script><script src="hints.js"></script><script src="games.js"></script><script src="reward.js"></script>
 <script>
 (function(){
 layout("tasks.html","Задание");
@@ -71,7 +71,7 @@ chk.onclick=function(){
  res.className="res on wait";res.innerHTML='<div class="rh">'+(BrowserCheck.isReady()?'Проверяю…':'Первый запуск: загружаю проверку (около 13 МБ, один раз). Подожди…')+'</div>';chk.disabled=true;
  BrowserCheck.run(t,Honest.code(ta)).then(function(r){chk.disabled=false;
   if(r.todo){res.className="res on fail";res.innerHTML='<div class="rh">'+BADI+'Пока тут только заготовка. Напиши решение.</div>';return}
-  if(r.ok){res.className="res on pass";res.innerHTML='<div class="rh">'+OKI+'Все тесты пройдены. Отправь решение учителю</div>';var p=load("passed");p[t.id]=1;save("passed",p);refreshSteps();Streak.touch();Reward.show(document.getElementById("next"),t);document.getElementById("go").focus()}
+  if(r.ok){res.className="res on pass";res.innerHTML='<div class="rh">'+OKI+'Все тесты пройдены. Отправь решение учителю</div>';var p=load("passed");p[t.id]=1;save("passed",p);Net.push();refreshSteps();Streak.touch();Reward.show(document.getElementById("next"),t);document.getElementById("go").focus()}
   else{res.className="res on fail";res.innerHTML='<div class="rh">'+BADI+'Пока не так</div><ul>'+r.messages.map(function(x){return "<li>"+esc(x)+"</li>"}).join("")+'</ul>'+(r.sample?'<pre>'+esc(r.sample.slice(0,400))+'</pre>':"")+Hints.html(Hints.explain(Honest.code(ta),t,r))}
  });
 };
@@ -84,7 +84,7 @@ document.getElementById("go").onclick=function(){
  var url=ghUrl(base+"&code="+encodeURIComponent(Honest.code(ta)));
  if(url.length>7500){msg.className="warn";msg.textContent="Код длинный: нажми «Копировать» и вставь его на GitHub.";url=ghUrl(base)}
  else{msg.className="ok";msg.textContent="Открываю GitHub → нажми Submit new issue"}
- var d=load("done");d[t.id]=1;save("done",d);refreshSteps();
+ var d=load("done");d[t.id]=1;save("done",d);Net.push();refreshSteps();
  window.open(url,"_blank","noopener");
 };
 document.getElementById("mk").onclick=function(){
@@ -95,7 +95,7 @@ document.getElementById("mk").onclick=function(){
  try{localStorage.setItem("fio",f);localStorage.setItem("group",g)}catch(e){}
  var p=load("passed"),tok=Offline.pack({n:f,g:g,t:t.id,c:Honest.code(ta),m:Honest.meta(ta),ok:!!p[t.id]});
  document.getElementById("tok").value=tok;tm.className="ok";tm.textContent=p[t.id]?"Готово. Отправь этот код учителю.":"Готово. Но код пока не прошёл проверку здесь. Нажми «Проверить здесь» или отправь как есть: учитель проверит сам.";
- var d=load("done");d[t.id]=1;save("done",d);refreshSteps();
+ var d=load("done");d[t.id]=1;save("done",d);Net.push();refreshSteps();
 };
 document.getElementById("tcp").onclick=function(){copyText(document.getElementById("tok").value,this)};
 document.getElementById("tdl").onclick=function(){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([document.getElementById("tok").value+"\n"],{type:"text/plain"}));a.download="сдача_"+t.id+".txt";a.click()};

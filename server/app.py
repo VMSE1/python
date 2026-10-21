@@ -308,6 +308,7 @@ class Room:
         self.dirty = False
         self.touched = time.time()
         self.cloud_task = None
+        self.saved = {}         # ник -> счёт, чтобы при обрыве связи очки не терялись
 
     def board(self, n=10):
         rows = sorted(self.players.values(), key=lambda p: -p["score"])
@@ -447,6 +448,7 @@ async def ws_handler(req):
                 r.touched = time.time()
                 await to_all(r, {"t": "hostoff"}, host=False)
             elif ws in r.players:
+                r.saved[r.players[ws]["nick"].lower()] = r.players[ws]["score"]
                 del r.players[ws]
                 await plist(r)
     return ws
@@ -505,7 +507,7 @@ async def on_msg(ws, role, d):
         if any(p["nick"].lower() == nick.lower() for p in r.players.values()):
             await send(ws, {"t": "err", "m": "Такой ник уже есть в комнате. Добавь цифру."})
             return
-        r.players[ws] = {"nick": nick, "score": 0, "ans": None, "words": 0}
+        r.players[ws] = {"nick": nick, "score": r.saved.get(nick.lower(), 0), "ans": None, "words": 0}
         role["room"] = r
         await send(ws, {"t": "joined", "kind": r.kind, "title": r.title, "state": r.state, "total": len(r.qs)})
         await plist(r)

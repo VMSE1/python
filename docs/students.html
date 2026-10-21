@@ -1,0 +1,32 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com https://2-27-53-182.sslip.io wss://2-27-53-182.sslip.io; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Ученики на сервере</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="live.css"></head><body>
+<main class="wrap">
+<div class="crumbs">Ученики на сервере</div><h1>Ученики на сервере</h1>
+<p class="m">Кто зарегистрировался и сколько заданий выполнил. Данные хранятся на твоём сервере. Пароли здесь не видны, их нельзя узнать, только задать новые.</p>
+<div class="box" id="gate" style="display:grid;gap:10px;max-width:520px"><div class="fld"><label for="tk">Ключ учителя</label><input id="tk" type="password" autocomplete="off"></div><div class="bad" id="er" role="alert"></div><button class="btn big go" id="ld" type="button">Показать учеников</button></div>
+<div id="out"></div>
+</main>
+<script src="site.js"></script><script src="data/tasks.js"></script><script src="config.js"></script><script src="net.js"></script>
+<script>
+layout("students.html","Ученики на сервере");
+function $(i){return document.getElementById(i)}
+var T=Net.tkey(),users=[];$("tk").value=T;
+function load(){var k=$("tk").value.trim();if(!k){$("er").textContent="Впиши ключ.";return}
+ Net.req("GET","/api/teacher/users",null,{"X-Teacher-Key":k}).then(function(j){if(!j.ok){$("er").textContent=j.error||"Нет доступа.";return}Net.tkey(k);$("er").textContent="";users=j.users;draw()}).catch(function(e){$("er").textContent=e.message})}
+function ago(ts){if(!ts)return "";var d=Math.round((Date.now()/1000-ts)/60);return d<2?"только что":d<60?d+" мин назад":d<1440?Math.round(d/60)+" ч назад":Math.round(d/1440)+" дн назад"}
+function draw(){
+ var o=$("out"),n=TASKS.length;
+ if(!users.length){o.innerHTML='<div class="box">Пока никто не зарегистрировался.</div>';return}
+ var h='<div class="btns"><button class="btn" id="csv" type="button">Скачать таблицу (CSV)</button><button class="btn ghost" id="rf" type="button">Обновить</button></div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Группа</th><th>Фамилия Имя</th><th>Ник</th><th>Решено</th><th>Сдано</th><th>Серия</th><th>Был</th><th></th></tr></thead><tbody>';
+ users.forEach(function(u,i){h+='<tr><td>'+esc(u.group)+'</td><td>'+esc(u.fio)+'</td><td>'+esc(u.nick)+'</td><td>'+u.passed.length+' / '+n+'</td><td>'+u.done.length+'</td><td>'+u.streak+'</td><td>'+ago(u.updated)+'</td><td><button class="btn sm ghost" data-r="'+i+'" type="button">Новый пароль</button> <button class="btn sm ghost" data-d="'+i+'" type="button">Удалить</button></td></tr>'});
+ o.innerHTML=h+'</tbody></table></div><div class="m" id="msg" role="status"></div>';
+ $("rf").onclick=load;
+ $("csv").onclick=function(){var rows=[["Группа","ФИО","Ник","Решено","Сдано","Серия"]].concat(users.map(function(u){return [u.group,u.fio,u.nick,u.passed.length,u.done.length,u.streak]}));
+  var t="﻿"+rows.map(function(r){return r.map(function(c){c=String(c);if(/^[=+\-@]/.test(c))c="'"+c;return '"'+c.replace(/"/g,'""')+'"'}).join(";")}).join("\r\n");
+  var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type:"text/csv;charset=utf-8"}));a.download="ucheniki.csv";document.body.appendChild(a);a.click();a.remove()};
+ Array.prototype.forEach.call(o.querySelectorAll("[data-r]"),function(b){b.onclick=function(){var u=users[+b.dataset.r],p=prompt?window.prompt("Новый пароль для "+u.nick+" (минимум 6 символов):"):"";if(!p)return;
+  Net.req("POST","/api/teacher/reset",{nick:u.nick,password:p},{"X-Teacher-Key":T}).then(function(j){$("msg").textContent=j.ok?"Пароль для "+u.nick+" изменён.":(j.error||"Не удалось.")})}});
+ Array.prototype.forEach.call(o.querySelectorAll("[data-d]"),function(b){b.onclick=function(){var u=users[+b.dataset.d];if(b.dataset.sure!=="1"){b.dataset.sure="1";b.textContent="Точно удалить?";return}
+  Net.req("DELETE","/api/teacher/user?nick="+encodeURIComponent(u.nick),null,{"X-Teacher-Key":T}).then(function(j){if(j.ok)load();else $("msg").textContent=j.error||"Не удалось."})}});
+}
+$("ld").onclick=function(){T=$("tk").value.trim();load()};
+</script></body></html>

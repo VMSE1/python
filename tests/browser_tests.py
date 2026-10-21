@@ -119,12 +119,12 @@ def functional(b, base):
     ctx = new_ctx(b); mock_github(ctx, {"проект": [issue(1, "ann", "1.1", None, title="[Проект] Бот")], "сдача": []})
     pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
     pg.goto(base + "index.html"); pg.wait_for_timeout(300)
-    check("desktop: 8 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 8 and "id=1.1" in pg.get_attribute("#cont", "href"))
+    check("desktop: 10 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 10 and "id=1.1" in pg.get_attribute("#cont", "href"))
     pg.click("a.ico >> nth=0"); pg.wait_for_url("**/tasks.html"); check("иконка «Задания» открывает карту", "tasks.html" in pg.url)
     check("карта: 25 квадратов, один «следующий»", pg.locator(".node").count() == 25 and pg.locator(".node.next").count() == 1)
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
-    pg.click("#startBtn"); check("«Пуск» открывает меню (11 пунктов)", pg.locator("#smenu.on a").count() == 11, pg.locator("#smenu.on a").count())
+    pg.click("#startBtn"); check("«Пуск» открывает меню (13 пунктов)", pg.locator("#smenu.on a").count() == 13, pg.locator("#smenu.on a").count())
     pg.keyboard.press("Escape"); check("Esc закрывает меню", pg.locator("#smenu.on").count() == 0)
     pg.click("#startBtn"); pg.mouse.click(900, 300); check("клик вне меню закрывает его", pg.locator("#smenu.on").count() == 0)
     # проекты
@@ -769,6 +769,87 @@ def brief(b, base):
     check("карточка: нет ошибок в консоли", not bag, bag[:3]); ctx.close(); ctx3.close()
 
 
+def start_api(origin):
+    """Поднимает настоящий сервер курса на свободном порту (для проверки регистрации и онлайн-игры)."""
+    import asyncio, tempfile, threading, importlib
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "server"))
+    os.environ.update(DB_PATH=os.path.join(tempfile.mkdtemp(), "t.sqlite"), TEACHER_KEY="teacher-secret", ALLOW_ORIGINS=origin)
+    import app as A; A = importlib.reload(A)
+    from aiohttp import web
+    loop = asyncio.new_event_loop(); box = {}
+    def run():
+        asyncio.set_event_loop(loop)
+        runner = web.AppRunner(A.make_app()); loop.run_until_complete(runner.setup())
+        site = web.TCPSite(runner, "127.0.0.1", 0); loop.run_until_complete(site.start())
+        box["port"] = site._server.sockets[0].getsockname()[1]; loop.run_forever()
+    threading.Thread(target=run, daemon=True).start()
+    while "port" not in box: time.sleep(0.05)
+    return "http://127.0.0.1:%d" % box["port"]
+
+
+def api_ctx(b, api, w=1280, h=800, mobile=False):
+    ctx = new_ctx(b, w, h, mobile=mobile)
+    host = api.split("//")[1]
+    def html(route):
+        r = route.fetch(); body = r.text().replace("https://2-27-53-182.sslip.io wss://2-27-53-182.sslip.io", "%s ws://%s" % (api, host))
+        route.fulfill(response=r, body=body)
+    ctx.route(re.compile(r"\.html(\?.*)?$"), html)
+    ctx.route("**/config.js", lambda r: r.fulfill(body='window.API_BASE="%s";' % api, content_type="application/javascript"))
+    return ctx
+
+
+def online(b, base):
+    print("\n== ПРОФИЛЬ И ОНЛАЙН-ИГРА (настоящий сервер) ==")
+    api = start_api(base.rstrip("/")); bag = []
+    ctx = api_ctx(b, api); pg = ctx.new_page(); attach_errors(pg, bag)
+    pg.goto(base + "account.html"); pg.wait_for_selector("#tUp"); pg.click("#tUp")
+    pg.fill("#nk", "anya_t"); pg.fill("#fo", "Иванова Аня"); pg.fill("#gr", "9А"); pg.fill("#pw", "secret1"); pg.fill("#p2", "secret2"); pg.click("#go")
+    check("профиль: разные пароли не принимаются", "не совпадают" in pg.inner_text("#er"))
+    pg.fill("#p2", "secret1"); pg.click("#go"); pg.wait_for_selector(".prof", timeout=8000)
+    check("профиль: регистрация и вход", "anya_t" in pg.inner_text(".prof"))
+    pg.evaluate("localStorage.setItem('passed','{\"1.1\":1,\"1.2\":1}')"); pg.click("#sy"); pg.wait_for_timeout(1200)
+    ctx2 = api_ctx(b, api, 390, 780, mobile=True); p2 = ctx2.new_page(); attach_errors(p2, bag)
+    p2.goto(base + "account.html"); p2.wait_for_selector("#nk"); p2.fill("#nk", "ANYA_T"); p2.fill("#pw", "bad"); p2.click("#go"); p2.wait_for_function("document.getElementById('er').textContent.length>0") if False else p2.wait_for_timeout(1500)
+    check("профиль: неверный пароль отклонён", "Неверный" in p2.inner_text("#er"), p2.inner_text("#er"))
+    p2.fill("#pw", "secret1"); p2.click("#go"); p2.wait_for_selector(".prof", timeout=8000); p2.wait_for_timeout(1000)
+    got = p2.evaluate("localStorage.getItem('passed')")
+    check("профиль: прогресс переехал на другое устройство", got and '"1.2"' in got, got)
+    # живая викторина
+    host = api_ctx(b, api).new_page(); attach_errors(host, bag)
+    host.goto(base + "live.html"); host.fill("#tk", "wrong"); host.click("#hq"); host.wait_for_selector("#sl"); host.select_option("#sn", "5"); host.click("#fq button[type=submit]")
+    host.wait_for_selector("#er2", timeout=6000); host.wait_for_timeout(800)
+    check("онлайн: неверный ключ учителя не пускает", "Неверный ключ" in host.inner_text("#er2"), host.inner_text("#er2"))
+    host.fill("#tk", "teacher-secret"); host.click("#hq"); host.wait_for_selector("#sl"); host.select_option("#sn", "5"); host.select_option("#ss", "15"); host.click("#fq button[type=submit]")
+    host.wait_for_selector(".bigcode", timeout=8000); code = host.inner_text(".bigcode").strip()
+    check("онлайн: комната создана, код из 4 цифр", len(code) == 4 and code.isdigit(), code)
+    st = api_ctx(b, api, 390, 780, mobile=True).new_page(); attach_errors(st, bag)
+    st.goto(base + "live.html?c=" + code); st.fill("#nk", "Боря"); st.click("#fs button[type=submit]"); st.wait_for_selector(".wait", timeout=6000)
+    host.wait_for_function("document.getElementById('pn').textContent==='1'") if False else host.wait_for_timeout(600)
+    check("онлайн: ученик виден учителю", host.inner_text("#pn") == "1")
+    host.click("#st"); st.wait_for_selector(".opt", timeout=6000); check("онлайн: ученик получил вопрос с 4 ответами", st.locator(".opt").count() == 4)
+    check("онлайн: у ученика нет подсказки с ответом", st.locator(".opt.right").count() == 0)
+    st.click(".opt >> nth=0"); host.wait_for_selector("#nx", timeout=8000)
+    check("онлайн: после ответа учитель видит результат", host.locator(".cnt").count() == 1)
+    check("онлайн: ученик видит верно/неверно", st.locator(".res").count() == 1)
+    for _ in range(4):
+        host.click("#nx"); 
+        try: st.wait_for_selector(".opt", timeout=5000)
+        except Exception: break
+        st.click(".opt >> nth=1"); host.wait_for_selector("#nx", timeout=8000)
+    host.click("#nx"); host.wait_for_selector("text=Игра окончена", timeout=6000); st.wait_for_selector("text=Игра окончена", timeout=6000)
+    check("онлайн: викторина доходит до итогов", "Боря" in host.inner_text(".rows"))
+    # облако слов
+    h2 = api_ctx(b, api).new_page(); h2.goto(base + "live.html"); h2.fill("#tk", "teacher-secret"); h2.click("#hc"); h2.fill("#ct", "Что такое цикл?"); h2.click("#fc button[type=submit]"); h2.wait_for_selector(".bigcode", timeout=6000)
+    c2 = h2.inner_text(".bigcode").strip(); s2 = api_ctx(b, api, 390, 780, mobile=True).new_page(); s2.goto(base + "live.html?c=" + c2); s2.fill("#nk", "Вера"); s2.click("#fs button[type=submit]"); s2.wait_for_selector("#wi", timeout=6000)
+    s2.fill("#wi", "повтор, for, <b>x</b>"); s2.click("#wf button[type=submit]"); h2.wait_for_selector("#cw svg", timeout=6000)
+    t = h2.inner_text("#cw"); check("облако: слова учеников появились у учителя, разметка не исполняется", "повтор" in t and h2.locator("#cw b").count() == 0, t[:60])
+    # кабинет учителя
+    tp = api_ctx(b, api).new_page(); tp.goto(base + "students.html"); tp.fill("#tk", "teacher-secret"); tp.click("#ld"); tp.wait_for_selector(".tbl", timeout=6000)
+    check("учитель: видит зарегистрированных учеников", "Иванова Аня" in tp.inner_text(".tbl") and "2 / 25" in tp.inner_text(".tbl"), tp.inner_text(".tbl")[:120])
+    bad = [e for e in bag if "favicon" not in e and "401" not in e]
+    check("онлайн: нет ошибок в консоли", not bad, bad[:3])
+
+
 def chaos(b, base):
     print("\n== ИСПОРЧЕННЫЕ ДАННЫЕ В БРАУЗЕРЕ ==")
     junk = ["null", "{", "[]", '"x"', "12", "true", '{"last":"zzz","n":"NaN","days":5}']
@@ -782,10 +863,10 @@ def chaos(b, base):
 
 
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
-        b = p.chromium.launch(args=["--no-sandbox"])
+        b = p.chromium.launch(args=["--no-sandbox", "--disable-features=LocalNetworkAccessChecks,LocalNetworkAccess,PrivateNetworkAccessRespectPreflightResults"])
         for name in only: globals()[name](b, base)
         b.close()
     bad = [r for r in RES if not r[1]]

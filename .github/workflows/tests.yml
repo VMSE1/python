@@ -20,6 +20,6 @@ jobs:
         run: python -m unittest tests.test_sandbox -v
       - name: Браузерные тесты (дымовые, функциональные, безопасность)
         run: |
-          pip install playwright
+          pip install playwright aiohttp
           playwright install --with-deps chromium
-          python tests/browser_tests.py smoke functional teacher slides honest offline video extras brief chaos
+          python tests/browser_tests.py smoke functional teacher slides honest offline video extras brief chaos online

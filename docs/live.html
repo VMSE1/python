@@ -1,0 +1,148 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com https://2-27-53-182.sslip.io wss://2-27-53-182.sslip.io; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Онлайн-игра</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="live.css"></head><body>
+<main class="wrap lvwrap">
+<div class="crumbs">Онлайн-игра</div>
+<div id="app" class="lv" aria-live="polite"></div>
+</main>
+<script src="site.js"></script><script src="data/tasks.js"></script><script src="questions.js"></script><script src="cloud.js"></script><script src="config.js"></script><script src="net.js"></script>
+<script>
+layout("live.html","Онлайн-игра");
+(function(){
+var app=document.getElementById("app"),Q=window.QUESTIONS||[],LT={};TASKS.forEach(function(t){LT[t.lesson]=t.lessonTitle});
+var ws=null,S={role:"",kind:"",code:"",nick:"",title:"",key:"",ended:false,tm:null,retry:0,total:0,q:null,answered:false,players:[]};
+function $(i){return document.getElementById(i)}
+function shuf(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t}return a}
+var LET=["А","Б","В","Г"];
+function set(h){app.innerHTML=h}
+function err(m,id){var e=$(id||"er");if(e)e.textContent=m;else{var b=document.createElement("div");b.className="bad";b.setAttribute("role","alert");b.textContent=m;app.prepend(b)}}
+function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
+function stopT(){clearInterval(S.tm);S.tm=null}
+
+/* ---------- подключение ---------- */
+function connect(first){
+ if(!Net.on){set('<div class="box"><p>Сервер пока не подключён.</p></div>');return}
+ try{ws=new WebSocket(Net.wsUrl())}catch(e){err("Не удалось подключиться.");return}
+ ws.onopen=function(){S.retry=0;first()};
+ ws.onmessage=function(e){var m;try{m=JSON.parse(e.data)}catch(x){return}handle(m)};
+ ws.onclose=function(){
+  S.in=false;if(S.ended||!S.role)return;
+  stopT();var w=$("conn");if(!w){w=document.createElement("div");w.id="conn";w.className="bad";w.setAttribute("role","alert");app.prepend(w)}w.textContent="Связь потеряна. Подключаюсь снова…";
+  S.retry++;if(S.retry>20){w.textContent="Не удалось восстановить связь. Обнови страницу.";return}
+  setTimeout(function(){connect(function(){if(S.role==="host")send({t:"rehost",key:S.key,code:S.code});else send({t:"join",code:S.code,nick:S.nick})})},Math.min(5000,1000+S.retry*500));
+ };
+ ws.onerror=function(){};
+}
+function leave(){S.ended=true;stopT();try{ws&&ws.close()}catch(e){}S.role="";S.code="";landing()}
+
+/* ---------- старт ---------- */
+function landing(){
+ S.ended=false;S.role="";
+ var u=Net.user(),nick=u?u.nick:(function(){try{return localStorage.getItem("nick")||""}catch(e){return ""}})(),c=(new URLSearchParams(location.search).get("c")||"").replace(/\D/g,"").slice(0,4);
+ set('<h1>Онлайн-игра</h1><div class="howto"><span><b>Как играть.</b> Учитель запускает игру и называет код из 4 цифр. Ты вводишь код и ник, отвечаешь на вопросы на телефоне. Кто быстрее и точнее, тот выше в рейтинге.</span></div>'+
+ '<div class="cards"><form class="card" id="fs" novalidate><h2>Я ученик</h2><div class="fld"><label for="cd">Код игры (4 цифры)</label><input id="cd" inputmode="numeric" maxlength="4" autocomplete="off" value="'+esc(c)+'" placeholder="1234"></div>'+
+ '<div class="fld"><label for="nk">Твой ник</label><input id="nk" maxlength="20" autocomplete="off" value="'+esc(nick)+'" placeholder="Например: snake_42"></div><div class="bad" id="er" role="alert"></div><button class="btn big go" type="submit">Войти в игру</button></form>'+
+ '<div class="card"><h2>Я учитель</h2><div class="fld"><label for="tk">Ключ учителя</label><input id="tk" type="password" autocomplete="off" value="'+esc(Net.tkey())+'"></div><div class="stat">Ключ выдан при установке сервера.</div><div class="bad" id="er2" role="alert"></div>'+
+ '<button class="btn big go" id="hq" type="button">Запустить викторину</button><button class="btn" id="hc" type="button">Запустить облако слов</button></div></div>');
+ $("fs").onsubmit=function(e){e.preventDefault();var code=$("cd").value.replace(/\D/g,""),nk=$("nk").value.trim();if(code.length!==4){err("Код состоит из 4 цифр.");return}if(nk.length<2){err("Впиши ник (минимум 2 символа).");return}
+  S.role="player";S.code=code;S.nick=nk;try{localStorage.setItem("nick",nk)}catch(x){}S.ended=false;connect(function(){send({t:"join",code:code,nick:nk})})};
+ $("hq").onclick=function(){if(needKey())setupQuiz()};$("hc").onclick=function(){if(needKey())setupCloud()};
+}
+function needKey(){var k=$("tk").value.trim();if(!k){err("Впиши ключ учителя.","er2");$("tk").focus();return false}S.key=k;Net.tkey(k);return true}
+
+/* ---------- учитель: настройка ---------- */
+function setupQuiz(){
+ var ls=[[0,"Весь курс"]].concat([1,2,3,4,5].filter(function(n){return LT[n]}).map(function(n){return [n,"Урок "+n+". "+LT[n]]}));
+ set('<h1>Викторина</h1><form class="card" id="fq" novalidate><div class="fld"><label for="sl">Тема</label><select id="sl">'+ls.map(function(x){return '<option value="'+x[0]+'">'+esc(x[1])+'</option>'}).join("")+'</select></div>'+
+ '<div class="fld"><label for="sn">Сколько вопросов</label><select id="sn"><option>5</option><option selected>10</option><option>15</option><option>20</option></select></div>'+
+ '<div class="fld"><label for="ss">Секунд на вопрос</label><select id="ss"><option>15</option><option selected>20</option><option>30</option><option>45</option></select></div>'+
+ '<div class="bad" id="er" role="alert"></div><div class="btns"><button class="btn big go" type="submit">Создать комнату</button><button class="btn ghost" type="button" id="bk">Назад</button></div></form>');
+ $("bk").onclick=landing;
+ $("fq").onsubmit=function(e){e.preventDefault();var l=+$("sl").value,n=+$("sn").value,sec=+$("ss").value;
+  var pool=shuf(Q.filter(function(x){return !l||x.l==l})).slice(0,n);if(!pool.length){err("В этой теме нет вопросов.");return}
+  var qs=pool.map(function(x){var ord=shuf([0,1,2,3]);return {q:x.q,code:x.code||"",o:ord.map(function(k){return x.o[k]}),a:ord.indexOf(x.a),why:x.why||"",sec:sec}});
+  S.role="host";S.kind="quiz";S.ended=false;S.title=(ls.filter(function(x){return x[0]===l})[0]||[])[1]||"";connect(function(){send({t:"host",key:S.key,kind:"quiz",title:S.title,questions:qs})})};
+}
+function setupCloud(){
+ set('<h1>Облако слов</h1><form class="card" id="fc" novalidate><div class="fld"><label for="ct">Вопрос или тема для класса</label><input id="ct" maxlength="60" placeholder="Например: что такое цикл?"></div><div class="bad" id="er" role="alert"></div>'+
+ '<div class="btns"><button class="btn big go" type="submit">Создать комнату</button><button class="btn ghost" type="button" id="bk">Назад</button></div></form>');
+ $("bk").onclick=landing;
+ $("fc").onsubmit=function(e){e.preventDefault();var t=$("ct").value.trim();if(!t){err("Впиши тему.");return}
+  S.role="host";S.kind="cloud";S.ended=false;S.title=t;connect(function(){send({t:"host",key:S.key,kind:"cloud",title:t})})};
+}
+
+/* ---------- обработка сообщений ---------- */
+function handle(m){
+ var t=m.t;
+ if(t==="err"){if(!S.in){var which=S.role==="host"?"er2":"er";S.ended=true;try{ws.close()}catch(e){}S.role="";landing();err(m.m,which);return}err(m.m);return}
+ if(t==="hosted"){S.in=true;S.code=m.code;S.kind=m.kind;S.title=m.title;S.total=m.total||0;if(m.state&&m.state!=="lobby"&&m.state!=="open"){hostWait()}else if(S.kind==="quiz")hostLobby();else hostCloud();return}
+ if(t==="joined"){S.in=true;S.kind=m.kind;S.title=m.title;S.total=m.total||0;if(S.kind==="cloud")stuCloud();else stuWait();return}
+ if(t==="players"){S.players=m.list;var n=$("pn");if(n)n.textContent=m.n;var ch=$("chips");if(ch){ch.textContent="";m.list.forEach(function(x){var s=document.createElement("span");s.textContent=x;ch.appendChild(s)})}var go=$("st");if(go)go.disabled=m.n<1;var pc=$("pcn");if(pc)pc.textContent=m.n;return}
+ if(t==="q"){showQ(m);return}
+ if(t==="got"){var a=$("ans");if(a)a.innerHTML='<div class="wait">Ответ принят. Ждём остальных…</div>';return}
+ if(t==="cnt"){var c=$("cn");if(c)c.textContent=m.n+" из "+m.of+" ответили";return}
+ if(t==="res"){showRes(m);return}
+ if(t==="end"){showEnd(m);return}
+ if(t==="cloud"){drawCloud(m);return}
+ if(t==="wok"){var w=$("wl");if(w)w.textContent=m.added?"Добавлено! Можно ещё слов: "+m.left:"Такие слова уже есть или лимит. Осталось: "+m.left;var inp=$("wi");if(inp)inp.value="";return}
+ if(t==="state"){var l=$("lk");if(l)l.textContent=m.state==="open"?"Закрыть приём слов":"Открыть приём слов";var wf=$("wf");if(wf){wf.querySelector("button").disabled=m.state!=="open";var mm=$("wl");if(mm)mm.textContent=m.state==="open"?"":"Учитель закрыл приём слов."}return}
+ if(t==="cleared"){var cw=$("cw");if(cw)cw.textContent="Облако очищено.";return}
+ if(t==="hostoff"){var h=document.createElement("div");h.className="bad";h.setAttribute("role","alert");h.textContent="Учитель отключился. Подожди, он вернётся.";app.prepend(h);return}
+ if(t==="closed"){S.ended=true;stopT();set('<div class="card"><h2>Игра завершена</h2><p>Учитель закрыл комнату.</p><button class="btn big go" id="bk" type="button">Выйти</button></div>');$("bk").onclick=leave;return}
+}
+
+/* ---------- учитель: экраны ---------- */
+function link(){return location.origin+location.pathname+"?c="+S.code}
+function hostWait(){set('<div class="lvbar"><h2>'+esc(S.title)+'</h2><button class="btn sm ghost" id="ex">Закрыть комнату</button></div><div class="wait">Комната восстановлена. Нажми «Дальше», когда будешь готов.</div><div class="btns"><button class="btn big go" id="nx">Дальше</button></div>');$("ex").onclick=closeRoom;$("nx").onclick=function(){send({t:"next"})}}
+function closeRoom(){send({t:"close"});leave()}
+function hostLobby(){
+ set('<div class="lvbar"><h2>'+esc(S.title||"Викторина")+'</h2><button class="btn sm ghost" id="ex">Закрыть комнату</button></div>'+
+ '<div class="card"><div>1. Открой сайт курса на телефоне, раздел <b>«Онлайн-игра»</b>.<br>2. Введи код:</div><div class="bigcode" aria-label="Код игры">'+esc(S.code)+'</div><div class="stat">Или открой ссылку: '+esc(link())+'</div></div>'+
+ '<div class="card"><h2>В комнате: <span id="pn">0</span></h2><div class="chips" id="chips"></div><button class="btn big go" id="st" disabled>Начать (вопросов: '+S.total+')</button></div>');
+ $("ex").onclick=closeRoom;$("st").onclick=function(){send({t:"start"})};
+}
+function optsHtml(m,live){return '<div class="opts">'+m.o.map(function(x,i){return '<'+(live?'button type="button"':'div')+' class="opt o'+i+'" data-k="'+i+'"><b>'+LET[i]+'</b><span>'+esc(x)+'</span></'+(live?'button':'div')+'>'}).join("")+'</div>'}
+function timerBar(sec){stopT();var t0=Date.now();var f=function(){var l=Math.max(0,sec-(Date.now()-t0)/1000),b=$("tb"),n=$("tn");if(b)b.style.width=(l/sec*100)+"%";if(n)n.textContent=Math.ceil(l)+" с";if(l<=0)stopT()};f();S.tm=setInterval(f,250)}
+function showQ(m){
+ S.q=m;S.answered=false;var head='<div class="lvbar"><span class="stat">Вопрос '+(m.i+1)+' из '+m.n+'</span><span id="tn" class="stat"></span></div><div class="tbar2" aria-hidden="true"><i id="tb" style="width:100%"></i></div><div class="qtext">'+esc(m.q)+'</div>'+(m.code?'<pre class="qcode">'+esc(m.code)+'</pre>':"");
+ if(S.role==="host"){set(head+optsHtml(m,false)+'<div class="lvbar"><span id="cn" class="stat">0 ответили</span><button class="btn" id="sk">Показать ответ</button></div>');$("sk").onclick=function(){send({t:"skip"})}}
+ else{set(head+'<div id="ans">'+optsHtml(m,true)+'</div>');Array.prototype.forEach.call(app.querySelectorAll(".opt"),function(b){b.onclick=function(){if(S.answered)return;S.answered=true;Array.prototype.forEach.call(app.querySelectorAll(".opt"),function(x){x.disabled=true;if(x!==b)x.classList.add("dim")});send({t:"a",i:m.i,k:+b.dataset.k})}})}
+ timerBar(m.sec);
+}
+function boardHtml(b){return '<div class="rows">'+b.map(function(r,i){return '<div class="r"><span>'+(i+1)+'. '+esc(r.nick)+'</span><span>'+r.score+'</span></div>'}).join("")+'</div>'}
+function showRes(m){
+ stopT();var q=S.q||{o:["","","",""]},mx=Math.max(1,Math.max.apply(null,m.counts));
+ var correct='<div class="stat">Верный ответ: <b>'+LET[m.a]+'. '+esc(q.o[m.a]||"")+'</b></div>'+(m.why?'<p>'+esc(m.why)+'</p>':"");
+ if(S.role==="host"){
+  set('<div class="qtext">'+esc(q.q)+'</div>'+optsHtml(Object.assign({},q),false).replace('class="opt o'+m.a+'"','class="opt o'+m.a+' right"')+'<div class="cnt" aria-label="Сколько выбрали каждый ответ">'+m.counts.map(function(n,i){return '<div class="'+(i===m.a?"right":"")+'" style="height:'+Math.max(22,n/mx*90)+'px">'+LET[i]+': '+n+'</div>'}).join("")+'</div>'+correct+'<h2>Рейтинг</h2>'+boardHtml(m.board)+'<div class="btns"><button class="btn big go" id="nx">'+(m.last?"Показать итоги":"Дальше")+'</button></div>');
+  $("nx").onclick=function(){send({t:"next"})};
+ }else{
+  set('<div class="res '+(m.ok?"good":"badc")+'"><div class="big">'+(m.ok?"Верно! +"+m.gain:"Неверно")+'</div><div>Твой счёт: <b>'+m.score+'</b> · Место: <b>'+m.rank+'</b></div></div>'+correct+'<h2>Рейтинг</h2>'+boardHtml(m.board)+'<div class="wait">Жди следующий вопрос…</div>');
+ }
+}
+function showEnd(m){
+ S.ended=true;stopT();var mine="";
+ set('<div class="card"><h2>Игра окончена</h2>'+boardHtml(m.board)+'</div><div class="btns"><button class="btn big go" id="bk" type="button">'+(S.role==="host"?"Закрыть комнату":"Выйти")+'</button></div>');
+ $("bk").onclick=function(){if(S.role==="host")send({t:"close"});leave()};
+}
+
+/* ---------- облако слов ---------- */
+function hostCloud(){
+ set('<div class="lvbar"><h2>'+esc(S.title)+'</h2><button class="btn sm ghost" id="ex">Закрыть комнату</button></div>'+
+ '<div class="card"><div class="lvbar"><span>Код игры:</span><span class="stat">Участников: <b id="pcn">0</b></span></div><div class="bigcode" aria-label="Код игры">'+esc(S.code)+'</div><div class="stat">Ссылка: '+esc(link())+'</div></div>'+
+ '<div class="card" id="cb"><div id="cw" class="wait">Жду слова…</div></div><div class="btns"><button class="btn" id="lk">Закрыть приём слов</button><button class="btn ghost" id="cl">Очистить облако</button></div>');
+ $("ex").onclick=closeRoom;$("lk").onclick=function(){send({t:"lock"})};$("cl").onclick=function(){send({t:"clear"})};
+}
+function drawCloud(m){
+ var el=$("cw");if(!el)return;if(!m.words.length){el.className="wait";el.textContent="Пока нет слов.";return}
+ el.className="";WordCloud.render(el,m.words.map(function(w){return {text:w[0],count:w[1]}}),{width:760,height:420,max:80});
+ var p=$("pe");if(p)p.textContent=m.people;
+}
+function stuCloud(){
+ set('<div class="lvbar"><h2>'+esc(S.title)+'</h2><button class="btn sm ghost" id="ex">Выйти</button></div><form class="card" id="wf" novalidate><div class="fld"><label for="wi">Напиши слова через запятую (до 5 за всю игру)</label><input id="wi" maxlength="80" autocomplete="off" placeholder="цикл, повтор, for"></div><button class="btn big go" type="submit">Отправить</button><div class="stat" id="wl" role="status"></div></form>'+
+ '<div class="card"><div id="cw" class="wait">Облако появится, когда кто-нибудь добавит слова.</div><div class="stat">Участников: <b id="pe">0</b></div></div>');
+ $("ex").onclick=leave;
+ $("wf").onsubmit=function(e){e.preventDefault();var ws2=$("wi").value.split(/[,;]/).map(function(x){return x.trim()}).filter(Boolean);if(!ws2.length)return;send({t:"w",words:ws2})};
+}
+function stuWait(){set('<div class="lvbar"><h2>'+esc(S.title||"Викторина")+'</h2><button class="btn sm ghost" id="ex">Выйти</button></div><div class="card"><div class="wait"><b>Ты в игре, '+esc(S.nick)+'!</b><br>Смотри на экран учителя. Вопросы появятся здесь, когда он начнёт.</div><div class="stat">В комнате: <b id="pcn">1</b></div></div>');$("ex").onclick=leave}
+landing();
+})();
+</script></body></html>

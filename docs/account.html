@@ -1,0 +1,59 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com https://2-27-53-182.sslip.io wss://2-27-53-182.sslip.io; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Мой профиль</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="live.css"></head><body>
+<main class="wrap">
+<div class="crumbs">Мой профиль</div><h1>Мой профиль</h1>
+<div id="app"></div>
+</main>
+<script src="site.js"></script><script src="data/tasks.js"></script><script src="config.js"></script><script src="net.js"></script>
+<script>
+layout("account.html","Мой профиль");
+var app=document.getElementById("app"),mode="in";
+function $(i){return document.getElementById(i)}
+function ls(k){try{var v=JSON.parse(localStorage.getItem(k)||"{}");return v&&typeof v==="object"?v:{}}catch(e){return {}}}
+function field(id,label,type,val,hint,ac){return '<div class="fld"><label for="'+id+'">'+label+'</label><input id="'+id+'" type="'+(type||"text")+'" value="'+esc(val||"")+'" autocomplete="'+(ac||"off")+'" autocapitalize="off" spellcheck="false">'+(hint?'<div class="hint">'+hint+'</div>':"")+'</div>'}
+function loggedOut(){
+ var nick="",fio="",grp="";try{nick=localStorage.getItem("nick")||"";fio=localStorage.getItem("fio")||"";grp=localStorage.getItem("group")||""}catch(e){}
+ var h='<div class="howto"><span><b>Зачем профиль.</b> Прогресс сохраняется на сервере: войдёшь с другого телефона или компьютера, и все задания на месте. GitHub для этого не нужен.</span></div>'+
+ '<div class="seg" role="tablist"><button type="button" role="tab" id="tIn" class="'+(mode==="in"?"on":"")+'" aria-selected="'+(mode==="in")+'">Войти</button><button type="button" role="tab" id="tUp" class="'+(mode==="up"?"on":"")+'" aria-selected="'+(mode==="up")+'">Создать профиль</button></div>'+
+ '<form class="box acf" id="f" novalidate>'+
+ (mode==="up"?'<p class="m">Придумай ник (его увидят одноклассники в играх) и пароль. Фамилию и имя видит только учитель.</p>':'<p class="m">Введи ник и пароль, которые указал при создании профиля.</p>')+
+ field("nk","Ник (псевдоним)","text",nick,mode==="up"?"3–20 символов: буквы, цифры, точка, дефис":"","username")+
+ (mode==="up"?field("fo","Фамилия и имя","text",fio,"Например: Иванова Аня. Нужно, чтобы учитель понял, кто это","name")+field("gr","Группа","text",grp,"Например 9А. Нет группы: напиши «нет»","off"):"")+
+ field("pw","Пароль","password","",mode==="up"?"Минимум 6 символов. Не используй пароль от почты или соцсетей":"",mode==="up"?"new-password":"current-password")+
+ (mode==="up"?field("p2","Повтори пароль","password","","","new-password"):"")+
+ '<label class="chk"><input type="checkbox" id="sh"> Показать пароль</label>'+
+ '<div class="bad" id="er" role="alert"></div>'+
+ '<button class="btn big go" type="submit" id="go">'+(mode==="up"?"Создать профиль":"Войти")+'</button></form>'+
+ '<p class="m" style="font-size:14px">Забыл пароль? Скажи учителю: он задаст новый.</p>';
+ app.innerHTML=h;
+ $("tIn").onclick=function(){mode="in";loggedOut()};$("tUp").onclick=function(){mode="up";loggedOut()};
+ $("sh").onchange=function(){["pw","p2"].forEach(function(i){if($(i))$(i).type=$("sh").checked?"text":"password"})};
+ $("f").onsubmit=function(e){e.preventDefault();submit()};
+}
+function submit(){
+ var er=$("er"),nick=$("nk").value.trim(),pw=$("pw").value;er.textContent="";
+ if(!nick||!pw){er.textContent="Впиши ник и пароль.";return}
+ var o={nick:nick,password:pw};
+ if(mode==="up"){
+  if(pw!==$("p2").value){er.textContent="Пароли не совпадают.";$("p2").focus();return}
+  o.fio=$("fo").value;o.group=$("gr").value}
+ var b=$("go");b.disabled=true;b.textContent="Подожди…";
+ Net[mode==="up"?"register":"login"](o).then(function(j){
+  if(j.ok){loggedIn("Готово! Ты вошёл.");return}
+  er.textContent=j.error||"Не получилось. Попробуй ещё раз.";b.disabled=false;b.textContent=mode==="up"?"Создать профиль":"Войти"
+ }).catch(function(e){er.textContent=e.message;b.disabled=false;b.textContent=mode==="up"?"Создать профиль":"Войти"});
+}
+function loggedIn(msg){
+ var u=Net.user();if(!u){loggedOut();return}
+ var done=ls("done"),pa=ls("passed"),n=TASKS.filter(function(t){return pa[t.id]||done[t.id]}).length,p=Math.round(n/TASKS.length*100);
+ app.innerHTML=(msg?'<div class="okb" role="status">'+esc(msg)+'</div>':"")+
+ '<div class="box prof"><div class="pn">'+esc(u.nick)+'</div><div class="m">'+esc(u.fio||"")+(u.group?" · группа "+esc(u.group):"")+'</div>'+
+ '<div class="pbar" role="img" aria-label="Выполнено '+n+' из '+TASKS.length+'"><i style="width:'+p+'%"></i></div><div class="m">Выполнено заданий: <b>'+n+' из '+TASKS.length+'</b></div>'+
+ '<div class="btns"><a class="btn big go" href="tasks.html">К заданиям</a><button class="btn" id="sy" type="button">Обновить с сервера</button><button class="btn ghost" id="lo" type="button">Выйти</button></div><div class="m" id="sm" role="status"></div></div>'+
+ '<p class="m" style="font-size:14px">Прогресс сохраняется сам, когда ты решаешь задания. На другом устройстве просто войди с этим ником.</p>';
+ $("sy").onclick=function(){$("sm").textContent="Обновляю…";Net.sync().then(function(j){if(j&&j.ok)loggedIn("Прогресс обновлён.");else $("sm").textContent="Не удалось связаться с сервером."})};
+ $("lo").onclick=function(){Net.logout().then(function(){mode="in";loggedOut()})};
+}
+if(!Net.on)app.innerHTML='<div class="box"><p>Сервер пока не подключён. Пока что решай задания как раньше: прогресс хранится в этом браузере.</p></div>';
+else if(Net.user()){loggedIn();Net.sync().then(function(j){if(j&&j.ok)loggedIn()})}
+else loggedOut();
+</script></body></html>
