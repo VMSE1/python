@@ -33,10 +33,10 @@
     opts = opts || {};
     if (document.getElementById("egg")) return;
     var ov = document.createElement("div"); ov.id = "egg"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-label", "Секретная игра"); ov.dataset.state = "ready"; ov.dataset.score = "0";
-    ov.style.cssText = "position:fixed;inset:0;z-index:2147482000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:12px;background:#7a0a16;animation:eggf 1.1s steps(2) infinite;touch-action:manipulation;-webkit-user-select:none;user-select:none";
+    ov.style.cssText = "position:fixed;inset:0;z-index:2147482000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:12px;background:#7a0a16;animation:eggf 1.1s steps(2) infinite;overflow:auto;touch-action:manipulation;-webkit-user-select:none;user-select:none";
     ov.innerHTML = '<style>@keyframes eggf{50%{background:#3a0409}}@media (prefers-reduced-motion:reduce){#egg{animation:none!important}}#egg button{font:600 clamp(14px,2.6vw,19px) "IBM Plex Mono",monospace;padding:12px 20px;min-height:48px;border:3px solid #fff;background:#fff;color:#a8101f;cursor:pointer}#egg button.g{background:transparent;color:#fff}#egg button:focus-visible{outline:4px dashed #ffe14d;outline-offset:3px}</style>' +
       '<div id="egt" style="font:400 clamp(12px,3vw,20px)/1.5 \'Press Start 2P\',monospace;color:#fff;text-shadow:2px 2px 0 #000;text-align:center">Убеги от скелета</div>' +
-      '<canvas id="egc" width="' + W + '" height="' + H + '" style="width:min(100%,calc((100vh - 190px)*1.78),880px);height:auto;background:#1a0206;border:4px solid #fff;image-rendering:pixelated;touch-action:none" aria-label="Игра: прыгай через препятствия"></canvas>' +
+      '<canvas id="egc" width="' + W + '" height="' + H + '" style="width:min(100%,calc((100vh - 330px)*1.78),880px);height:auto;background:#1a0206;border:4px solid #fff;image-rendering:pixelated;touch-action:none" aria-label="Игра: прыгай через препятствия"></canvas>' +
       '<div id="egm" style="font:500 clamp(14px,2.4vw,18px)/1.5 \'IBM Plex Mono\',monospace;color:#fff;text-align:center;min-height:3em" role="status">Нажми «Прыжок», пробел или стрелку вверх. Перепрыгни 25 препятствий.</div>' +
       '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center"><button type="button" id="egj">Прыжок</button><button type="button" id="egx" class="g">Выйти</button></div>';
     document.body.appendChild(ov);
@@ -126,7 +126,7 @@
     function winScreen() {
       var d = new Date(), pad = function (x) { return ("0" + x).slice(-2); }, stamp = pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
       try { localStorage.setItem("skull", JSON.stringify({ at: d.toISOString(), nick: who() })); } catch (e) {}
-      msg.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap"><div style="font:400 clamp(56px,14vw,96px)/1 \'Press Start 2P\',monospace;color:#ff2a2a;background:#fff;border:5px solid #000;padding:10px 22px;box-shadow:6px 6px 0 #000" aria-label="Оценка пять">5</div><div style="text-align:left"><b style="font-size:1.4em">Позови преподавателя</b><br>Покажи ему этот экран.<br><span style="opacity:.85">' + (who() ? who() + " · " : "") + stamp + '</span></div></div>';
+      msg.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap"><div style="font:400 clamp(44px,10vw,72px)/1 \'Press Start 2P\',monospace;color:#ff2a2a;background:#fff;border:5px solid #000;padding:10px 22px;box-shadow:6px 6px 0 #000" aria-label="Оценка пять">5</div><div style="text-align:left"><b style="font-size:1.4em">Позови преподавателя</b><br>Покажи ему этот экран.<br><span style="opacity:.85">' + (who() ? who() + " · " : "") + stamp + '</span></div></div>';
       if (opts.onWin) { try { opts.onWin(); } catch (e) {} }
     }
     function close() { if (opts.onClose) { try { opts.onClose(); } catch (e) {} } cancelAnimationFrame(raf); document.removeEventListener("keydown", key, true); ov.remove(); ST = null; }
