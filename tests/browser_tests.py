@@ -876,6 +876,17 @@ def botguard(b, base):
         pg.keyboard.type(ch); pg.wait_for_timeout(random.randint(40, 260))
     check("бот: человеческий неровный ввод не блокируется", not pg.evaluate("document.getElementById('code').readOnly") and "name = input()" in pg.evaluate("document.getElementById('code').value"))
     ctx.close()
+    # 4. открытые инструменты разработчика (имитация через отладчик): редактор блокируется, после закрытия снова работает
+    ctx = new_ctx(b, raw=True); pg = ctx.new_page(); pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code")
+    cdp = ctx.new_cdp_session(pg)
+    import threading as _th
+    cdp.on("Debugger.paused", lambda e: _th.Timer(0.4, lambda: None).start() or pg.wait_for_timeout(400) or cdp.send("Debugger.resume"))
+    cdp.send("Debugger.enable"); pg.wait_for_timeout(3500)
+    check("F12: при открытых инструментах разработчика редактор блокируется", pg.evaluate("document.getElementById('code').readOnly") and "F12" in pg.inner_text("#hn"), pg.inner_text("#hn")[:60])
+    cdp.send("Debugger.disable"); pg.wait_for_timeout(2500)
+    check("F12: после закрытия инструментов редактор снова доступен", not pg.evaluate("document.getElementById('code').readOnly"))
+    pg.keyboard.press("F12"); pg.wait_for_timeout(200); check("F12: нажатие F12 на странице задания перехватывается", "F12" in pg.inner_text("#hn"))
+    ctx.close()
 
 
 def chaos(b, base):

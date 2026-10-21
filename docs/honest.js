@@ -16,7 +16,7 @@ var Honest = (function () {
   }
   function parse(s) {
     var m = /^v1;/.test(String(s || "").trim()) ? {} : null; if (!m) return null;
-    String(s).trim().split(";").slice(1).forEach(function (p) { var kv = p.split("="); if (kv.length === 2 && /^[tpbesha]$/.test(kv[0])) m[kv[0]] = kv[0] === "h" ? kv[1].slice(0, 8) : Math.max(0, parseInt(kv[1], 10) || 0); });
+    String(s).trim().split(";").slice(1).forEach(function (p) { var kv = p.split("="); if (kv.length === 2 && /^[tpbeshad]$/.test(kv[0])) m[kv[0]] = kv[0] === "h" ? kv[1].slice(0, 8) : Math.max(0, parseInt(kv[1], 10) || 0); });
     return m;
   }
   function verdict(m, code) {
@@ -26,6 +26,7 @@ var Honest = (function () {
     if (m.p > 0) r.push("пытался вставить: " + m.p);
     if (m.b > 0) r.push("вставка кусками: " + m.b);
     if (m.e > 0) r.push("код изменён скриптом");
+    if (m.d > 0) r.push("открывал инструменты разработчика (F12)");
     if (m.a > 0) r.push("похоже на бота: автоматический ввод");
     if (len >= 60 && (m.t || 0) < len * 0.4) r.push("набрано " + (m.t || 0) + " из " + len + " символов");
     if (m.s > 0 && (m.t || 0) / m.s > 12) r.push("слишком быстрый набор");
@@ -49,8 +50,8 @@ var Honest = (function () {
      настоящими (isTrusted) событиями набора. Всё, что поменяло поле в обход (консоль, скрипт,
      подделанное событие), откатывается, а попытка записывается в счётчик e. */
   function attach(ta, o) {
-    o = o || {}; try { ta.maxLength = MAXC; } catch (e) {} var id = o.id || "x", key = "hn_" + id, ckey = "hnc_" + id, st = { t: 0, p: 0, b: 0, e: 0, s: 0, a: 0 }, last = 0, win = [], lkey = "hnl_" + id, locked = false, kd = [], orphan = 0, lastKey = 0;
-    try { var sv = JSON.parse(localStorage.getItem(key) || "null"); if (sv && typeof sv.t === "number") st = { t: sv.t | 0, p: sv.p | 0, b: sv.b | 0, e: sv.e | 0, s: sv.s | 0, a: sv.a | 0 }; } catch (e) {}
+    o = o || {}; try { ta.maxLength = MAXC; } catch (e) {} var id = o.id || "x", key = "hn_" + id, ckey = "hnc_" + id, st = { t: 0, p: 0, b: 0, e: 0, s: 0, a: 0, d: 0 }, last = 0, win = [], lkey = "hnl_" + id, locked = false, kd = [], orphan = 0, lastKey = 0;
+    try { var sv = JSON.parse(localStorage.getItem(key) || "null"); if (sv && typeof sv.t === "number") st = { t: sv.t | 0, p: sv.p | 0, b: sv.b | 0, e: sv.e | 0, s: sv.s | 0, a: sv.a | 0, d: sv.d | 0 }; } catch (e) {}
     var shadow = NAT.get.call(ta), hist = [shadow], initial = o.starter != null ? o.starter : shadow;
     try { var hc = localStorage.getItem(ckey); if (hc && hc !== hash(shadow)) st.e++; } catch (e) {}
     function lock(why) {
@@ -58,6 +59,28 @@ var Honest = (function () {
       try { ta.readOnly = true; ta.setAttribute("aria-readonly", "true"); } catch (e) {}
       try { localStorage.setItem(lkey, String(Date.now())); } catch (e) {}
       save(); say("bot", 0);
+    }
+    var devLocked = false;
+    function devOpen() {
+      var t0 = performance.now(); debugger; /* при открытых инструментах разработчика здесь остановка: проходит много времени */
+      if (performance.now() - t0 > 120) return true;
+      var hit = false, el = new Image(); try { Object.defineProperty(el, "id", { get: function () { hit = true; return ""; } }); console.debug(el); } catch (e) {}
+      return hit;
+    }
+    function devLock(on) {
+      if (on === devLocked || locked) return; devLocked = on;
+      try { ta.readOnly = on; ta.setAttribute("aria-readonly", on ? "true" : "false"); } catch (e) {}
+      if (on) { st.d = 1; save(); }
+      say(on ? "devtools" : "devtools-off", 0);
+    }
+    function watchTools() {
+      try { if (typeof isTeacher === "function" && isTeacher()) return; } catch (e) {}
+      document.addEventListener("keydown", function (e) {
+        var k = (e.key || "").toLowerCase();
+        if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (k === "i" || k === "j" || k === "c")) || (e.ctrlKey && k === "u") || (e.metaKey && e.altKey && (k === "i" || k === "j" || k === "c" || k === "u"))) { e.preventDefault(); e.stopPropagation(); say("devkey", 0); }
+      }, true);
+      ta.addEventListener("contextmenu", function (e) { e.preventDefault(); }, true);
+      setInterval(function () { if (document.hidden) return; try { devLock(devOpen()); } catch (e) {} }, 1000);
     }
     function save() { try { localStorage.setItem(key, JSON.stringify(st)); localStorage.setItem(ckey, hash(shadow)); } catch (e) {} }
     function say(kind, n) { if (o.onBlock) o.onBlock(kind, n); }
@@ -79,6 +102,7 @@ var Honest = (function () {
     ta.addEventListener("beforeinput", function (e) {
       var t = e.inputType || "", d = e.data == null ? "" : e.data;
       if (locked) { e.preventDefault(); say("bot", 0); return; }
+      if (devLocked) { e.preventDefault(); say("devtools", 0); return; }
       if (!e.isTrusted) { e.preventDefault(); st.e++; save(); say("script", 0); return; }
       if (NAT.get.call(ta) !== shadow) revert("script");
       if (/^insertFrom(Paste|Drop|Yank|PasteAsQuotation)$/.test(t)) { e.preventDefault(); block("paste", d.length); return; }
@@ -109,10 +133,11 @@ var Honest = (function () {
       var ok = false; try { ok = document.execCommand("insertText", false, "    "); } catch (x) {}
       if (!ok) { var sp = ta.selectionStart, v = NAT.get.call(ta); put(v.slice(0, sp) + "    " + v.slice(ta.selectionEnd)); ta.selectionStart = ta.selectionEnd = sp + 4; st.t += 4; remember(NAT.get.call(ta)); save(); if (ta.oninput) ta.oninput(); }
     }, true);
-    var h = { locked: function () { return locked; }, verify: verify, code: function () { verify(); return shadow; }, st: function () { return st; },
+    var h = { locked: function () { return locked || devLocked; }, verify: verify, code: function () { verify(); return shadow; }, st: function () { return st; },
       restart: function () { put(initial); shadow = initial; hist = [initial]; st.t = st.p = st.b = st.e = st.s = 0; last = 0; save(); },
       fill: function (text) { put(text); remember(text); save(); if (ta.oninput) ta.oninput(); } };
     if (S) S.set(ta, h); save();
+    if (!TEST) watchTools();
     try { var lt = +localStorage.getItem(lkey) || 0; if (lt && Date.now() - lt < 15 * 60 * 1000) { lock("saved"); } else if (lt) localStorage.removeItem(lkey); } catch (e) {}
     if (!TEST && !locked) { var sig = autoSign(); if (sig) lock(sig); }
   }
@@ -121,7 +146,7 @@ var Honest = (function () {
   function meta(ta) {
     var h = S && S.get(ta); if (!h) return "";
     var c = h.code(), st = h.st();
-    return "v1;t=" + st.t + ";p=" + st.p + ";b=" + st.b + ";e=" + st.e + ";s=" + st.s + (st.a ? ";a=1" : "") + ";h=" + hash(c);
+    return "v1;t=" + st.t + ";p=" + st.p + ";b=" + st.b + ";e=" + st.e + ";s=" + st.s + (st.a ? ";a=1" : "") + (st.d ? ";d=1" : "") + ";h=" + hash(c);
   }
   var api = { locked: function (ta) { var h = S && S.get(ta); return !!(h && h.locked()); }, attach: attach, code: code, meta: meta, restart: function (ta) { H(ta).restart(); }, hash: hash, norm: norm, parse: parse, verdict: verdict };
   if (TEST) api._fill = function (ta, text) { H(ta).fill(text); };
