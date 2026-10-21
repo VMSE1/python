@@ -16,7 +16,7 @@ var Honest = (function () {
   }
   function parse(s) {
     var m = /^v1;/.test(String(s || "").trim()) ? {} : null; if (!m) return null;
-    String(s).trim().split(";").slice(1).forEach(function (p) { var kv = p.split("="); if (kv.length === 2 && /^[tpbesh]$/.test(kv[0])) m[kv[0]] = kv[0] === "h" ? kv[1].slice(0, 8) : Math.max(0, parseInt(kv[1], 10) || 0); });
+    String(s).trim().split(";").slice(1).forEach(function (p) { var kv = p.split("="); if (kv.length === 2 && /^[tpbesha]$/.test(kv[0])) m[kv[0]] = kv[0] === "h" ? kv[1].slice(0, 8) : Math.max(0, parseInt(kv[1], 10) || 0); });
     return m;
   }
   function verdict(m, code) {
@@ -26,22 +26,39 @@ var Honest = (function () {
     if (m.p > 0) r.push("пытался вставить: " + m.p);
     if (m.b > 0) r.push("вставка кусками: " + m.b);
     if (m.e > 0) r.push("код изменён скриптом");
+    if (m.a > 0) r.push("похоже на бота: автоматический ввод");
     if (len >= 60 && (m.t || 0) < len * 0.4) r.push("набрано " + (m.t || 0) + " из " + len + " символов");
     if (m.s > 0 && (m.t || 0) / m.s > 12) r.push("слишком быстрый набор");
     return { level: r.length ? "warn" : "ok", reasons: r };
   }
   var NAT = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
   var TEST = false; /* тестовый стенд подменяет это значение на true; на сайте всегда false */
+  /* Признаки автоматизации (Selenium, Playwright, Puppeteer и т.п.). Это защита от «сделал бота по подсказке нейросети»,
+     а не от опытного человека: настоящая проверка заданий идёт у робота на GitHub, а отметка попадает в код сдачи. */
+  function autoSign() {
+    var r = [], n = navigator, w = window;
+    try { if (n.webdriver === true) r.push("webdriver"); } catch (e) {}
+    try { if (/HeadlessChrome|PhantomJS|Puppeteer|Playwright/i.test(n.userAgent || "")) r.push("headless"); } catch (e) {}
+    try { for (var k in w) { if (/^(\$?cdc_|__playwright|__pw_|__nightmare|_phantom|callPhantom|__selenium|_selenium|__webdriver|domAutomation|__driver)/i.test(k)) { r.push("marker"); break; } } } catch (e) {}
+    try { if (w.document && (w.document.documentElement.getAttribute("webdriver") !== null)) r.push("attr"); } catch (e) {}
+    return r.join(",");
+  }
   var RATE = 40;    /* больше символов в секунду человек не набирает */
   var S = typeof WeakMap === "function" ? new WeakMap() : null;
   /* Защита опирается на «эталонный текст» (shadow): он живёт внутри замыкания и меняется только
      настоящими (isTrusted) событиями набора. Всё, что поменяло поле в обход (консоль, скрипт,
      подделанное событие), откатывается, а попытка записывается в счётчик e. */
   function attach(ta, o) {
-    o = o || {}; try { ta.maxLength = MAXC; } catch (e) {} var id = o.id || "x", key = "hn_" + id, ckey = "hnc_" + id, st = { t: 0, p: 0, b: 0, e: 0, s: 0 }, last = 0, win = [];
-    try { var sv = JSON.parse(localStorage.getItem(key) || "null"); if (sv && typeof sv.t === "number") st = { t: sv.t | 0, p: sv.p | 0, b: sv.b | 0, e: sv.e | 0, s: sv.s | 0 }; } catch (e) {}
+    o = o || {}; try { ta.maxLength = MAXC; } catch (e) {} var id = o.id || "x", key = "hn_" + id, ckey = "hnc_" + id, st = { t: 0, p: 0, b: 0, e: 0, s: 0, a: 0 }, last = 0, win = [], lkey = "hnl_" + id, locked = false, kd = [], orphan = 0, lastKey = 0;
+    try { var sv = JSON.parse(localStorage.getItem(key) || "null"); if (sv && typeof sv.t === "number") st = { t: sv.t | 0, p: sv.p | 0, b: sv.b | 0, e: sv.e | 0, s: sv.s | 0, a: sv.a | 0 }; } catch (e) {}
     var shadow = NAT.get.call(ta), hist = [shadow], initial = o.starter != null ? o.starter : shadow;
     try { var hc = localStorage.getItem(ckey); if (hc && hc !== hash(shadow)) st.e++; } catch (e) {}
+    function lock(why) {
+      if (locked) return; locked = true; st.a = 1;
+      try { ta.readOnly = true; ta.setAttribute("aria-readonly", "true"); } catch (e) {}
+      try { localStorage.setItem(lkey, String(Date.now())); } catch (e) {}
+      save(); say("bot", 0);
+    }
     function save() { try { localStorage.setItem(key, JSON.stringify(st)); localStorage.setItem(ckey, hash(shadow)); } catch (e) {} }
     function say(kind, n) { if (o.onBlock) o.onBlock(kind, n); }
     function block(kind, n) { if (kind === "bulk") st.b++; else st.p++; save(); say(kind, n); }
@@ -61,6 +78,7 @@ var Honest = (function () {
     ta.addEventListener("drop", function (e) { e.preventDefault(); block("paste", 0); }, true);
     ta.addEventListener("beforeinput", function (e) {
       var t = e.inputType || "", d = e.data == null ? "" : e.data;
+      if (locked) { e.preventDefault(); say("bot", 0); return; }
       if (!e.isTrusted) { e.preventDefault(); st.e++; save(); say("script", 0); return; }
       if (NAT.get.call(ta) !== shadow) revert("script");
       if (/^insertFrom(Paste|Drop|Yank|PasteAsQuotation)$/.test(t)) { e.preventDefault(); block("paste", d.length); return; }
@@ -73,29 +91,39 @@ var Honest = (function () {
       var grow = v.length - shadow.length;
       if (!undo && grow > 0 && v.length > MAXC) { e.stopImmediatePropagation(); put(shadow); say("size", 0); return; }
       if ((undo && hist.indexOf(v) < 0) || (!undo && (grow > BULK + 5 || (grow > 0 && tooFast(grow))))) { e.stopImmediatePropagation(); revert(undo ? "script" : "bulk"); if (!undo) { st.e--; st.b++; save(); } return; }
+      if (!TEST && !locked && t === "insertText" && d.length === 1 && !(navigator.maxTouchPoints > 0) && performance.now() - lastKey > 700) { if (++orphan >= 12) lock("orphan"); }
       if (/^insert(Text|CompositionText|ReplacementText)$/.test(t)) st.t += d.length;
       else if (t === "insertLineBreak" || t === "insertParagraph") st.t += 1;
       remember(v); tick(); save();
     }, true);
     ta.addEventListener("keydown", function (e) {
+      if (TEST) { /* тестовый стенд не проверяет ритм */ } else if (e.isTrusted && !e.repeat && e.key && (e.key.length === 1 || e.key === "Enter")) {
+        var now = performance.now(); lastKey = now; kd.push(now); if (kd.length > 40) kd.shift();
+        if (kd.length >= 30) {
+          var d = [], i, m = 0, v = 0; for (i = 1; i < kd.length; i++) { d.push(kd[i] - kd[i - 1]); } d = d.filter(function (x) { return x < 1500; });
+          if (d.length >= 28) { for (i = 0; i < d.length; i++) m += d[i]; m /= d.length; for (i = 0; i < d.length; i++) v += (d[i] - m) * (d[i] - m); var sd = Math.sqrt(v / d.length); if (m > 0 && sd / m < 0.22 && m < 700) lock("rhythm"); }
+        }
+      }
       if (e.key !== "Tab" || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
       e.preventDefault();
       var ok = false; try { ok = document.execCommand("insertText", false, "    "); } catch (x) {}
       if (!ok) { var sp = ta.selectionStart, v = NAT.get.call(ta); put(v.slice(0, sp) + "    " + v.slice(ta.selectionEnd)); ta.selectionStart = ta.selectionEnd = sp + 4; st.t += 4; remember(NAT.get.call(ta)); save(); if (ta.oninput) ta.oninput(); }
     }, true);
-    var h = { verify: verify, code: function () { verify(); return shadow; }, st: function () { return st; },
+    var h = { locked: function () { return locked; }, verify: verify, code: function () { verify(); return shadow; }, st: function () { return st; },
       restart: function () { put(initial); shadow = initial; hist = [initial]; st.t = st.p = st.b = st.e = st.s = 0; last = 0; save(); },
       fill: function (text) { put(text); remember(text); save(); if (ta.oninput) ta.oninput(); } };
     if (S) S.set(ta, h); save();
+    try { var lt = +localStorage.getItem(lkey) || 0; if (lt && Date.now() - lt < 15 * 60 * 1000) { lock("saved"); } else if (lt) localStorage.removeItem(lkey); } catch (e) {}
+    if (!TEST && !locked) { var sig = autoSign(); if (sig) lock(sig); }
   }
   function H(ta) { var h = S && S.get(ta); if (!h) throw new Error("Honest: поле не подключено"); return h; }
   function code(ta) { var h = S && S.get(ta); return h ? h.code() : ta.value; }
   function meta(ta) {
     var h = S && S.get(ta); if (!h) return "";
     var c = h.code(), st = h.st();
-    return "v1;t=" + st.t + ";p=" + st.p + ";b=" + st.b + ";e=" + st.e + ";s=" + st.s + ";h=" + hash(c);
+    return "v1;t=" + st.t + ";p=" + st.p + ";b=" + st.b + ";e=" + st.e + ";s=" + st.s + (st.a ? ";a=1" : "") + ";h=" + hash(c);
   }
-  var api = { attach: attach, code: code, meta: meta, restart: function (ta) { H(ta).restart(); }, hash: hash, norm: norm, parse: parse, verdict: verdict };
+  var api = { locked: function (ta) { var h = S && S.get(ta); return !!(h && h.locked()); }, attach: attach, code: code, meta: meta, restart: function (ta) { H(ta).restart(); }, hash: hash, norm: norm, parse: parse, verdict: verdict };
   if (TEST) api._fill = function (ta, text) { H(ta).fill(text); };
   return api;
 })();

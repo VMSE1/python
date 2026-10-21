@@ -54,7 +54,7 @@ if(!seen&&!window.__noBrief)open();
 var ta=document.getElementById("code"),key="code_"+t.id,saved=null;
 try{saved=localStorage.getItem(key)}catch(e){}
 ta.value=saved!==null?saved:t.starter;
-Honest.attach(ta,{id:t.id,starter:t.starter,onBlock:function(k){var h=document.getElementById("hn");h.className="bad";h.textContent=k==="size"?"Слишком длинный код. Решение этой задачи намного короче: удали лишнее.":k==="bulk"?"Слишком много текста за раз. Набирай код сам, по частям.":k==="script"?"Код нельзя подставить скриптом. Набери его сам.":"Вставка отключена. Набери код сам: так ты его запомнишь."}});
+Honest.attach(ta,{id:t.id,starter:t.starter,onBlock:function(k){var h=document.getElementById("hn");h.className="bad";if(k==="bot"){h.textContent="Ай-ай-ай! Похоже, код вводит бот. Редактор заблокирован, учитель получит отметку. Если это ошибка, напиши учителю.";h.style.cssText="background:#c01a2f;color:#fff;font-weight:700;padding:12px 14px;border:3px solid #000;font-size:16px";var cb=document.getElementById("chk");if(cb)cb.disabled=true;return}h.textContent=k==="size"?"Слишком длинный код. Решение этой задачи намного короче: удали лишнее.":k==="bulk"?"Слишком много текста за раз. Набирай код сам, по частям.":k==="script"?"Код нельзя подставить скриптом. Набери его сам.":"Вставка отключена. Набери код сам: так ты его запомнишь."}});
 function step(n,ok){["s1","s2","s3"].forEach(function(s,k){var e=document.getElementById(s);e.className="st"+(k<n?" ok":(k===n?" on":""));e.firstChild.innerHTML=k<n?OKI:(k+1)});}
 function refreshSteps(){var d=load("done"),p=load("passed");step(d[t.id]?3:(p[t.id]?2:0));document.getElementById("send").className="sendbox"+(p[t.id]&&!d[t.id]?" ready":"")}
 refreshSteps();if(load("passed")[t.id])Reward.show(document.getElementById("next"),t);
@@ -67,7 +67,7 @@ document.getElementById("q").onclick=function(){window.openGuide&&window.openGui
 var warmed=false;function warmOnce(){if(!warmed){warmed=true;var c=navigator.connection;if(c&&c.saveData)return;BrowserCheck.warm()}}
 ta.addEventListener('focus',warmOnce,{once:true});ta.addEventListener('input',warmOnce,{once:true});
 var res=document.getElementById("res"),chk=document.getElementById("chk");
-chk.onclick=function(){
+chk.onclick=function(){if(Honest.locked(ta)){var hh=document.getElementById("hn");hh.className="bad";hh.textContent="Редактор заблокирован: похоже, код вводит бот.";return}
  res.className="res on wait";res.innerHTML='<div class="rh">'+(BrowserCheck.isReady()?'Проверяю…':'Первый запуск: загружаю проверку (около 13 МБ, один раз). Подожди…')+'</div>';chk.disabled=true;
  BrowserCheck.run(t,Honest.code(ta)).then(function(r){chk.disabled=false;
   if(r.todo){res.className="res on fail";res.innerHTML='<div class="rh">'+BADI+'Пока тут только заготовка. Напиши решение.</div>';return}
@@ -75,7 +75,7 @@ chk.onclick=function(){
   else{res.className="res on fail";res.innerHTML='<div class="rh">'+BADI+'Пока не так</div><ul>'+r.messages.map(function(x){return "<li>"+esc(x)+"</li>"}).join("")+'</ul>'+(r.sample?'<pre>'+esc(r.sample.slice(0,400))+'</pre>':"")+Hints.html(Hints.explain(Honest.code(ta),t,r))}
  });
 };
-document.getElementById("go").onclick=function(){
+document.getElementById("go").onclick=function(){if(Honest.locked(ta)){var hh=document.getElementById("hn");hh.className="bad";hh.textContent="Редактор заблокирован: похоже, код вводит бот.";return}
  var n=document.getElementById("nick").value.trim(),g=document.getElementById("group").value.trim(),msg=document.getElementById("msg");
  if(!n){msg.className="bad";msg.textContent="Впиши ник (не фамилию).";return}
  if(!g){msg.className="bad";msg.textContent="Впиши номер группы, например 9А. Нет группы: напиши «нет».";document.getElementById("group").focus();return}
@@ -87,7 +87,7 @@ document.getElementById("go").onclick=function(){
  var d=load("done");d[t.id]=1;save("done",d);Net.push();refreshSteps();
  window.open(url,"_blank","noopener");
 };
-document.getElementById("mk").onclick=function(){
+document.getElementById("mk").onclick=function(){if(Honest.locked(ta)){var hh=document.getElementById("hn");hh.className="bad";hh.textContent="Редактор заблокирован: похоже, код вводит бот.";return}
  var f=document.getElementById("fio").value.trim(),g=document.getElementById("group").value.trim(),tm=document.getElementById("tmsg"),o=document.getElementById("offo");
  o.hidden=false;
  if(!f){tm.className="bad";tm.textContent="Впиши фамилию и имя.";document.getElementById("tok").value="";return}

@@ -69,9 +69,11 @@ def _honest_test(route):
     route.fulfill(response=r, body=body.replace("var TEST = false;", "var TEST = true;"))
 
 
-def new_ctx(b, w=1280, h=820, mobile=False, seen=True, raw=False, brief=False):
+def new_ctx(b, w=1280, h=820, mobile=False, seen=True, raw=False, brief=False, bot=False):
     """raw=True: настоящий honest.js без тестового хода (для проверки самой защиты)."""
-    ctx = b.new_context(viewport={"width": w, "height": h}, is_mobile=mobile, device_scale_factor=2 if mobile else 1, accept_downloads=True)
+    ua = None if bot else "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+    ctx = b.new_context(viewport={"width": w, "height": h}, is_mobile=mobile, device_scale_factor=2 if mobile else 1, accept_downloads=True, user_agent=ua)
+    if not bot: ctx.add_init_script("Object.defineProperty(navigator,'webdriver',{get:()=>false})")
     if not raw: ctx.route("**/honest.js", _honest_test)
     if seen: ctx.add_init_script("localStorage.seenStart='1';localStorage.visited='1';" + ("" if brief else "window.__noBrief=true;"))
     return ctx
@@ -791,7 +793,7 @@ def api_ctx(b, api, w=1280, h=800, mobile=False):
     ctx = new_ctx(b, w, h, mobile=mobile)
     host = api.split("//")[1]
     def html(route):
-        r = route.fetch(); body = r.text().replace("https://2-27-53-182.sslip.io wss://2-27-53-182.sslip.io", "%s ws://%s" % (api, host))
+        r = route.fetch(); body = re.sub(r"https://[a-z0-9.-]+sslip\.io wss://[a-z0-9.-]+sslip\.io", "%s ws://%s" % (api, host), r.text())
         route.fulfill(response=r, body=body)
     ctx.route(re.compile(r"\.html(\?.*)?$"), html)
     ctx.route("**/config.js", lambda r: r.fulfill(body='window.API_BASE="%s";' % api, content_type="application/javascript"))
@@ -850,6 +852,32 @@ def online(b, base):
     check("онлайн: нет ошибок в консоли", not bad, bad[:3])
 
 
+def botguard(b, base):
+    print("\n== ЗАЩИТА ОТ БОТОВ ==")
+    import random
+    # 1. автоматизированный браузер (признаки webdriver / headless) блокируется сразу
+    ctx = new_ctx(b, raw=True, bot=True); pg = ctx.new_page(); pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code"); pg.wait_for_timeout(300)
+    check("бот: автоматизированный браузер блокируется, видно красное «Ай-ай-ай»", pg.evaluate("document.getElementById('code').readOnly") and "Ай-ай-ай" in pg.inner_text("#hn"), pg.inner_text("#hn")[:60])
+    check("бот: кнопка проверки отключена", pg.is_disabled("#chk"))
+    pg.click("#code"); pg.keyboard.type("print(1)"); check("бот: ввод в заблокированный редактор не проходит", "print(1)" not in pg.evaluate("document.getElementById('code').value"))
+    pg.reload(); pg.wait_for_selector("#code"); pg.wait_for_timeout(300)
+    check("бот: блокировка не снимается обновлением страницы", pg.evaluate("document.getElementById('code').readOnly"))
+    ctx.close()
+    # 2. «обычный» браузер, но ввод с одинаковым ритмом, как у скрипта
+    ctx = new_ctx(b, raw=True); pg = ctx.new_page(); pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code"); pg.click("#code")
+    check("бот: настоящий браузер без признаков автоматизации не блокируется", not pg.evaluate("document.getElementById('code').readOnly"))
+    pg.keyboard.type("x = 1\n" * 8, delay=25); pg.wait_for_timeout(200)
+    check("бот: равномерный «машинный» ввод блокируется", pg.evaluate("document.getElementById('code').readOnly") and "Ай-ай-ай" in pg.inner_text("#hn"), pg.inner_text("#hn")[:60])
+    ctx.close()
+    # 3. человек печатает неровно: не блокируем
+    ctx = new_ctx(b, raw=True); pg = ctx.new_page(); pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code"); pg.click("#code")
+    random.seed(5)
+    for ch in "name = input()\ncity = input()\nprint(name)":
+        pg.keyboard.type(ch); pg.wait_for_timeout(random.randint(40, 260))
+    check("бот: человеческий неровный ввод не блокируется", not pg.evaluate("document.getElementById('code').readOnly") and "name = input()" in pg.evaluate("document.getElementById('code').value"))
+    ctx.close()
+
+
 def chaos(b, base):
     print("\n== ИСПОРЧЕННЫЕ ДАННЫЕ В БРАУЗЕРЕ ==")
     junk = ["null", "{", "[]", '"x"', "12", "true", '{"last":"zzz","n":"NaN","days":5}']
@@ -863,7 +891,7 @@ def chaos(b, base):
 
 
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "botguard", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox", "--disable-features=LocalNetworkAccessChecks,LocalNetworkAccess,PrivateNetworkAccessRespectPreflightResults"])
