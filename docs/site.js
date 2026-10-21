@@ -116,7 +116,7 @@ function fetchIssues(label, cb, fail) {
 
 /* Объявление на всех страницах: docs/notice.json {"id","at","sec","title","text"}.
    Красный экран показывается всем, кто открыл или обновил сайт в промежуток [at, at+sec] (до 10 минут).
-   Можно закрыть кнопкой; пустой файл {} ничего не показывает. */
+   Закрыть нельзя: обновление страницы показывает его снова; пустой файл {} ничего не показывает. */
 (function () {
   var shown = "";
   var SKULL = ["................","....XXXXXXXX....","...XXXXXXXXXX...","..XXXXXXXXXXXX..","..XXXXXXXXXXXX..","..XXEEEXXEEEXX..","..XEEEEXXEEEEX..","..XEEEEXXEEEEX..","..XXEEXXXXEEXX..","...XXXXNNXXXX...","....XXXNNXXX....","....XXXXXXXX....",".....XTXTXTX....",".....XTXTXTX....","......XXXXXX....","................"];
@@ -129,28 +129,36 @@ function fetchIssues(label, cb, fail) {
   function run(n) {
     var t = Date.parse(n.at), now = Date.now(), sec = Math.min(600, Math.max(3, +n.sec || 8));
     if (!n.id || !(t > 0) || now < t || now >= t + sec * 1000 || shown === n.id) return;
-    try { if (sessionStorage.getItem("noticeSeen") === n.id) return; } catch (e) {}
     shown = n.id;
-    var left = t + sec * 1000 - now, el = document.createElement("div");
-    el.setAttribute("role", "alertdialog"); el.setAttribute("aria-live", "assertive"); el.id = "notice";
-    el.style.cssText = "position:fixed;inset:0;z-index:99999;background:radial-gradient(circle at 50% 40%,#a8101f 0%,#4a0710 70%,#1a0206 100%);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px;text-align:center;overflow:auto";
-    var head = "font:400 clamp(20px,6vw,52px)/1.4 'Press Start 2P',monospace;text-shadow:3px 3px 0 #000;animation:nblink 1s steps(2) infinite", sub = "font:600 clamp(16px,3.4vw,28px)/1.5 'IBM Plex Mono',monospace;text-shadow:2px 2px 0 #000", btn = "font:600 clamp(15px,2.6vw,20px) 'IBM Plex Mono',monospace;padding:12px 22px;border:3px solid #fff;background:#fff;color:#a8101f;cursor:pointer;min-height:48px";
-    el.innerHTML = '<style>@keyframes nshake{from{transform:translate(-2px,0)}to{transform:translate(2px,1px)}}@keyframes nblink{50%{opacity:.55}}@media (prefers-reduced-motion:reduce){#nsk,#notice div{animation:none!important}}#notice button:focus-visible{outline:4px dashed #ffe14d;outline-offset:3px}</style>' +
+    var end = t + sec * 1000, el = document.createElement("div");
+    el.setAttribute("role", "alertdialog"); el.setAttribute("aria-live", "assertive"); el.id = "notice"; el.tabIndex = -1;
+    el.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:radial-gradient(circle at 50% 40%,#a8101f 0%,#4a0710 70%,#1a0206 100%);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px;text-align:center;overflow:auto;cursor:not-allowed";
+    var head = "font:400 clamp(20px,6vw,52px)/1.4 'Press Start 2P',monospace;text-shadow:3px 3px 0 #000;animation:nblink 1s steps(2) infinite", sub = "font:600 clamp(16px,3.4vw,28px)/1.5 'IBM Plex Mono',monospace;text-shadow:2px 2px 0 #000";
+    el.innerHTML = '<style>@keyframes nshake{from{transform:translate(-2px,0)}to{transform:translate(2px,1px)}}@keyframes nblink{50%{opacity:.55}}@media (prefers-reduced-motion:reduce){#nsk,#notice div{animation:none!important}}</style>' +
       skull() + '<div style="' + head + '">' + esc(n.title || "Ошибка") + '</div><div style="' + sub + '">' + esc(n.text || "") + '</div>' +
-      '<div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center"><button type="button" id="nclose" style="' + btn + '">Закрыть окно</button><button type="button" id="nre" style="' + btn + ';background:transparent;color:#fff">Обновить страницу</button></div>' +
-      '<div style="font:500 clamp(13px,2.2vw,17px)/1.5 \'IBM Plex Mono\',monospace;opacity:.85">Нажми «Закрыть окно» или клавишу Esc</div>';
-    document.body.appendChild(el);
-    function done() { try { sessionStorage.setItem("noticeSeen", n.id); } catch (e) {} document.removeEventListener("keydown", key); document.removeEventListener("pointermove", look); el.remove(); }
-    function key(e) { if (e.key === "Escape") { clearTimeout(timer); done(); } }
+      '<div style="font:500 clamp(14px,2.4vw,19px)/1.6 \'IBM Plex Mono\',monospace;opacity:.9">Страницу нельзя закрыть или обновить.<br>Подожди, доступ вернётся сам через <b id="ncd" style="font-size:1.3em">0:00</b></div>';
+    var prevO = document.documentElement.style.overflow; document.documentElement.style.overflow = "hidden";
+    document.body.appendChild(el); el.focus();
+    var tick, mo, last = 0;
+    function left() { return end - Date.now(); }
+    function fmt() { var l = Math.max(0, Math.ceil(left() / 1000)), c = el.querySelector("#ncd"); if (c) c.textContent = Math.floor(l / 60) + ":" + ("0" + (l % 60)).slice(-2); }
+    function done() { clearInterval(tick); if (mo) mo.disconnect(); document.removeEventListener("keydown", key, true); document.removeEventListener("pointermove", look); document.documentElement.style.overflow = prevO; el.remove(); }
+    function key(e) { if (e.key === "Tab" || e.key === "Escape") e.preventDefault(); }
     function look(e) { var p = el.querySelector("#npu"); if (!p) return; var dx = Math.max(-1, Math.min(1, (e.clientX / innerWidth - .5) * 3)), dy = Math.max(-.6, Math.min(.6, (e.clientY / innerHeight - .5) * 2)); p.setAttribute("transform", "translate(" + dx.toFixed(2) + " " + dy.toFixed(2) + ")"); }
-    var timer = setTimeout(done, left);
-    document.addEventListener("keydown", key); document.addEventListener("pointermove", look);
-    el.querySelector("#nclose").onclick = function () { clearTimeout(timer); done(); };
-    el.querySelector("#nre").onclick = function () { location.reload(); };
-    el.querySelector("#nclose").focus();
+    document.addEventListener("keydown", key, true); document.addEventListener("pointermove", look);
+    /* если кто-то удалил или спрятал окно из консоли, оно возвращается */
+    tick = setInterval(function () {
+      if (left() <= 0) { shown = n.id + "-end"; done(); return; }
+      if (!document.body.contains(el)) document.body.appendChild(el);
+      if (el.style.display === "none" || el.style.visibility === "hidden" || el.style.opacity === "0") { el.style.display = "flex"; el.style.visibility = "visible"; el.style.opacity = "1"; }
+      fmt();
+    }, 250);
+    mo = new MutationObserver(function () { if (!document.body.contains(el)) document.body.appendChild(el); });
+    mo.observe(document.body, { childList: true });
+    fmt();
   }
   function poll() {
     try { fetch("notice.json?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (n) { if (n) run(n); }).catch(function () {}); } catch (e) {}
   }
-  if (typeof document !== "undefined") { setTimeout(poll, 1000); setInterval(poll, 20000); }
+  if (typeof document !== "undefined") { setTimeout(poll, 150); setInterval(poll, 5000); }
 })();
