@@ -130,6 +130,40 @@ function fetchIssues(label, cb, fail) {
     return '<svg id="nsk" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" style="width:min(46vw,260px);height:auto;filter:drop-shadow(0 0 18px rgba(0,0,0,.7));animation:nshake .12s infinite alternate">' + r +
       '<g id="npu"><rect x="4" y="6" width="2" height="2" fill="#ff2a2a"/><rect x="10" y="6" width="2" height="2" fill="#ff2a2a"/></g></svg>';
   }
+  var UL = [
+    { t: "Выведи на экран результат выражения 15 + 27 + 8.", h: "Пример: print(2 + 3) выведет 5.", cases: [{ stdin: [], must: ["50"] }] },
+    { t: "Выведи на экран фразу: Сайт спасён", h: "Текст пишут в кавычках: print(\"текст\")", cases: [{ stdin: [], must: ["Сайт спасён"] }] },
+    { t: "Спроси имя, потом возраст (целое число). Выведи: <имя>, через 5 лет тебе <возраст + 5>. Например: Аня, через 5 лет тебе 17", h: "name = input(); age = int(input()); print(f\"{name}, через 5 лет тебе {age + 5}\")", cases: [{ stdin: ["Аня", "12"], must: ["Аня, через 5 лет тебе 17"] }, { stdin: ["Борис", "30"], must: ["Борис, через 5 лет тебе 35"] }] }
+  ];
+  function unlockUI(host, n, finish) {
+    var key = "nus_" + n.id, solved = 0; try { solved = Math.min(3, +localStorage.getItem(key) || 0); } catch (e) {}
+    var inp = "width:100%;box-sizing:border-box;font:500 17px/1.5 'IBM Plex Mono',monospace;background:#0f0f2a;color:#e8f0ff;border:3px solid #fff;padding:12px;min-height:130px;resize:vertical";
+    host.innerHTML = '<div style="font:400 clamp(11px,2.4vw,14px)/1.6 \'Press Start 2P\',monospace;margin-bottom:8px" id="nuh"></div><div style="font:600 clamp(16px,2.8vw,20px)/1.5 \'IBM Plex Mono\',monospace;margin-bottom:8px;text-align:left" id="nut"></div>' +
+      '<textarea id="nuc" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Код на Python" style="' + inp + '"></textarea>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:10px;align-items:center"><button type="button" id="nub" style="font:600 18px \'IBM Plex Mono\',monospace;padding:12px 24px;border:3px solid #fff;background:#fff;color:#a8101f;cursor:pointer;min-height:48px">Проверить</button><span id="nur" role="status" style="font:600 16px \'IBM Plex Mono\',monospace;text-align:left"></span></div>';
+    var ta = host.querySelector("#nuc"), btn = host.querySelector("#nub"), res = host.querySelector("#nur"), tries = 0;
+    function show() { host.querySelector("#nuh").textContent = "Задача " + (solved + 1) + " из 3"; host.querySelector("#nut").textContent = UL[solved].t; ta.value = ""; res.textContent = ""; tries = 0; ta.focus(); }
+    function load(cb) { if (window.BrowserCheck) { cb(); return; } var sc = document.createElement("script"); sc.src = "runner/check.js"; sc.onload = cb; sc.onerror = function () { res.textContent = "Не удалось загрузить проверку. Подожди окончания времени."; }; document.head.appendChild(sc); }
+    load(function () { try { window.BrowserCheck.warm(); } catch (e) {} });
+    btn.onclick = function () {
+      var code = ta.value; if (!code.trim()) { res.textContent = "Напиши код."; return; }
+      btn.disabled = true; res.textContent = "Проверяю… (в первый раз до 10 секунд)";
+      load(function () {
+        window.BrowserCheck.run({ starter: "", cases: UL[solved].cases, funcs: [] }, code).then(function (r) {
+          btn.disabled = false;
+          if (r.ok) {
+            solved++; try { localStorage.setItem(key, String(solved)); } catch (e) {}
+            if (solved >= 3) { res.textContent = "Готово! Сайт разблокирован."; setTimeout(finish, 600); return; }
+            res.textContent = ""; show(); host.querySelector("#nuh").textContent += " (верно, идём дальше)";
+          } else {
+            tries++; var m = (r.messages || []).slice(0, 2).join(" ");
+            res.textContent = "Пока не так. " + m + (tries >= 2 ? " Подсказка: " + UL[solved].h : "");
+          }
+        });
+      });
+    };
+    show();
+  }
   function run(n) {
     var t = Date.parse(n.at), now = Date.now(), sec = Math.min(600, Math.max(3, +n.sec || 8));
     if (!n.id || !(t > 0) || now < t || now >= t + sec * 1000 || shown === n.id) return;
@@ -140,16 +174,18 @@ function fetchIssues(label, cb, fail) {
       if (window.Egg) go(); else { var sc = document.createElement("script"); sc.src = "egg.js"; sc.onload = go; document.head.appendChild(sc); }
       return;
     }
+    if (n.unlock) { try { if (localStorage.getItem("nu_" + n.id) === "1") return; } catch (e) {} }
     shown = n.id;
     var end = t + sec * 1000, el = document.createElement("div");
     el.setAttribute("role", "alertdialog"); el.setAttribute("aria-live", "assertive"); el.id = "notice"; el.tabIndex = -1;
-    el.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:radial-gradient(circle at 50% 40%,#a8101f 0%,#4a0710 70%,#1a0206 100%);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px;text-align:center;overflow:auto;cursor:not-allowed";
+    el.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:radial-gradient(circle at 50% 40%,#a8101f 0%,#4a0710 70%,#1a0206 100%);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:18px;padding:20px;text-align:center;overflow:auto;cursor:not-allowed";
     var head = "font:400 clamp(20px,6vw,52px)/1.4 'Press Start 2P',monospace;text-shadow:3px 3px 0 #000;animation:nblink 1s steps(2) infinite", sub = "font:600 clamp(16px,3.4vw,28px)/1.5 'IBM Plex Mono',monospace;text-shadow:2px 2px 0 #000";
-    el.innerHTML = '<style>@keyframes nshake{from{transform:translate(-2px,0)}to{transform:translate(2px,1px)}}@keyframes nblink{50%{opacity:.55}}@media (prefers-reduced-motion:reduce){#nsk,#notice div{animation:none!important}}</style>' +
-      skull() + '<div style="' + head + '">' + esc(n.title || "Ошибка") + '</div><div style="' + sub + '">' + esc(n.text || "") + '</div>' +
-      '<div style="font:500 clamp(14px,2.4vw,19px)/1.6 \'IBM Plex Mono\',monospace;opacity:.9">Страницу нельзя закрыть или обновить.<br>Подожди, доступ вернётся сам через <b id="ncd" style="font-size:1.3em">0:00</b></div>';
+    el.innerHTML = '<style>@keyframes nshake{from{transform:translate(-2px,0)}to{transform:translate(2px,1px)}}@keyframes nblink{50%{opacity:.55}}@media (prefers-reduced-motion:reduce){#nsk,#notice div{animation:none!important}}#notice.un #nsk{width:min(26vw,110px)!important}</style>' +
+      '<div style="margin:auto 0;display:grid;gap:16px;justify-items:center;width:min(100%,720px)">' + skull() + '<div style="' + head + '">' + esc(n.title || "Ошибка") + '</div><div style="' + sub + '">' + esc(n.text || "") + '</div>' +
+      '<div style="font:500 clamp(14px,2.4vw,19px)/1.6 \'IBM Plex Mono\',monospace;opacity:.9">' + (n.unlock ? 'Страницу нельзя закрыть или обновить.<br>Чтобы разблокировать сайт, реши 3 задачи на Python или подожди: <b id="ncd" style="font-size:1.3em">0:00</b></div><div id="nun" style="width:100%"></div>' : 'Страницу нельзя закрыть или обновить.<br>Подожди, доступ вернётся сам через <b id="ncd" style="font-size:1.3em">0:00</b></div>') + '</div>';
     var prevO = document.documentElement.style.overflow; document.documentElement.style.overflow = "hidden";
-    document.body.appendChild(el); el.focus();
+    if (n.unlock) el.className = "un";
+    document.body.appendChild(el); if (!n.unlock) el.focus();
     var tick, mo, last = 0;
     function left() { return end - Date.now(); }
     function fmt() { var l = Math.max(0, Math.ceil(left() / 1000)), c = el.querySelector("#ncd"); if (c) c.textContent = Math.floor(l / 60) + ":" + ("0" + (l % 60)).slice(-2); }
@@ -167,6 +203,7 @@ function fetchIssues(label, cb, fail) {
     mo = new MutationObserver(function () { if (!document.body.contains(el)) document.body.appendChild(el); });
     mo.observe(document.body, { childList: true });
     fmt();
+    if (n.unlock) unlockUI(el.querySelector("#nun"), n, function () { try { localStorage.setItem("nu_" + n.id, "1"); } catch (e) {} shown = n.id + "-end"; done(); });
   }
   function poll() {
     try { fetch("notice.json?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (n) { if (n) run(n); }).catch(function () {}); } catch (e) {}
@@ -174,9 +211,9 @@ function fetchIssues(label, cb, fail) {
   if (typeof document !== "undefined") { setTimeout(poll, 150); setInterval(poll, 5000); }
 })();
 
-/* Пасхалка: цифры 22832267 подряд (любая другая клавиша сбрасывает ввод) */
+/* Пасхалка: цифры 2267 подряд (любая другая клавиша сбрасывает ввод) */
 (function () {
-  var CODE = "22832267", buf = "", loading = false;
+  var CODE = "2267", buf = "", loading = false;
   function go() {
     if (window.Egg) { window.Egg.start(); return; }
     if (loading) return; loading = true;
@@ -184,6 +221,7 @@ function fetchIssues(label, cb, fail) {
     document.head.appendChild(sc);
   }
   document.addEventListener("keydown", function (e) {
+    var tg = e.target && e.target.tagName; if (tg === "TEXTAREA" || tg === "INPUT" || tg === "SELECT" || (e.target && e.target.isContentEditable) || document.getElementById("notice")) { buf = ""; return; }
     if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) { if (e.key.length === 1) buf = ""; return; }
     if (e.key < "0" || e.key > "9") { buf = ""; return; }
     buf = (buf + e.key).slice(-CODE.length);

@@ -729,12 +729,12 @@ def extras(b, base):
     pg.wait_for_timeout(800); pg.click("#gh .mn .c >> nth=40")
     check("сапёр: следующий тап после флажка работает", pg.evaluate("document.querySelectorAll('#gh .mn .c.o').length") > 0)
     pg.evaluate("""()=>{const g=document.querySelector('#gh .gm');const cs=Array.from(document.querySelectorAll('#gh .mn .c'));cs.forEach(c=>{})}""")
-    # пасхалка: 22832267
+    # пасхалка: 2267
     pg.goto(base + "index.html"); pg.wait_for_timeout(400)
-    pg.keyboard.type("2283226"); pg.keyboard.type("x"); pg.keyboard.type("7"); pg.wait_for_timeout(300)
+    pg.keyboard.type("226"); pg.keyboard.type("x"); pg.keyboard.type("7"); pg.wait_for_timeout(300)
     check("пасхалка: неполный или прерванный код не открывает игру", pg.locator("#egg").count() == 0)
-    pg.keyboard.type("22832267"); pg.wait_for_selector("#egg", timeout=4000)
-    check("пасхалка: код 22832267 открывает игру", pg.evaluate("document.getElementById('egg').dataset.state") == "playing")
+    pg.keyboard.type("2267"); pg.wait_for_selector("#egg", timeout=4000)
+    check("пасхалка: код 2267 открывает игру", pg.evaluate("document.getElementById('egg').dataset.state") == "playing")
     pg.keyboard.press("Space"); pg.wait_for_timeout(200); pg.evaluate("Egg._t().win()"); pg.wait_for_timeout(300)
     check("пасхалка: победа показывает «Позови преподавателя»", "Позови преподавателя" in pg.inner_text("#egm"))
     pg.keyboard.press("Escape"); check("пасхалка: Esc закрывает", pg.locator("#egg").count() == 0)
@@ -895,6 +895,28 @@ def botguard(b, base):
     ctx.close()
 
 
+def unlock(b, base):
+    print("\n== «САЙТ ВЗЛОМАН»: РАЗБЛОКИРОВКА ЗАДАЧАМИ ==")
+    import datetime as D
+    ctx = new_ctx(b); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    n = {"id": "u1", "at": D.datetime.now(D.timezone.utc).isoformat(), "sec": 300, "unlock": True, "title": "ОШИБКА", "text": "Сайт взломан!"}
+    ctx.route("**/notice.json*", lambda r: r.fulfill(body=json.dumps(n), content_type="application/json"))
+    pg.goto(base + "cloud.html"); pg.wait_for_selector("#notice #nuc", timeout=6000)
+    check("взлом: экран с задачами появился, обновление его не убирает", "Задача 1 из 3" in pg.inner_text("#nuh"))
+    pg.keyboard.press("Escape"); check("взлом: Esc не закрывает", pg.locator("#notice").count() == 1)
+    def ask(code, want):
+        pg.fill("#nuc", code); pg.click("#nub"); t0 = time.time()
+        while time.time() - t0 < 40 and want not in pg.inner_text("#notice"): time.sleep(.3)
+        return want in pg.inner_text("#notice")
+    check("взлом: неверный код отклоняется", ask("print(1)", "Пока не так"))
+    check("взлом: задача 1 (арифметика) принимается", ask("print(15 + 27 + 8)", "Задача 2 из 3"))
+    check("взлом: задача 2 (print) принимается", ask('print("Сайт спасён")', "Задача 3 из 3"))
+    pg.fill("#nuc", 'name = input()\nage = int(input())\nprint(f"{name}, через 5 лет тебе {age + 5}")'); pg.click("#nub"); pg.wait_for_selector("#notice", state="detached", timeout=40000)
+    check("взлом: после 3 задач сайт разблокирован", True)
+    pg.reload(); pg.wait_for_timeout(2500); check("взлом: после разблокировки экран не возвращается", pg.locator("#notice").count() == 0)
+    check("взлом: нет ошибок в консоли", not bag, bag[:3]); ctx.close()
+
+
 def chaos(b, base):
     print("\n== ИСПОРЧЕННЫЕ ДАННЫЕ В БРАУЗЕРЕ ==")
     junk = ["null", "{", "[]", '"x"', "12", "true", '{"last":"zzz","n":"NaN","days":5}']
@@ -908,7 +930,7 @@ def chaos(b, base):
 
 
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "botguard", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "botguard", "unlock", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox", "--disable-features=LocalNetworkAccessChecks,LocalNetworkAccess,PrivateNetworkAccessRespectPreflightResults"])
