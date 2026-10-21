@@ -6,13 +6,41 @@ import sys, io, json, builtins, os
 def norm(t):
     return " ".join(str(t).casefold().split())
 
+import re
+_NUM = re.compile(r"-?\d+(?:[.,]\d+)?")
+
+def _n(m):
+    s = ("%.2f" % round(float(m.group(0).replace(",", ".")), 2)).rstrip("0").rstrip(".")
+    return "0" if s in ("-0", "") else s
+
+def canon(t):
+    """Мягкое сравнение: без регистра, без любых пробелов/табов, ё=е, числа округлены до 0.01, запятая=точка."""
+    s = str(t).casefold().replace("ё", "е")
+    return "".join(_NUM.sub(_n, s).split())
+
+def has_text(out, m):
+    if canon(m) in canon(out):
+        return True
+    try:
+        want = float(str(m).strip().replace(",", "."))
+    except ValueError:
+        return False
+    tol = max(0.011, abs(want) * 0.001)
+    return any(abs(float(x.replace(",", ".")) - want) <= tol for x in _NUM.findall(str(out)))
+
 def same(a, b):
-    if isinstance(a, float) or isinstance(b, float):
-        try:
-            return abs(float(a) - float(b)) < 1e-9
-        except Exception:
-            return False
+    if isinstance(a, bool) or isinstance(b, bool):
+        return a == b
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
+        if isinstance(a, float) or isinstance(b, float):
+            return abs(a - b) <= max(0.01, abs(b) * 1e-3)
+        return a == b
+    if isinstance(a, str) and isinstance(b, str):
+        return " ".join(a.split()) == " ".join(b.split())
+    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+        return len(a) == len(b) and all(same(x, y) for x, y in zip(a, b))
     return a == b
+
 
 def short_err(e):
     return type(e).__name__ + ": " + str(e)
@@ -88,10 +116,10 @@ def check(spec_json, code):
             continue
         n = norm(out)
         for m in case.get("must", []):
-            if norm(m) not in n:
+            if not has_text(out, m):
                 problems.append("Ввод [%s]: в выводе должно быть «%s»" % (inp, m))
         for m in case.get("must_not", []):
-            if norm(m) in n:
+            if has_text(out, m):
                 problems.append("Ввод [%s]: в выводе не должно быть «%s»" % (inp, m))
         for fname, expected in case.get("files", {}).items():
             if not os.path.exists(fname):

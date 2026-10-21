@@ -28,6 +28,7 @@ def main():
         pub.append(dict(id=t["id"], title=t["title"], lesson=lesson, lessonTitle=lesson_title(lesson),
                         text=t["text"], example=t.get("example"), hint=t.get("hint", ""),
                         starter=t.get("starter", ""), file=t["file"], dir=rel, func=bool(t.get("funcs")),
+                        steps=t.get("steps", []), sample=t.get("sample"),
                         cases=t.get("cases", []), funcs=t.get("funcs", [])))
     os.makedirs(os.path.join(ROOT, "docs", "data"), exist_ok=True)
     with open(os.path.join(ROOT, "docs", "data", "tasks.js"), "w", encoding="utf-8", newline="\n") as f:

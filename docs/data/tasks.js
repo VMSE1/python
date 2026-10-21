@@ -14,6 +14,17 @@ window.TASKS=[
   "file": "vizitka.py",
   "dir": "lessons/lesson1/task_1_vizitka",
   "func": false,
+  "steps": [
+   "Спроси имя: `name = input(\"Имя: \")`.",
+   "Так же спроси город и положи в `city`.",
+   "Выведи одну строку через f-строку: `print(f\"... {name} ... {city}\")`.",
+   "Текст строки должен совпасть с образцом: «Меня зовут Анна, я из Казани»."
+  ],
+  "sample": {
+   "task": "Спроси имя и любимое животное. Выведи `<имя> любит <животное>`.",
+   "code": "name = input()\npet = input()\nprint(f\"{name} любит {pet}\")",
+   "out": "Вход: Лёша, кот\nВыход: Лёша любит кот"
+  },
   "cases": [
    {
     "stdin": [
@@ -51,6 +62,17 @@ window.TASKS=[
   "file": "ploshchad.py",
   "dir": "lessons/lesson1/task_2_ploshchad",
   "func": false,
+  "steps": [
+   "Спроси длину и сразу сделай число: `a = int(input())`.",
+   "То же с шириной: `b = int(input())`.",
+   "Перемножь: `a * b`.",
+   "Выведи `Площадь: ` и результат."
+  ],
+  "sample": {
+   "task": "Спроси две стороны и выведи периметр.",
+   "code": "a = int(input())\nb = int(input())\nprint(\"Периметр:\", 2 * (a + b))",
+   "out": "Вход: 3 и 4\nВыход: Периметр: 14"
+  },
   "cases": [
    {
     "stdin": [
@@ -88,6 +110,17 @@ window.TASKS=[
   "file": "konverter.py",
   "dir": "lessons/lesson1/task_3_konverter",
   "func": false,
+  "steps": [
+   "Расстояние может быть дробным, поэтому `float(input())`.",
+   "Умножь на 1000.",
+   "Выведи число, пробел и `м`.",
+   "Вывод `2500.0 м` тоже засчитается: ориентир тут число, а не точка."
+  ],
+  "sample": {
+   "task": "Спроси вес в килограммах (может быть дробным). Выведи вес в граммах.",
+   "code": "kg = float(input())\nprint(kg * 1000, \"г\")",
+   "out": "Вход: 1.5\nВыход: 1500.0 г"
+  },
   "cases": [
    {
     "stdin": [
@@ -123,6 +156,17 @@ window.TASKS=[
   "file": "vremya.py",
   "dir": "lessons/lesson1/task_4_vremya",
   "func": false,
+  "steps": [
+   "Спроси минуты: `m = int(input())`.",
+   "Часы: `m // 60` (деление без остатка).",
+   "Минуты: `m % 60` (остаток).",
+   "Выведи в виде `<ч> ч <м> мин`."
+  ],
+  "sample": {
+   "task": "Спроси секунды. Выведи минуты и секунды.",
+   "code": "s = int(input())\nprint(f\"{s // 60} мин {s % 60} с\")",
+   "out": "Вход: 135\nВыход: 2 мин 15 с"
+  },
   "cases": [
    {
     "stdin": [
@@ -166,6 +210,12 @@ window.TASKS=[
   "file": "dlina.py",
   "dir": "lessons/lesson1/task_5_dlina",
   "func": false,
+  "steps": [
+   "Спроси имя в переменную.",
+   "Длина: `len(name)`.",
+   "Выведи `имя: букв число` одной f-строкой."
+  ],
+  "sample": null,
   "cases": [
    {
     "stdin": [
@@ -209,6 +259,12 @@ window.TASKS=[
   "file": "srednee.py",
   "dir": "lessons/lesson1/task_6_srednee",
   "func": false,
+  "steps": [
+   "Спроси три оценки, каждую через `int(input())`.",
+   "Сложи и раздели: `(a + b + c) / 3`.",
+   "Выведи `Среднее: ` и число. Хвост вроде `4.0` или `4.00` не страшен."
+  ],
+  "sample": null,
   "cases": [
    {
     "stdin": [
@@ -258,6 +314,12 @@ window.TASKS=[
   "file": "chek.py",
   "dir": "lessons/lesson1/task_7_chek",
   "func": false,
+  "steps": [
+   "Спроси название, цену и количество. Цена и количество: `int(...)`.",
+   "Итог: `price * count`.",
+   "Выведи `товар: цена * количество = итого`."
+  ],
+  "sample": null,
   "cases": [
    {
     "stdin": [
@@ -307,6 +369,17 @@ window.TASKS=[
   "file": "svetofor.py",
   "dir": "lessons/lesson2/task_1_svetofor",
   "func": false,
+  "steps": [
+   "Спроси цвет, лучше сразу `.lower()`.",
+   "`if color == \"красный\":` выведи `Стой`.",
+   "`elif` для жёлтого и зелёного.",
+   "`else` для всего остального."
+  ],
+  "sample": {
+   "task": "Спроси число. Выведи `чётное` или `нечётное`.",
+   "code": "n = int(input())\nif n % 2 == 0:\n    print(\"чётное\")\nelse:\n    print(\"нечётное\")",
+   "out": "Вход: 7\nВыход: нечётное"
+  },
   "cases": [
    {
     "stdin": [
@@ -375,6 +448,13 @@ window.TASKS=[
   "file": "otsenka.py",
   "dir": "lessons/lesson2/task_2_otsenka",
   "func": false,
+  "steps": [
+   "Баллы: `int(input())`.",
+   "Сначала самый высокий порог: `if points >= 85`.",
+   "Дальше `elif >= 65`, `elif >= 45`.",
+   "В конце `else` для двойки."
+  ],
+  "sample": null,
   "cases": [
    {
     "stdin": [
@@ -434,6 +514,12 @@ window.TASKS=[
   "file": "attraktsion.py",
   "dir": "lessons/lesson2/task_3_attraktsion",
   "func": false,
+  "steps": [
+   "Спроси рост и возраст как числа.",
+   "Условие: `if height >= 120 and age >= 7:`.",
+   "Внутри `Можно`, в `else` `Нельзя`."
+  ],
+  "sample": null,
   "cases": [
    {
     "stdin": [
@@ -495,6 +581,12 @@ window.TASKS=[
   "file": "gorodskoy_pomoshchnik.py",
   "dir": "lessons/lesson2/task_4_gorodskoy_pomoshchnik",
   "func": false,
+  "steps": [
+   "Расстояние: `float(input())`.",
+   "`if d <= 2` пешком, `elif d <= 8` наземным транспортом, `else` метро.",
+   "Выведи `Рекомендую: ` и способ."
+  ],
+  "sample": null,
   "cases": [
    {
     "stdin": [
@@ -562,6 +654,17 @@ window.TASKS=[
   "file": "tablitsa.py",
   "dir": "lessons/lesson3/task_1_tablitsa",
   "func": false,
+  "steps": [
+   "Спроси число `n`.",
+   "Цикл `for i in range(1, 11):`.",
+   "В теле цикла: `print(f\"{n} x {i} = {n * i}\")`.",
+   "Должно получиться ровно 10 строк."
+  ],
+  "sample": {
+   "task": "Выведи квадраты чисел от 1 до 5.",
+   "code": "for i in range(1, 6):\n    print(i * i)",
+   "out": "1\n4\n9\n16\n25"
+  },
   "cases": [
    {
     "stdin": [
@@ -600,6 +703,17 @@ window.TASKS=[
   "file": "summa.py",
   "dir": "lessons/lesson3/task_2_summa",
   "func": true,
+  "steps": [
+   "Заведи `total = 0` до цикла.",
+   "Цикл `for i in range(1, n + 1):`.",
+   "В цикле `total += i`.",
+   "После цикла `return total`. Не `print`!"
+  ],
+  "sample": {
+   "task": "Функция `product(n)` возвращает произведение чисел от 1 до n.",
+   "code": "def product(n):\n    p = 1\n    for i in range(1, n + 1):\n        p *= i\n    return p",
+   "out": "product(4) вернёт 24"
+  },
   "cases": [],
   "funcs": [
    {
@@ -648,6 +762,14 @@ window.TASKS=[
   "file": "pokupki.py",
   "dir": "lessons/lesson3/task_3_pokupki",
   "func": false,
+  "steps": [
+   "Заведи `total = 0` до цикла.",
+   "`while True:` и внутри `x = input()`.",
+   "Если `x == \"стоп\"`, то `break`.",
+   "Иначе `total += float(x)`.",
+   "После цикла выведи `Итого: ` и сумму."
+  ],
+  "sample": null,
   "cases": [
    {
     "stdin": [
@@ -695,6 +817,12 @@ window.TASKS=[
   "file": "recommend.py",
   "dir": "lessons/lesson3/task_4_recommend",
   "func": true,
+  "steps": [
+   "Это 2.4, но без `input` и `print`.",
+   "Внутри функции те же `if / elif / else`.",
+   "Вместо `print` используй `return`."
+  ],
+  "sample": null,
   "cases": [],
   "funcs": [
    {
@@ -749,6 +877,13 @@ window.TASKS=[
   "file": "naibolshee.py",
   "dir": "lessons/lesson3/task_5_naibolshee",
   "func": true,
+  "steps": [
+   "Возьми `best = numbers[0]`.",
+   "Пройди циклом по списку.",
+   "Если `x > best`, то `best = x`.",
+   "После цикла `return best`."
+  ],
+  "sample": null,
   "cases": [],
   "funcs": [
    {
@@ -801,6 +936,13 @@ window.TASKS=[
   "file": "slova.py",
   "dir": "lessons/lesson4/task_1_slova",
   "func": false,
+  "steps": [
+   "Спроси фразу.",
+   "`.split()` режет её на слова.",
+   "`len(...)` считает слова.",
+   "Выведи `Слов: ` и число."
+  ],
+  "sample": null,
   "cases": [
    {
     "stdin": [
@@ -844,6 +986,12 @@ window.TASKS=[
   "file": "palindrom.py",
   "dir": "lessons/lesson4/task_2_palindrom",
   "func": true,
+  "steps": [
+   "Приведи строку к удобному виду: `.lower().replace(\" \", \"\")`.",
+   "Сравни с её же разворотом `s[::-1]`.",
+   "`return` результат сравнения."
+  ],
+  "sample": null,
   "cases": [],
   "funcs": [
    {
@@ -898,6 +1046,11 @@ window.TASKS=[
   "file": "chastota.py",
   "dir": "lessons/lesson4/task_3_chastota",
   "func": true,
+  "steps": [
+   "Приведи обе строки к нижнему регистру.",
+   "`return text.lower().count(letter.lower())`."
+  ],
+  "sample": null,
   "cases": [],
   "funcs": [
    {
@@ -950,6 +1103,12 @@ window.TASKS=[
   "file": "perevodchik.py",
   "dir": "lessons/lesson4/task_4_perevodchik",
   "func": false,
+  "steps": [
+   "Создай словарь `d = {\"кошка\": \"cat\", ...}`.",
+   "Цикл `while True` с `input()` и выходом по `стоп`.",
+   "Если слово в словаре, выведи `d[word]`, иначе `не знаю`."
+  ],
+  "sample": null,
   "cases": [
    {
     "stdin": [
@@ -994,6 +1153,12 @@ window.TASKS=[
   "file": "fayl.py",
   "dir": "lessons/lesson4/task_5_fayl",
   "func": false,
+  "steps": [
+   "Спроси имя.",
+   "Запиши файл: `with open(\"hello.txt\", \"w\", encoding=\"utf-8\") as f:`.",
+   "Прочитай его через `\"r\"` и выведи содержимое."
+  ],
+  "sample": null,
   "cases": [
    {
     "stdin": [
@@ -1039,6 +1204,11 @@ window.TASKS=[
   "file": "safe_int.py",
   "dir": "lessons/lesson5/task_1_safe_int",
   "func": true,
+  "steps": [
+   "В `try` пробуй `return int(text)`.",
+   "В `except ValueError:` верни `None`."
+  ],
+  "sample": null,
   "cases": [],
   "funcs": [
    {
@@ -1093,6 +1263,11 @@ window.TASKS=[
   "file": "delenie.py",
   "dir": "lessons/lesson5/task_2_delenie",
   "func": true,
+  "steps": [
+   "В `try` верни `a / b`.",
+   "В `except ZeroDivisionError:` верни `None`."
+  ],
+  "sample": null,
   "cases": [],
   "funcs": [
    {
@@ -1145,6 +1320,13 @@ window.TASKS=[
   "file": "vvod_chisla.py",
   "dir": "lessons/lesson5/task_3_vvod_chisla",
   "func": false,
+  "steps": [
+   "`while True:` и внутри `try`.",
+   "В `try`: `n = int(input())` и `break`.",
+   "В `except ValueError`: выведи `Ошибка, попробуй ещё раз`.",
+   "После цикла выведи `Принято: ` и число."
+  ],
+  "sample": null,
   "cases": [
    {
     "stdin": [
@@ -1196,6 +1378,14 @@ window.TASKS=[
   "file": "gorodskoy_pomoshchnik_3.py",
   "dir": "lessons/lesson5/task_4_gorodskoy_pomoshchnik_3",
   "func": false,
+  "steps": [
+   "Сначала функция `recommend` из 3.4.",
+   "Спроси имя.",
+   "Цикл `while True`: ввод, выход по `стоп`.",
+   "`try: d = float(x)` / `except ValueError:` выведи `Это не число`.",
+   "После цикла выведи `Хорошей дороги!`."
+  ],
+  "sample": null,
   "cases": [
    {
     "stdin": [

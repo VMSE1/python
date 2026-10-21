@@ -6,6 +6,7 @@
    Honest.meta(textarea)                   — строка для заявки: v1;t=..;p=..;b=..;e=..;s=..;h=..
    Honest.verdict(метаданные, код)         — проверка на стороне учителя */
 var Honest = (function () {
+  var MAXC = 8000; /* больше символов в решении быть не может: задания короткие */
   var BULK = 25; /* больше символов за одно действие «набора» = вставка кусками (автодополнение ИИ, диктовка) */
   function norm(t) { return String(t == null ? "" : t).replace(/\r\n?/g, "\n").split("\n").map(function (l) { return l.replace(/\s+$/, ""); }).join("\n").trim(); }
   function hash(t) {
@@ -37,7 +38,7 @@ var Honest = (function () {
      настоящими (isTrusted) событиями набора. Всё, что поменяло поле в обход (консоль, скрипт,
      подделанное событие), откатывается, а попытка записывается в счётчик e. */
   function attach(ta, o) {
-    o = o || {}; var id = o.id || "x", key = "hn_" + id, ckey = "hnc_" + id, st = { t: 0, p: 0, b: 0, e: 0, s: 0 }, last = 0, win = [];
+    o = o || {}; try { ta.maxLength = MAXC; } catch (e) {} var id = o.id || "x", key = "hn_" + id, ckey = "hnc_" + id, st = { t: 0, p: 0, b: 0, e: 0, s: 0 }, last = 0, win = [];
     try { var sv = JSON.parse(localStorage.getItem(key) || "null"); if (sv && typeof sv.t === "number") st = { t: sv.t | 0, p: sv.p | 0, b: sv.b | 0, e: sv.e | 0, s: sv.s | 0 }; } catch (e) {}
     var shadow = NAT.get.call(ta), hist = [shadow], initial = o.starter != null ? o.starter : shadow;
     try { var hc = localStorage.getItem(ckey); if (hc && hc !== hash(shadow)) st.e++; } catch (e) {}
@@ -70,6 +71,7 @@ var Honest = (function () {
       var t = e.inputType || "", d = e.data == null ? "" : e.data, v = NAT.get.call(ta);
       var undo = /^history(Undo|Redo)$/.test(t);
       var grow = v.length - shadow.length;
+      if (!undo && grow > 0 && v.length > MAXC) { e.stopImmediatePropagation(); put(shadow); say("size", 0); return; }
       if ((undo && hist.indexOf(v) < 0) || (!undo && (grow > BULK + 5 || (grow > 0 && tooFast(grow))))) { e.stopImmediatePropagation(); revert(undo ? "script" : "bulk"); if (!undo) { st.e--; st.b++; save(); } return; }
       if (/^insert(Text|CompositionText|ReplacementText)$/.test(t)) st.t += d.length;
       else if (t === "insertLineBreak" || t === "insertParagraph") st.t += 1;

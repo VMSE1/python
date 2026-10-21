@@ -1,47 +1,51 @@
 {
- "id": "4.3",
- "title": "Счётчик букв",
- "file": "chastota.py",
- "text": "Напиши функцию `letter_count(text, letter)`: сколько раз буква встречается в тексте. Регистр не важен.",
- "example": {
-  "in": "letter_count(\"Банан\", \"а\")",
-  "out": "2"
- },
- "hint": "`.lower()` для обеих строк и `.count()` либо цикл.",
- "starter": "def letter_count(text, letter):\n    # TODO\n    pass\n",
- "funcs": [
-  {
-   "name": "letter_count",
-   "calls": [
+  "id": "4.3",
+  "title": "Счётчик букв",
+  "file": "chastota.py",
+  "text": "Напиши функцию `letter_count(text, letter)`: сколько раз буква встречается в тексте. Регистр не важен.",
+  "example": {
+    "in": "letter_count(\"Банан\", \"а\")",
+    "out": "2"
+  },
+  "hint": "`.lower()` для обеих строк и `.count()` либо цикл.",
+  "starter": "def letter_count(text, letter):\n    # TODO\n    pass\n",
+  "funcs": [
     {
-     "args": [
-      "Банан",
-      "а"
-     ],
-     "expect": 2
-    },
-    {
-     "args": [
-      "Банан",
-      "Н"
-     ],
-     "expect": 2
-    },
-    {
-     "args": [
-      "abc",
-      "z"
-     ],
-     "expect": 0
-    },
-    {
-     "args": [
-      "Ааа",
-      "а"
-     ],
-     "expect": 3
+      "name": "letter_count",
+      "calls": [
+        {
+          "args": [
+            "Банан",
+            "а"
+          ],
+          "expect": 2
+        },
+        {
+          "args": [
+            "Банан",
+            "Н"
+          ],
+          "expect": 2
+        },
+        {
+          "args": [
+            "abc",
+            "z"
+          ],
+          "expect": 0
+        },
+        {
+          "args": [
+            "Ааа",
+            "а"
+          ],
+          "expect": 3
+        }
+      ]
     }
-   ]
-  }
- ]
+  ],
+  "steps": [
+    "Приведи обе строки к нижнему регистру.",
+    "`return text.lower().count(letter.lower())`."
+  ]
 }

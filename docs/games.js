@@ -37,8 +37,8 @@ var Games = (function () {
     var root = shell(host, g, '<div class="gm-bar"><span data-m></span><button class="btn sm ghost" type="button" data-f>Флажок: выкл</button><span data-t>0 с</span></div><div class="mn" role="grid"></div>');
     var grid = root.querySelector(".mn"), mEl = root.querySelector("[data-m]"), tEl = root.querySelector("[data-t]"), fB = root.querySelector("[data-f]");
     function reset() {
-      cells = []; for (var i = 0; i < N * N; i++) cells.push({ m: 0, a: 0, o: 0, f: 0 });
-      started = false; over = false; flags = 0; clearInterval(timer); tEl.textContent = "0 с"; draw(); setState(root, "ready", 0, "Нажми на любую клетку");
+      cells = []; for (var i = 0; i < N * N; i++) cells.push({ m: 0, a: 0, o: 0, f: 0, bad: 0 });
+      started = false; over = false; flags = 0; clearInterval(timer); tEl.textContent = "0 с"; draw(); btns = []; draw(); setState(root, "ready", 0, "Нажми на любую клетку");
     }
     function nb(i) { var x = i % N, y = Math.floor(i / N), r = []; for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; var nx = x + dx, ny = y + dy; if (nx >= 0 && ny >= 0 && nx < N && ny < N) r.push(ny * N + nx); } return r; }
     function plant(safe) {
@@ -50,7 +50,7 @@ var Games = (function () {
       var st = [i];
       while (st.length) { var k = st.pop(), c = cells[k]; if (c.o || c.f) continue; c.o = 1; if (!c.a && !c.m) nb(k).forEach(function (j) { if (!cells[j].o) st.push(j); }); }
     }
-    function lose(i) { over = true; clearInterval(timer); cells.forEach(function (c) { if (c.m) c.o = 1; }); cells[i].boom = 1; setState(root, "lost", 0, "Мина! Попробуй ещё раз"); }
+    function lose(i) { over = true; clearInterval(timer); cells.forEach(function (c) { if (c.m && !c.f) c.o = 1; else if (!c.m && c.f) c.bad = 1; }); cells[i].boom = 1; setState(root, "lost", 0, "Мина! Попробуй ещё раз"); }
     function checkWin() { if (cells.every(function (c) { return c.m || c.o; })) { over = true; clearInterval(timer); var s = Math.max(1, Math.round((Date.now() - t0) / 1000)); setState(root, "won", s, "Победа за " + s + " с"); } }
     function act(i, flag) {
       if (over) return; var c = cells[i];
@@ -60,18 +60,43 @@ var Games = (function () {
       if (c.m) { lose(i); draw(); return; }
       open(i); checkWin(); draw();
     }
-    function draw() {
-      mEl.textContent = "Мин: " + (MN - flags);
-      grid.innerHTML = cells.map(function (c, i) {
-        var cls = "c" + (c.o ? " o" + (c.m ? " mine" : "") + (c.boom ? " boom" : "") + (c.a ? " n" + c.a : "") : "") + (c.f && !c.o ? " fl" : ""), t = c.o ? (c.m ? "✱" : (c.a || "")) : (c.f ? "⚑" : "");
-        return '<button type="button" class="' + cls + '" data-i="' + i + '" aria-label="клетка ' + (i + 1) + '">' + t + "</button>";
-      }).join("");
+    var btns = [];
+    function build() {
+      grid.innerHTML = ""; btns = [];
+      for (var i = 0; i < N * N; i++) { var b = document.createElement("button"); b.type = "button"; b.dataset.i = i; b.setAttribute("aria-label", "клетка " + (i + 1)); grid.appendChild(b); btns.push(b); }
     }
-    var press = null;
-    grid.addEventListener("pointerdown", function (e) { var b = e.target.closest("[data-i]"); if (!b || e.pointerType === "mouse") return; press = { i: +b.dataset.i, t: setTimeout(function () { act(press.i, true); press.done = 1; }, 450) }; });
-    grid.addEventListener("pointerup", function () { if (press) clearTimeout(press.t); });
-    grid.addEventListener("click", function (e) { var b = e.target.closest("[data-i]"); if (!b) return; if (press && press.done) { press = null; return; } act(+b.dataset.i, flagMode); });
-    grid.addEventListener("contextmenu", function (e) { var b = e.target.closest("[data-i]"); e.preventDefault(); if (b) act(+b.dataset.i, true); });
+    function draw() {
+      if (btns.length !== N * N) build();
+      mEl.textContent = "Мин: " + Math.max(0, MN - flags);
+      cells.forEach(function (c, i) {
+        var cls = "c" + (c.o ? " o" + (c.m ? " mine" : "") + (c.boom ? " boom" : "") + (c.a && !c.m ? " n" + c.a : "") : "") + (c.f && !c.o ? " fl" : "") + (c.bad ? " bad" : ""),
+            t = c.o ? (c.m ? "✱" : (c.a || "")) : (c.bad ? "✕" : (c.f ? "⚑" : ""));
+        var b = btns[i]; if (b.className !== cls) b.className = cls; if (b.textContent !== t) b.textContent = t;
+      });
+    }
+    function chord(i) {
+      var c = cells[i]; if (!c.o || !c.a) return;
+      var around = nb(i), fl = around.filter(function (k) { return cells[k].f; }).length;
+      if (fl !== c.a) return;
+      for (var q = 0; q < around.length && !over; q++) { var k = around[q]; if (cells[k].f || cells[k].o) continue; if (cells[k].m) { lose(k); break; } open(k); }
+      if (!over) checkWin();
+    }
+    var press = null, lastLong = 0, lastType = "mouse";
+    function clearPress() { if (press) { clearTimeout(press.t); press = null; } }
+    grid.addEventListener("pointerdown", function (e) {
+      lastType = e.pointerType || "mouse"; clearPress();
+      var b = e.target.closest("[data-i]"); if (!b || lastType === "mouse") return;
+      var i = +b.dataset.i, x = e.clientX, y = e.clientY;
+      press = { x: x, y: y, t: setTimeout(function () { press = null; lastLong = Date.now(); act(i, true); if (navigator.vibrate) { try { navigator.vibrate(20); } catch (er) {} } }, 420) };
+    });
+    grid.addEventListener("pointermove", function (e) { if (press && Math.abs(e.clientX - press.x) + Math.abs(e.clientY - press.y) > 10) clearPress(); });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { grid.addEventListener(n, clearPress); });
+    grid.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-i]"); if (!b || Date.now() - lastLong < 700) return;
+      var i = +b.dataset.i; if (cells[i].o) { if (!over) { chord(i); draw(); } return; }
+      act(i, flagMode);
+    });
+    grid.addEventListener("contextmenu", function (e) { e.preventDefault(); if (lastType !== "mouse") return; var b = e.target.closest("[data-i]"); if (b) act(+b.dataset.i, true); });
     fB.onclick = function () { flagMode = !flagMode; fB.textContent = "Флажок: " + (flagMode ? "вкл" : "выкл"); };
     root.querySelector("[data-r]").onclick = reset; reset();
     return { destroy: function () { clearInterval(timer); host.innerHTML = ""; }, _cells: function () { return cells; } };

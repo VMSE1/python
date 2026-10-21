@@ -32,10 +32,29 @@ m.innerHTML='<div class="crumbs"><a href="tasks.html">← Все задания<
 '<div class="pager"><span>'+(prev?'<a class="btn ghost" href="task.html?id='+prev.id+'">← '+prev.id+'</a>':'')+'</span><span>'+(next?'<a class="btn ghost" href="task.html?id='+next.id+'">'+next.id+' →</a>':'')+'</span></div></div>'+
 '<aside class="aside">'+vidBox+'<h2>Шпаргалка</h2>'+pl.map(plate).join("")+'<p class="m" style="font-size:14px"><a href="theory.html?l='+t.lesson+'">Вся теория урока →</a></p></aside></div>';
 Explainer.bind(m);
+(function(){
+var sk="brief_"+t.id,brEl=null;
+function open(){
+ if(brEl)return;
+ var sm=t.sample?'<div class="sm-ex"><div class="lab">ПОХОЖИЙ ПРИМЕР (не твоё задание)</div><p style="margin:8px 0 0">'+md(t.sample.task)+'</p><pre>'+esc(t.sample.code)+'</pre><pre style="color:var(--title)">'+esc(t.sample.out)+'</pre></div>':"";
+ var st=t.steps&&t.steps.length?'<div><div class="lab" style="margin-bottom:8px">КАК ДЕЛАТЬ</div><ol>'+t.steps.map(function(x){return '<li>'+md(x)+'</li>'}).join("")+'</ol></div>':"";
+ brEl=document.createElement("div");brEl.className="brief";brEl.setAttribute("role","dialog");brEl.setAttribute("aria-modal","true");brEl.setAttribute("aria-label","Задание "+t.id);
+ brEl.innerHTML='<div class="win"><div class="tb">ЗАДАНИЕ '+t.id+'</div><div class="bd"><h2>'+esc(t.title)+'</h2><p class="cond">'+md(t.text)+'</p>'+ex+sm+st+'<div class="toolbar"><button class="btn big go" type="button" id="brGo">Понятно, начать</button></div></div></div>';
+ document.body.appendChild(brEl);document.body.style.overflow="hidden";
+ function close(){try{sessionStorage.setItem(sk,"1")}catch(e){}document.body.style.overflow="";brEl.remove();brEl=null;document.removeEventListener("keydown",esc2);try{ta.focus()}catch(e){}}
+ function esc2(e){if(e.key==="Escape")close()}
+ document.addEventListener("keydown",esc2);
+ brEl.querySelector("#brGo").onclick=close;brEl.querySelector("#brGo").focus();
+}
+var tb=m.querySelector(".cond");
+if(tb){var b=document.createElement("button");b.type="button";b.className="btn sm ghost";b.textContent="Открыть задание полностью";b.style.marginTop="8px";b.onclick=open;tb.insertAdjacentElement("afterend",b)}
+var seen="";try{seen=sessionStorage.getItem(sk)}catch(e){}
+if(!seen&&!window.__noBrief)open();
+})();
 var ta=document.getElementById("code"),key="code_"+t.id,saved=null;
 try{saved=localStorage.getItem(key)}catch(e){}
 ta.value=saved!==null?saved:t.starter;
-Honest.attach(ta,{id:t.id,starter:t.starter,onBlock:function(k){var h=document.getElementById("hn");h.className="bad";h.textContent=k==="bulk"?"Слишком много текста за раз. Набирай код сам, по частям.":k==="script"?"Код нельзя подставить скриптом. Набери его сам.":"Вставка отключена. Набери код сам: так ты его запомнишь."}});
+Honest.attach(ta,{id:t.id,starter:t.starter,onBlock:function(k){var h=document.getElementById("hn");h.className="bad";h.textContent=k==="size"?"Слишком длинный код. Решение этой задачи намного короче: удали лишнее.":k==="bulk"?"Слишком много текста за раз. Набирай код сам, по частям.":k==="script"?"Код нельзя подставить скриптом. Набери его сам.":"Вставка отключена. Набери код сам: так ты его запомнишь."}});
 function step(n,ok){["s1","s2","s3"].forEach(function(s,k){var e=document.getElementById(s);e.className="st"+(k<n?" ok":(k===n?" on":""));e.firstChild.innerHTML=k<n?OKI:(k+1)});}
 function refreshSteps(){var d=load("done"),p=load("passed");step(d[t.id]?3:(p[t.id]?2:0));document.getElementById("send").className="sendbox"+(p[t.id]&&!d[t.id]?" ready":"")}
 refreshSteps();if(load("passed")[t.id])Reward.show(document.getElementById("next"),t);

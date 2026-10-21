@@ -14,3 +14,5 @@
 .mn .n1{color:#1a3dd0}.mn .n2{color:#1b7a2e}.mn .n3{color:#c01a2f}.mn .n4{color:#3a1aa0}.mn .n5,.mn .n6,.mn .n7,.mn .n8{color:#7a1a1a}
 .mn .c:focus-visible{outline:3px dashed var(--red);outline-offset:-3px}
 .gm-modal{width:min(560px,100%)}
+.mn .c.bad{background:#f9d3d9;color:var(--red)}
+.mn .c{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:background-color .12s}

@@ -114,28 +114,34 @@ function fetchIssues(label, cb, fail) {
   })();
 }
 
-/* Объявление на всех открытых страницах: docs/notice.json {"id","at","sec","title","text","reveal"}.
-   Показывается тем, у кого страница открыта в момент [at, at+sec]. Пустой файл {} ничего не показывает. */
+/* Объявление на всех страницах: docs/notice.json {"id","at","sec","title","text","reveal"}.
+   Красный экран показывается всем, кто открыл или обновил сайт в промежуток [at, at+sec] (до 10 минут).
+   Через 12 секунд появляется зелёная строка reveal и кнопка «Закрыть», чтобы никто не испугался всерьёз.
+   Пустой файл {} ничего не показывает. */
 (function () {
   var shown = "";
   function run(n) {
-    var t = Date.parse(n.at), now = Date.now(), sec = Math.min(15, Math.max(3, +n.sec || 8));
+    var t = Date.parse(n.at), now = Date.now(), sec = Math.min(600, Math.max(3, +n.sec || 8));
     if (!n.id || !(t > 0) || now < t || now >= t + sec * 1000 || shown === n.id) return;
-    try { if (sessionStorage.getItem("noticeSeen") === n.id) return; sessionStorage.setItem("noticeSeen", n.id); } catch (e) {}
+    try { if (sessionStorage.getItem("noticeSeen") === n.id) return; } catch (e) {}
     shown = n.id;
     var left = t + sec * 1000 - now, el = document.createElement("div");
-    el.setAttribute("role", "alertdialog"); el.setAttribute("aria-live", "assertive");
-    el.style.cssText = "position:fixed;inset:0;z-index:99999;background:#c01a2f;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;font:400 clamp(16px,4vw,34px)/1.5 'Press Start 2P',monospace";
-    el.innerHTML = '<div style="font-size:1.3em">' + esc(n.title || "Ошибка") + '</div><div style="font:600 clamp(18px,3.4vw,30px)/1.5 \'IBM Plex Mono\',monospace">' + esc(n.text || "") + "</div>";
+    el.setAttribute("role", "alertdialog"); el.setAttribute("aria-live", "assertive"); el.id = "notice";
+    el.style.cssText = "position:fixed;inset:0;z-index:99999;background:#c01a2f;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;text-align:center;overflow:auto";
+    var head = "font:400 clamp(20px,6vw,56px)/1.4 'Press Start 2P',monospace", sub = "font:600 clamp(16px,3.4vw,30px)/1.5 'IBM Plex Mono',monospace";
+    el.innerHTML = '<div style="' + head + '">' + esc(n.title || "Ошибка") + '</div><div style="' + sub + '">' + esc(n.text || "") + '</div><div id="notice-r" style="' + sub + ';background:#1b7a2e;padding:12px 18px;border:3px solid #fff;display:none"></div>';
     document.body.appendChild(el);
-    setTimeout(function () {
-      if (!n.reveal) { el.remove(); return; }
-      el.style.background = "#1b7a2e"; el.innerHTML = '<div style="font:600 clamp(18px,3.4vw,30px)/1.5 \'IBM Plex Mono\',monospace">' + esc(n.reveal) + "</div>";
-      setTimeout(function () { el.remove(); }, 4500);
-    }, left);
+    function done() { try { sessionStorage.setItem("noticeSeen", n.id); } catch (e) {} el.remove(); }
+    var timer = setTimeout(done, left);
+    if (n.reveal) setTimeout(function () {
+      var r = el.querySelector("#notice-r"); if (!r) return;
+      r.style.display = "block"; r.textContent = n.reveal;
+      var b = document.createElement("button"); b.type = "button"; b.textContent = "Закрыть"; b.style.cssText = "margin-left:14px;font:600 16px 'IBM Plex Mono',monospace;padding:8px 16px;border:3px solid #fff;background:#fff;color:#1b7a2e;cursor:pointer";
+      b.onclick = function () { clearTimeout(timer); done(); }; r.appendChild(b); b.focus();
+    }, Math.min(12000, left));
   }
   function poll() {
     try { fetch("notice.json?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (n) { if (n) run(n); }).catch(function () {}); } catch (e) {}
   }
-  if (typeof document !== "undefined") { setTimeout(poll, 1200); setInterval(poll, 8000); }
+  if (typeof document !== "undefined") { setTimeout(poll, 1000); setInterval(poll, 20000); }
 })();

@@ -57,7 +57,7 @@ jobs:
             }
             const taskM = (parts['Задание'] || '').match(/^(\d+\.\d+)/);
             let code = parts['Код решения'] || '';
-            code = code.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '').slice(0, 20000);
+            code = code.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '').slice(0, 20001);
             fs.mkdirSync('/tmp/sub', {recursive: true});
             fs.writeFileSync('/tmp/sub/code.py', code + '\n');
             core.setOutput('task', taskM ? taskM[1] : '');

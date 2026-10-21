@@ -21,6 +21,7 @@ var BrowserCheck = (function () {
     ready: function (cb) { if (!worker) start(); if (isReady) cb(); else readyCbs.push(cb); },
     run: function (task, code) {
       if (task.starter != null && sameText(code, task.starter)) return Promise.resolve({ ok: false, todo: true, messages: [], sample: "" });
+      if (String(code).length > 20000) return Promise.resolve({ ok: false, messages: ["Код слишком длинный (больше 20000 символов). Оставь только решение."], sample: "" });
       return new Promise(function (resolve) {
         BrowserCheck.ready(function () {
           var id = ++seq, spec = JSON.stringify({ cases: task.cases || [], funcs: task.funcs || [] });

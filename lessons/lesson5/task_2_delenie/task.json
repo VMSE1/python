@@ -1,47 +1,51 @@
 {
- "id": "5.2",
- "title": "Безопасное деление",
- "file": "delenie.py",
- "text": "Напиши функцию `safe_divide(a, b)`: вернуть `a / b`, а при делении на ноль — `None`. Используй `try / except ZeroDivisionError`.",
- "example": {
-  "in": "safe_divide(1, 0)",
-  "out": "None"
- },
- "hint": "Не проверяй `b == 0` — пусть Python выбросит ошибку, а ты её поймаешь.",
- "starter": "def safe_divide(a, b):\n    # TODO: try / except ZeroDivisionError\n    pass\n",
- "funcs": [
-  {
-   "name": "safe_divide",
-   "calls": [
+  "id": "5.2",
+  "title": "Безопасное деление",
+  "file": "delenie.py",
+  "text": "Напиши функцию `safe_divide(a, b)`: вернуть `a / b`, а при делении на ноль — `None`. Используй `try / except ZeroDivisionError`.",
+  "example": {
+    "in": "safe_divide(1, 0)",
+    "out": "None"
+  },
+  "hint": "Не проверяй `b == 0` — пусть Python выбросит ошибку, а ты её поймаешь.",
+  "starter": "def safe_divide(a, b):\n    # TODO: try / except ZeroDivisionError\n    pass\n",
+  "funcs": [
     {
-     "args": [
-      10,
-      2
-     ],
-     "expect": 5.0
-    },
-    {
-     "args": [
-      1,
-      0
-     ],
-     "expect": null
-    },
-    {
-     "args": [
-      7,
-      2
-     ],
-     "expect": 3.5
-    },
-    {
-     "args": [
-      0,
-      5
-     ],
-     "expect": 0.0
+      "name": "safe_divide",
+      "calls": [
+        {
+          "args": [
+            10,
+            2
+          ],
+          "expect": 5.0
+        },
+        {
+          "args": [
+            1,
+            0
+          ],
+          "expect": null
+        },
+        {
+          "args": [
+            7,
+            2
+          ],
+          "expect": 3.5
+        },
+        {
+          "args": [
+            0,
+            5
+          ],
+          "expect": 0.0
+        }
+      ]
     }
-   ]
-  }
- ]
+  ],
+  "steps": [
+    "В `try` верни `a / b`.",
+    "В `except ZeroDivisionError:` верни `None`."
+  ]
 }

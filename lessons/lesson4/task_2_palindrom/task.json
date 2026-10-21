@@ -1,49 +1,54 @@
 {
- "id": "4.2",
- "title": "Палиндром",
- "file": "palindrom.py",
- "text": "Напиши функцию `is_palindrome(s)`: `True`, если строка читается одинаково в обе стороны. Регистр и пробелы игнорируются.",
- "example": {
-  "in": "is_palindrome(\"Шалаш\")",
-  "out": "True"
- },
- "hint": "Срез `s[::-1]`, `.lower()`, `.replace(\" \", \"\")`.",
- "starter": "def is_palindrome(s):\n    # TODO\n    pass\n",
- "funcs": [
-  {
-   "name": "is_palindrome",
-   "calls": [
+  "id": "4.2",
+  "title": "Палиндром",
+  "file": "palindrom.py",
+  "text": "Напиши функцию `is_palindrome(s)`: `True`, если строка читается одинаково в обе стороны. Регистр и пробелы игнорируются.",
+  "example": {
+    "in": "is_palindrome(\"Шалаш\")",
+    "out": "True"
+  },
+  "hint": "Срез `s[::-1]`, `.lower()`, `.replace(\" \", \"\")`.",
+  "starter": "def is_palindrome(s):\n    # TODO\n    pass\n",
+  "funcs": [
     {
-     "args": [
-      "шалаш"
-     ],
-     "expect": true
-    },
-    {
-     "args": [
-      "Шалаш"
-     ],
-     "expect": true
-    },
-    {
-     "args": [
-      "python"
-     ],
-     "expect": false
-    },
-    {
-     "args": [
-      "А роза упала на лапу Азора"
-     ],
-     "expect": true
-    },
-    {
-     "args": [
-      "ab"
-     ],
-     "expect": false
+      "name": "is_palindrome",
+      "calls": [
+        {
+          "args": [
+            "шалаш"
+          ],
+          "expect": true
+        },
+        {
+          "args": [
+            "Шалаш"
+          ],
+          "expect": true
+        },
+        {
+          "args": [
+            "python"
+          ],
+          "expect": false
+        },
+        {
+          "args": [
+            "А роза упала на лапу Азора"
+          ],
+          "expect": true
+        },
+        {
+          "args": [
+            "ab"
+          ],
+          "expect": false
+        }
+      ]
     }
-   ]
-  }
- ]
+  ],
+  "steps": [
+    "Приведи строку к удобному виду: `.lower().replace(\" \", \"\")`.",
+    "Сравни с её же разворотом `s[::-1]`.",
+    "`return` результат сравнения."
+  ]
 }

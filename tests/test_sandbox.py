@@ -87,3 +87,22 @@ class Legit(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLenient(unittest.TestCase):
+    def test_text(self):
+        import check as c
+        self.assertTrue(c.has_text("Среднее:\t3.5 \n", "среднее: 3,5"))
+        self.assertTrue(c.has_text("Ёлка  растёт", "елка растет"))
+        self.assertTrue(c.has_text("Результат 3.3333333", "3.33"))
+        self.assertTrue(c.has_text("x = 3.34", "3.33"))
+        self.assertFalse(c.has_text("x = 3.5", "3.33"))
+        self.assertFalse(c.has_text("Привет", "Пока"))
+
+    def test_same(self):
+        import check as c
+        self.assertTrue(c.same(2.504, 2.5))
+        self.assertTrue(c.same("a  b", "a b"))
+        self.assertFalse(c.same("ПРИВЕТ", "привет"))
+        self.assertTrue(c.same([1, 2.001], [1, 2.0]))
+        self.assertFalse(c.same(3, 4))

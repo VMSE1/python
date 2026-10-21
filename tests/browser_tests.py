@@ -69,11 +69,11 @@ def _honest_test(route):
     route.fulfill(response=r, body=body.replace("var TEST = false;", "var TEST = true;"))
 
 
-def new_ctx(b, w=1280, h=820, mobile=False, seen=True, raw=False):
+def new_ctx(b, w=1280, h=820, mobile=False, seen=True, raw=False, brief=False):
     """raw=True: настоящий honest.js без тестового хода (для проверки самой защиты)."""
     ctx = b.new_context(viewport={"width": w, "height": h}, is_mobile=mobile, device_scale_factor=2 if mobile else 1, accept_downloads=True)
     if not raw: ctx.route("**/honest.js", _honest_test)
-    if seen: ctx.add_init_script("localStorage.seenStart='1';localStorage.visited='1'")
+    if seen: ctx.add_init_script("localStorage.seenStart='1';localStorage.visited='1';" + ("" if brief else "window.__noBrief=true;"))
     return ctx
 
 
@@ -717,11 +717,51 @@ def extras(b, base):
     for g in ("maze", "mines", "snake", "runner"):
         gamepage(p2, base, g); ws.append(p2.evaluate("[document.documentElement.scrollWidth, innerWidth]"))
     check("игры: на телефоне нет горизонтальной прокрутки", all(w[0] <= w[1] + 1 for w in ws), ws); ctx2.close()
+    # сапёр: длинное нажатие на телефоне ставит флажок один раз и не съедает следующий тап
+    gamepage(pg, base, "mines")
+    pg.evaluate("""()=>{const c=document.querySelectorAll('#gh .mn .c')[0];c.dispatchEvent(new PointerEvent('pointerdown',{pointerType:'touch',bubbles:true,clientX:5,clientY:5}))}""")
+    pg.wait_for_timeout(560)
+    pg.evaluate("""()=>{const c=document.querySelectorAll('#gh .mn .c')[0];c.dispatchEvent(new PointerEvent('pointerup',{pointerType:'touch',bubbles:true}));c.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}));c.click()}""")
+    fl = pg.evaluate("document.querySelectorAll('#gh .mn .c.fl').length")
+    check("сапёр: длинное нажатие ставит ровно один флажок", fl == 1, fl)
+    pg.wait_for_timeout(800); pg.click("#gh .mn .c >> nth=40")
+    check("сапёр: следующий тап после флажка работает", pg.evaluate("document.querySelectorAll('#gh .mn .c.o').length") > 0)
+    pg.evaluate("""()=>{const g=document.querySelector('#gh .gm');const cs=Array.from(document.querySelectorAll('#gh .mn .c'));cs.forEach(c=>{})}""")
     check("игры и подсказки: нет ошибок в консоли", not bag, bag[:3]); ctx.close()
 
 
+def brief(b, base):
+    print("\n== КАРТОЧКА ЗАДАНИЯ, МЯГКАЯ ПРОВЕРКА, РАЗМЕР ==")
+    ctx = new_ctx(b, brief=True); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector(".brief")
+    tx = pg.inner_text(".brief")
+    check("карточка: открывается сама, есть текст, пример и шаги", "Спроси у пользователя" in tx and "ПОХОЖИЙ ПРИМЕР" in tx and "КАК ДЕЛАТЬ" in tx, tx[:80])
+    pg.click("#brGo"); check("карточка: закрывается кнопкой", pg.locator(".brief").count() == 0)
+    pg.reload(); pg.wait_for_selector("#code"); pg.wait_for_timeout(300)
+    check("карточка: в этой сессии больше не всплывает", pg.locator(".brief").count() == 0)
+    pg.click("text=Открыть задание полностью"); check("карточку можно открыть снова", pg.locator(".brief").count() == 1); pg.keyboard.press("Escape")
+    pg.goto(base + "task.html?id=4.2"); pg.wait_for_selector(".brief"); check("карточка есть у заданий без примера", "КАК ДЕЛАТЬ" in pg.inner_text(".brief")); pg.click("#brGo")
+    ctx2 = new_ctx(b, 390, 780, mobile=True, brief=True); p2 = ctx2.new_page(); p2.goto(base + "task.html?id=1.1"); p2.wait_for_selector(".brief")
+    r = p2.evaluate("(()=>{const w=document.querySelector('.brief .win').getBoundingClientRect();return [w.left>=0,w.right<=innerWidth,document.documentElement.scrollWidth<=innerWidth]})()")
+    check("карточка: на телефоне помещается", all(r), r); ctx2.close()
+    ctx3 = new_ctx(b); p3 = ctx3.new_page(); p3.goto(base + "task.html?id=1.1"); p3.wait_for_selector("#code")
+    def run(code):
+        big_fill(p3, code); p3.click("#chk"); p3.wait_for_selector("#res.on:not(.wait)", timeout=60000); return p3.get_attribute("#res", "class")
+    c1 = run('n = input()\nc = input()\nprint("меня   зовут", n + ",\tя  из", c)')
+    check("мягкая проверка: лишние пробелы и таб не мешают", "ok" in (c1 or "") or "good" in (c1 or "") or "pass" in (c1 or ""), c1)
+    p3.goto(base + "task.html?id=1.3"); p3.wait_for_selector("#code")
+    c2 = run('print(float(input()) * 1000, "м")'); c3 = run('print(round(float(input()) * 1000), "м")')
+    check("мягкая проверка: 2500 и 2500.0 оба подходят", c2 == c3, (c2, c3))
+    p3.goto(base + "task.html?id=1.1"); p3.wait_for_selector("#code")
+    ok = p3.evaluate("()=>{const ta=document.getElementById('code');ta.value='x'.repeat(9000);return ta.maxLength}")
+    check("размер: поле ограничено 8000 символов", ok == 8000, ok)
+    big_fill(p3, "x = 1\n" * 4000); p3.click("#chk"); p3.wait_for_selector("#res.on:not(.wait)", timeout=30000)
+    check("размер: слишком длинный код не проверяется", "слишком длинный" in p3.inner_text("#res"), p3.inner_text("#res")[:80])
+    check("карточка: нет ошибок в консоли", not bag, bag[:3]); ctx.close(); ctx3.close()
+
+
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox"])
