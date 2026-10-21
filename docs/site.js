@@ -133,6 +133,13 @@ function fetchIssues(label, cb, fail) {
   function run(n) {
     var t = Date.parse(n.at), now = Date.now(), sec = Math.min(600, Math.max(3, +n.sec || 8));
     if (!n.id || !(t > 0) || now < t || now >= t + sec * 1000 || shown === n.id) return;
+    if (n.game) {
+      try { if (sessionStorage.getItem("gameSeen") === n.id) return; sessionStorage.setItem("gameSeen", n.id); } catch (e) {}
+      shown = n.id;
+      var go = function () { window.Egg.start({ intro: n.intro || "Учитель запустил игру для всех." }); };
+      if (window.Egg) go(); else { var sc = document.createElement("script"); sc.src = "egg.js"; sc.onload = go; document.head.appendChild(sc); }
+      return;
+    }
     shown = n.id;
     var end = t + sec * 1000, el = document.createElement("div");
     el.setAttribute("role", "alertdialog"); el.setAttribute("aria-live", "assertive"); el.id = "notice"; el.tabIndex = -1;

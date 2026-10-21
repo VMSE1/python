@@ -46,7 +46,7 @@
     function reset() {
       s = { y: 0, vy: 0, on: true, obs: [], items: [], cleared: 0, gap: 150, speed: 230, next: 1.2, nextItem: 5, state: "play", f: 0, ft: 0, flash: 0, jumps: 0, shield: false, slow: 0, jump2: 0, note: "", noteT: 0 };
       ov.dataset.state = "playing"; ov.dataset.score = "0"; title.textContent = "Убеги от скелета"; var b = ov.querySelector("#egj"); b.textContent = "Прыжок";
-      msg.textContent = "Перепрыгни " + GOAL + " препятствий. Лови цветные шары: щит, замедление, двойной прыжок. Под летучей мышью не прыгай.";
+      msg.textContent = (opts.intro ? opts.intro + " " : "") + "Перепрыгни " + GOAL + " препятствий. Лови цветные шары: щит, замедление, двойной прыжок. Под летучей мышью не прыгай.";
     }
     function say(t) { s.note = t; s.noteT = 1.6; }
     function jump() {
