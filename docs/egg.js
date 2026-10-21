@@ -29,7 +29,8 @@
   function man(c, x, y, u, f) { sprite(c, MAN, x, y, u); sprite(c, LEGS[f], x, y + MAN.length * u, u); }
   function shadow(c, x, w, h) { c.fillStyle = "rgba(0,0,0," + Math.max(.12, .45 - h / 400) + ")"; c.fillRect(x + (h / 12), GROUND, Math.max(10, w - h / 4), 4); }
 
-  function start() {
+  function start(opts) {
+    opts = opts || {};
     if (document.getElementById("egg")) return;
     var ov = document.createElement("div"); ov.id = "egg"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-label", "Секретная игра"); ov.dataset.state = "ready"; ov.dataset.score = "0";
     ov.style.cssText = "position:fixed;inset:0;z-index:2147482000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:12px;background:#7a0a16;animation:eggf 1.1s steps(2) infinite;touch-action:manipulation;-webkit-user-select:none;user-select:none";
@@ -85,7 +86,7 @@
       });
       s.obs = s.obs.filter(function (o) { return o.x > -60 && !o.hit; }); s.items = s.items.filter(function (it) { return it.x > -40 && !it.got; });
       if (s.gap <= 0) { s.state = "lost"; ov.dataset.state = "lost"; title.textContent = "Он догнал тебя"; msg.textContent = "Нажми «Прыжок», чтобы попробовать ещё раз."; var b = ov.querySelector("#egj"); b.textContent = "Ещё раз"; }
-      else if (s.cleared >= GOAL) { s.state = "won"; ov.dataset.state = "won"; title.textContent = "Ты убежал!"; msg.innerHTML = "<b style=\"font-size:1.5em\">Позови преподавателя</b>"; var b2 = ov.querySelector("#egj"); b2.textContent = "Закрыть"; }
+      else if (s.cleared >= GOAL) { s.state = "won"; ov.dataset.state = "won"; title.textContent = "Ты убежал!"; winScreen(); var b2 = ov.querySelector("#egj"); b2.textContent = "Закрыть"; }
     }
     function orb(x, y, k) { var col = BOOST[k].col; c.fillStyle = col; c.fillRect(x + 4, y, 16, 24); c.fillRect(x, y + 4, 24, 16); c.fillStyle = "#fff"; c.fillRect(x + 6, y + 4, 5, 5); c.fillStyle = "#16060a"; c.font = "bold 14px monospace"; c.fillText(k === "shield" ? "Щ" : k === "slow" ? "З" : "2", x + 6, y + 18); }
     function draw() {
@@ -121,7 +122,14 @@
       if (e.key === " " || e.key === "ArrowUp" || e.key === "w" || e.key === "W" || e.key === "ц" || e.key === "Enter") { if (e.target && e.target.tagName === "BUTTON" && e.key !== " ") return; e.preventDefault(); act(); }
     }
     function act() { if (s.state === "won") { close(); return; } jump(); }
-    function close() { cancelAnimationFrame(raf); document.removeEventListener("keydown", key, true); ov.remove(); ST = null; }
+    function who() { var n = ""; try { var a = JSON.parse(localStorage.getItem("acct") || "null"); n = (a && a.nick) || localStorage.getItem("nick") || ""; } catch (e) {} return n; }
+    function winScreen() {
+      var d = new Date(), pad = function (x) { return ("0" + x).slice(-2); }, stamp = pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+      try { localStorage.setItem("skull", JSON.stringify({ at: d.toISOString(), nick: who() })); } catch (e) {}
+      msg.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap"><div style="font:400 clamp(56px,14vw,96px)/1 \'Press Start 2P\',monospace;color:#ff2a2a;background:#fff;border:5px solid #000;padding:10px 22px;box-shadow:6px 6px 0 #000" aria-label="Оценка пять">5</div><div style="text-align:left"><b style="font-size:1.4em">Позови преподавателя</b><br>Покажи ему этот экран.<br><span style="opacity:.85">' + (who() ? who() + " · " : "") + stamp + '</span></div></div>';
+      if (opts.onWin) { try { opts.onWin(); } catch (e) {} }
+    }
+    function close() { if (opts.onClose) { try { opts.onClose(); } catch (e) {} } cancelAnimationFrame(raf); document.removeEventListener("keydown", key, true); ov.remove(); ST = null; }
     document.addEventListener("keydown", key, true);
     cv.addEventListener("pointerdown", function (e) { e.preventDefault(); act(); });
     ov.querySelector("#egj").onclick = act; ov.querySelector("#egx").onclick = close;

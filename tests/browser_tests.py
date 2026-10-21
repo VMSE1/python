@@ -121,12 +121,12 @@ def functional(b, base):
     ctx = new_ctx(b); mock_github(ctx, {"проект": [issue(1, "ann", "1.1", None, title="[Проект] Бот")], "сдача": []})
     pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
     pg.goto(base + "index.html"); pg.wait_for_timeout(300)
-    check("desktop: 10 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 10 and "id=1.1" in pg.get_attribute("#cont", "href"))
+    check("desktop: 11 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 11 and "id=1.1" in pg.get_attribute("#cont", "href"))
     pg.click("a.ico >> nth=0"); pg.wait_for_url("**/tasks.html"); check("иконка «Задания» открывает карту", "tasks.html" in pg.url)
     check("карта: 25 квадратов, один «следующий»", pg.locator(".node").count() == 25 and pg.locator(".node.next").count() == 1)
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
-    pg.click("#startBtn"); check("«Пуск» открывает меню (13 пунктов)", pg.locator("#smenu.on a").count() == 13, pg.locator("#smenu.on a").count())
+    pg.click("#startBtn"); check("«Пуск» открывает меню (14 пунктов)", pg.locator("#smenu.on a").count() == 14, pg.locator("#smenu.on a").count())
     pg.keyboard.press("Escape"); check("Esc закрывает меню", pg.locator("#smenu.on").count() == 0)
     pg.click("#startBtn"); pg.mouse.click(900, 300); check("клик вне меню закрывает его", pg.locator("#smenu.on").count() == 0)
     # проекты
@@ -738,6 +738,12 @@ def extras(b, base):
     pg.keyboard.press("Space"); pg.wait_for_timeout(200); pg.evaluate("Egg._t().win()"); pg.wait_for_timeout(300)
     check("пасхалка: победа показывает «Позови преподавателя»", "Позови преподавателя" in pg.inner_text("#egm"))
     pg.keyboard.press("Escape"); check("пасхалка: Esc закрывает", pg.locator("#egg").count() == 0)
+    # страница игры для всех: победа даёт красную пятёрку
+    ctx3 = new_ctx(b); p3 = ctx3.new_page(); p3.goto(base + "run.html"); p3.wait_for_selector("#pl")
+    check("игра для всех: сначала «Ещё не пройдено»", "Ещё не пройдено" in p3.inner_text("#st"))
+    p3.click("#pl"); p3.wait_for_selector("#egg"); p3.keyboard.press("Space"); p3.wait_for_timeout(200); p3.evaluate("Egg._t().win()"); p3.wait_for_timeout(300)
+    check("игра для всех: после победы красная 5 и «Позови преподавателя»", "5" in p3.inner_text("#egm") and "Позови преподавателя" in p3.inner_text("#egm"))
+    p3.click("#egj"); p3.wait_for_selector("#egg", state="detached"); check("игра для всех: результат сохранён и виден на странице", "Пройдено" in p3.inner_text("#st"), p3.inner_text("#st")); ctx3.close()
     check("игры и подсказки: нет ошибок в консоли", not bag, bag[:3]); ctx.close()
 
 

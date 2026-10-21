@@ -1,0 +1,15 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com https://course.2-27-53-182.sslip.io wss://course.2-27-53-182.sslip.io; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Убеги от скелета</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="live.css"></head><body>
+<main class="wrap">
+<div class="crumbs">Убеги от скелета</div><h1>Убеги от скелета</h1>
+<div class="howto"><span><b>Задача.</b> Беги и прыгай через препятствия, пока за тобой гонится скелет. Перепрыгни 25 препятствий и получишь <b style="color:#c01a2f">красную пятёрку</b>: покажи экран с ней учителю.</span></div>
+<div class="cards lv"><div class="card"><h2>Как играть</h2><ul class="gl"><li><b>Прыжок:</b> кнопка «Прыжок», пробел или стрелка вверх. На телефоне тап по игре.</li><li><b>Шары:</b> лови цветные. Щит спасает от удара, «З» замедляет, «2» даёт двойной прыжок.</li><li><b>Летучая мышь:</b> под ней не прыгай, лучше пробеги.</li><li>Скелет догоняет после ударов. Полоска слева сверху показывает расстояние до него.</li></ul></div>
+<div class="card"><h2>Твой результат</h2><div id="st" class="wait" style="padding:10px">Ещё не пройдено</div><button class="btn big go" id="pl" type="button">Играть</button></div></div>
+</main>
+<script src="site.js"></script><script src="config.js"></script><script src="net.js"></script><script src="egg.js"></script>
+<script>
+layout("run.html","Убеги от скелета");
+function status(){var el=document.getElementById("st"),w=null;try{w=JSON.parse(localStorage.getItem("skull")||"null")}catch(e){}
+ if(w&&w.at){var d=new Date(w.at);el.innerHTML='<div style="font:400 48px/1 var(--px);color:#c01a2f">5</div><div>Пройдено: '+d.toLocaleDateString("ru-RU")+' '+d.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})+'</div>'}else el.textContent="Ещё не пройдено"}
+status();
+document.getElementById("pl").onclick=function(){Egg.start({onClose:status})};
+</script></body></html>

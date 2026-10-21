@@ -11,6 +11,7 @@ function ghUrl(path) { return "https://github.com/" + CFG.repo + (path || ""); }
 /* Пиксельные иконки: карта символов -> палитра, рисуется SVG с чёткими квадратами */
 var PAL = { K: "#1a0f4d", W: "#ffffff", G: "#c0c0c0", D: "#808080", Y: "#ffe44d", O: "#c9a000", B: "#3a1aa0", L: "#4aa3ff", R: "#d03030", P: "#7a1a8a", N: "#2a9a2a", T: "#2f7777", C: "#fffbdc" };
 var PIX = {
+  skull: ["................","....KKKKKKKK....","...KWWWWWWWWK...","..KWWWWWWWWWWK..","..KWWWWWWWWWWK..","..KWKKKWWKKKWK..","..KWKKKWWKKKWK..","..KWWKKWWKKWWK..","...KWWWKKWWWK...","....KWWWWWWK....","....KWKWKWKK....","....KWKWKWK.....",".....KKKKKK.....","................","................","................"],
   user: ["................",".....KKKKKK.....","....KYYYYYYK....","....KYKYYKYK....","....KYYYYYYK....",".....KYYYYK.....","...KKKBBBBKKK...","..KBBBBBBBBBBK..",".KBBBBBBBBBBBBK.",".KBBBBBBBBBBBBK.",".KBBBBBBBBBBBBK.",".KKKKKKKKKKKKKK.","................","................","................","................"],
   bolt: ["................",".......KKKK.....","......KYYYK.....",".....KYYYK......","....KYYYK.......","...KYYYYYYK.....","....KKKYYK......","......KYYK......",".....KYYK.......",".....KYK........","....KYK.........","....KK..........","................","................","................","................"],
   pc: ["................", "..KKKKKKKKKKKK..", "..KGGGGGGGGGGK..", "..KGKKKKKKKKGK..", "..KGKLLLLLLKGK..", "..KGKLWWLLLKGK..", "..KGKLLLWWLKGK..", "..KGKLLLLLLKGK..", "..KGKKKKKKKKGK..", "..KGGGGGGGNGGK..", "..KKKKKKKKKKKK..", "......KGGK......", "...KKKKGGKKKK...", "..KGGGGGGGGGGK..", "..KKKKKKKKKKKK..", "................"],
@@ -47,7 +48,7 @@ try { if (window.top !== window.self) { document.documentElement.style.display =
 function isTeacher() { try { return !!localStorage.getItem("teacher"); } catch (e) { return false; } }
 var PAGES = {
   "tasks.html": ["Задания", "pc"], "theory.html": ["Теория", "folder"], "quiz.html": ["Квизы", "book"],
-  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "video.html": ["Видеоразборы", "video"], "teacher.html": ["Кабинет учителя", "key"], "account.html": ["Мой профиль", "user"], "students.html": ["Ученики на сервере", "user"], "live.html": ["Онлайн-игра", "bolt"]
+  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "video.html": ["Видеоразборы", "video"], "teacher.html": ["Кабинет учителя", "key"], "account.html": ["Мой профиль", "user"], "students.html": ["Ученики на сервере", "user"], "live.html": ["Онлайн-игра", "bolt"], "run.html": ["Убеги от скелета", "skull"]
 };
 function layout(active, title) {
   var desk = active === "desk", pg = PAGES[active] || ["Окно", "win"];
@@ -66,7 +67,7 @@ function layout(active, title) {
       };
     }
   }
-  var items = [["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"], ["video.html", "Видеоразборы", "video"], ["live.html", "Онлайн-игра", "bolt"], ["account.html", "Мой профиль", "user"]];
+  var items = [["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"], ["video.html", "Видеоразборы", "video"], ["live.html", "Онлайн-игра", "bolt"], ["run.html", "Убеги от скелета", "skull"], ["account.html", "Мой профиль", "user"]];
   items.push(["teacher.html", teacher ? "Кабинет учителя" : "Вход для учителя", "key"]);
   if (teacher) items.push(["students.html", "Ученики на сервере", "user"]);
   var menu = items.map(function (x) { return '<li><a href="' + x[0] + '">' + pix(x[2]) + x[1] + "</a></li>"; }).join("") +
