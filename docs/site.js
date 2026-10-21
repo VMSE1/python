@@ -162,3 +162,20 @@ function fetchIssues(label, cb, fail) {
   }
   if (typeof document !== "undefined") { setTimeout(poll, 150); setInterval(poll, 5000); }
 })();
+
+/* Пасхалка: цифры 22832267 подряд (любая другая клавиша сбрасывает ввод) */
+(function () {
+  var CODE = "22832267", buf = "", loading = false;
+  function go() {
+    if (window.Egg) { window.Egg.start(); return; }
+    if (loading) return; loading = true;
+    var sc = document.createElement("script"); sc.src = "egg.js"; sc.onload = function () { loading = false; window.Egg.start(); }; sc.onerror = function () { loading = false; };
+    document.head.appendChild(sc);
+  }
+  document.addEventListener("keydown", function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) { if (e.key.length === 1) buf = ""; return; }
+    if (e.key < "0" || e.key > "9") { buf = ""; return; }
+    buf = (buf + e.key).slice(-CODE.length);
+    if (buf === CODE) { buf = ""; go(); }
+  });
+})();

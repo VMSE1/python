@@ -727,6 +727,15 @@ def extras(b, base):
     pg.wait_for_timeout(800); pg.click("#gh .mn .c >> nth=40")
     check("сапёр: следующий тап после флажка работает", pg.evaluate("document.querySelectorAll('#gh .mn .c.o').length") > 0)
     pg.evaluate("""()=>{const g=document.querySelector('#gh .gm');const cs=Array.from(document.querySelectorAll('#gh .mn .c'));cs.forEach(c=>{})}""")
+    # пасхалка: 22832267
+    pg.goto(base + "index.html"); pg.wait_for_timeout(400)
+    pg.keyboard.type("2283226"); pg.keyboard.type("x"); pg.keyboard.type("7"); pg.wait_for_timeout(300)
+    check("пасхалка: неполный или прерванный код не открывает игру", pg.locator("#egg").count() == 0)
+    pg.keyboard.type("22832267"); pg.wait_for_selector("#egg", timeout=4000)
+    check("пасхалка: код 22832267 открывает игру", pg.evaluate("document.getElementById('egg').dataset.state") == "playing")
+    pg.keyboard.press("Space"); pg.wait_for_timeout(200); pg.evaluate("Egg._t().win()"); pg.wait_for_timeout(300)
+    check("пасхалка: победа показывает «Позови преподавателя»", "Позови преподавателя" in pg.inner_text("#egm"))
+    pg.keyboard.press("Escape"); check("пасхалка: Esc закрывает", pg.locator("#egg").count() == 0)
     check("игры и подсказки: нет ошибок в консоли", not bag, bag[:3]); ctx.close()
 
 
