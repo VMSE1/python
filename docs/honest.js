@@ -74,13 +74,16 @@ var Honest = (function () {
       say(on ? "devtools" : "devtools-off", 0);
     }
     function watchTools() {
-      try { if (typeof isTeacher === "function" && isTeacher()) return; } catch (e) {}
+      /* Учителя освобождаем от проверки только после подтверждения сервером (ключ учителя вводится на странице «Ученики на сервере»).
+         Простой флажок в localStorage ничего не значит: его можно выставить из консоли. */
+      var teacherOk = false;
+      try { if (typeof Net !== "undefined" && Net.on && Net.tkey()) Net.req("GET", "/api/teacher/check", null, { "X-Teacher-Key": Net.tkey() }).then(function (j) { if (j && j.ok) { teacherOk = true; devLock(false); } }).catch(function () {}); } catch (e) {}
       document.addEventListener("keydown", function (e) {
         var k = (e.key || "").toLowerCase();
         if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (k === "i" || k === "j" || k === "c")) || (e.ctrlKey && k === "u") || (e.metaKey && e.altKey && (k === "i" || k === "j" || k === "c" || k === "u"))) { e.preventDefault(); e.stopPropagation(); say("devkey", 0); }
       }, true);
       ta.addEventListener("contextmenu", function (e) { e.preventDefault(); }, true);
-      setInterval(function () { if (document.hidden) return; try { devLock(devOpen()); } catch (e) {} }, 1000);
+      setInterval(function () { if (document.hidden || teacherOk) return; try { devLock(devOpen()); } catch (e) {} }, 1000);
     }
     function save() { try { localStorage.setItem(key, JSON.stringify(st)); localStorage.setItem(ckey, hash(shadow)); } catch (e) {} }
     function say(kind, n) { if (o.onBlock) o.onBlock(kind, n); }

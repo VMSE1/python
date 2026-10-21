@@ -893,6 +893,11 @@ def botguard(b, base):
     check("F12: после закрытия инструментов редактор снова доступен", not pg.evaluate("document.getElementById('code').readOnly"))
     pg.keyboard.press("F12"); pg.wait_for_timeout(200); check("F12: нажатие F12 на странице задания перехватывается", "F12" in pg.inner_text("#hn"))
     ctx.close()
+    # 5. поддельный «режим учителя» из консоли не отключает проверку на F12
+    ctx = new_ctx(b, raw=True); ctx.add_init_script("localStorage.setItem('teacher','x')"); pg = ctx.new_page(); pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code")
+    cdp = ctx.new_cdp_session(pg); cdp.on("Debugger.paused", lambda e: pg.wait_for_timeout(400) or cdp.send("Debugger.resume")); cdp.send("Debugger.enable"); pg.wait_for_timeout(3500)
+    check("F12: флажок teacher в localStorage не освобождает от блокировки", pg.evaluate("document.getElementById('code').readOnly"))
+    ctx.close()
 
 
 def unlock(b, base):
