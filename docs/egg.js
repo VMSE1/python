@@ -136,5 +136,49 @@
     reset(); raf = requestAnimationFrame(loop); ov.querySelector("#egj").focus();
     ST = { win: function () { s.cleared = GOAL; }, s: function () { return s; }, state: function () { return s.state; }, close: close };
   }
-  window.Egg = { start: start, _t: function () { return ST; } };
+
+  /* Танцпол: человечек и добрый скелет танцуют, сверху надпись. Запускается из docs/notice.json полем "dance". */
+  function dance(opts) {
+    opts = opts || {};
+    if (document.getElementById("egd")) return;
+    var ov = document.createElement("div"); ov.id = "egd"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-label", "Сообщение от учителя");
+    ov.style.cssText = "position:fixed;inset:0;z-index:2147482500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:14px;overflow:auto;background:#2a0a3a;animation:egdf 1.6s steps(2) infinite";
+    ov.innerHTML = '<style>@keyframes egdf{50%{background:#0a1a4a}}@keyframes egdt{50%{transform:scale(1.04)}}@media (prefers-reduced-motion:reduce){#egd,#egd div{animation:none!important}}#egd button{font:600 clamp(14px,2.6vw,19px) "IBM Plex Mono",monospace;padding:12px 22px;min-height:48px;border:3px solid #fff;background:#fff;color:#2a0a3a;cursor:pointer}#egd button:focus-visible{outline:4px dashed #ffe14d;outline-offset:3px}</style>' +
+      '<div style="font:400 clamp(16px,4.6vw,40px)/1.5 \'Press Start 2P\',monospace;color:#ffe14d;text-shadow:3px 3px 0 #000;text-align:center;animation:egdt 1s steps(2) infinite;max-width:900px">' + (opts.text || "Сейчас вам будут ставить оценки!").replace(/</g, "&lt;") + '</div>' +
+      '<canvas id="egdc" width="' + W + '" height="' + H + '" style="width:min(100%,calc((100vh - 220px)*1.78),880px);height:auto;background:#12062a;border:4px solid #fff;image-rendering:pixelated" aria-hidden="true"></canvas>' +
+      '<button type="button" id="egdx">Закрыть</button>';
+    document.body.appendChild(ov);
+    var cv = ov.querySelector("#egdc"), c = cv.getContext("2d"), raf = 0, T = 0, last = 0, conf = [], i;
+    var COLS = ["#ff4d6d", "#ffe14d", "#4dd2ff", "#7dff6a", "#c77dff"];
+    for (i = 0; i < 40; i++) conf.push({ x: Math.random() * W, y: Math.random() * H, v: 40 + Math.random() * 80, c: COLS[i % 5], w: 4 + Math.random() * 4 });
+    var BODY = MAN.map(function (r) { return r.replace(/^S/, ".").replace(/S$/, "."); });
+    function arms(x, y, u, up, t) {
+      c.fillStyle = COL.R; var sw = Math.round(Math.sin(t * 8) * u);
+      if (up) { c.fillRect(x - u, y + 1 * u + sw, u, 4 * u); c.fillRect(x + 9 * u, y + 1 * u - sw, u, 4 * u); c.fillStyle = COL.S; c.fillRect(x - u, y + 0 * u + sw, u, u); c.fillRect(x + 9 * u, y + 0 * u - sw, u, u); }
+      else { c.fillRect(x - u, y + 4 * u, u, 4 * u); c.fillRect(x + 9 * u, y + 4 * u, u, 4 * u); c.fillStyle = COL.S; c.fillRect(x - u, y + 8 * u, u, u); c.fillRect(x + 9 * u, y + 8 * u, u, u); }
+    }
+    function frame(ts) {
+      var dt = Math.min(.05, (ts - (last || ts)) / 1000); last = ts; T += dt;
+      c.fillStyle = "#12062a"; c.fillRect(0, 0, W, H);
+      /* дискотечные лучи */
+      for (i = 0; i < 6; i++) { c.fillStyle = "rgba(" + (i % 2 ? "120,80,255" : "255,80,160") + ",.10)"; c.beginPath(); var a = T * .8 + i * 1.05; c.moveTo(W / 2, -10); c.lineTo(W / 2 + Math.cos(a) * 520, 340 + Math.sin(a) * 120); c.lineTo(W / 2 + Math.cos(a + .25) * 520, 340 + Math.sin(a + .25) * 120); c.fill(); }
+      c.fillStyle = "#3a1470"; c.fillRect(0, GROUND, W, H - GROUND); c.fillStyle = "#8a4dff"; c.fillRect(0, GROUND, W, 4);
+      for (i = 0; i < 8; i++) { c.fillStyle = ((Math.floor(T * 4) + i) % 2) ? "#ff4d6d" : "#4dd2ff"; c.fillRect(20 + i * 80, GROUND + 14, 56, 8); }
+      /* конфетти */
+      conf.forEach(function (p) { p.y += p.v * dt; p.x += Math.sin(T * 2 + p.v) * 20 * dt; if (p.y > H) { p.y = -10; p.x = Math.random() * W; } c.fillStyle = p.c; c.fillRect(p.x, p.y, p.w, p.w); });
+      var beat = T * 6, hopM = Math.abs(Math.sin(beat)) * 26, hopS = Math.abs(Math.sin(beat + 1.5)) * 22, sway = Math.round(Math.sin(beat * .5) * 14);
+      var U6 = 6, mx = 190 + sway, my = GROUND - MH * U6 - hopM, up = Math.sin(beat) > 0;
+      c.fillStyle = "rgba(0,0,0,.35)"; c.fillRect(mx - 6, GROUND, 66, 4);
+      sprite(c, BODY, mx, my, U6); sprite(c, LEGS[Math.floor(T * 6) % 2], mx, my + BODY.length * U6, U6); arms(mx, my, U6, up, T);
+      var sx = 360 - sway;
+      c.fillStyle = "rgba(0,0,0,.35)"; c.fillRect(sx + 8, GROUND, 90, 4);
+      skeleton(c, sx, GROUND - 23 * 6 - hopS, 6, true, T * 2);
+      c.fillStyle = "#ffe14d"; c.font = "bold 28px monospace"; c.fillText("♪", 130 + Math.sin(T * 3) * 10, 120 - (T * 40) % 60); c.fillText("♫", 520 + Math.cos(T * 3) * 10, 150 - (T * 50) % 70);
+      raf = requestAnimationFrame(frame);
+    }
+    function close() { cancelAnimationFrame(raf); clearTimeout(tm); ov.remove(); }
+    var tm = opts.ms ? setTimeout(close, opts.ms) : 0;
+    ov.querySelector("#egdx").onclick = close; raf = requestAnimationFrame(frame); ov.querySelector("#egdx").focus();
+  }
+  window.Egg = { dance: dance, start: start, _t: function () { return ST; } };
 })();

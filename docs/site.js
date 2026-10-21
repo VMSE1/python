@@ -167,6 +167,13 @@ function fetchIssues(label, cb, fail) {
   function run(n) {
     var t = Date.parse(n.at), now = Date.now(), sec = Math.min(600, Math.max(3, +n.sec || 8));
     if (!n.id || !(t > 0) || now < t || now >= t + sec * 1000 || shown === n.id) return;
+    if (n.dance) {
+      try { if (sessionStorage.getItem("danceSeen") === n.id) return; sessionStorage.setItem("danceSeen", n.id); } catch (e) {}
+      shown = n.id;
+      var dn = function () { window.Egg.dance({ text: n.danceText || n.text, ms: t + sec * 1000 - Date.now() }); };
+      if (window.Egg) dn(); else { var sd = document.createElement("script"); sd.src = "egg.js"; sd.onload = dn; document.head.appendChild(sd); }
+      return;
+    }
     if (n.game) {
       try { if (sessionStorage.getItem("gameSeen") === n.id) return; sessionStorage.setItem("gameSeen", n.id); } catch (e) {}
       shown = n.id;
