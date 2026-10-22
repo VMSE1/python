@@ -13,6 +13,8 @@ var Net = (function () {
       return r.json().catch(function () { return {}; }).then(function (j) { j.status = r.status; return j; });
     }).catch(function (e) { throw new Error(e && e.name === "AbortError" ? "Сервер долго не отвечает" : "Нет связи с сервером. Проверь интернет."); }).finally(function () { if (to) clearTimeout(to); });
   }
+  /* результат игры в таблицу лидеров (только вошедшим; ошибки молча игнорируем) */
+  function score(game, value) { if (!user() || !BASE) return; try { req("POST", "/api/score", { game: game, score: value }).catch(function () {}); } catch (e) {} }
   function local() { return { passed: ls("passed", {}), done: ls("done", {}), played: ls("played", {}), streak: ls("streak", {}) }; }
   function apply(p) {
     if (!p || typeof p !== "object") return;
@@ -36,7 +38,7 @@ var Net = (function () {
   function push() { if (!user()) return; clearTimeout(timer); timer = setTimeout(sync, 1500); }
   function wsUrl() { return BASE.replace(/^http/, "ws") + "/ws"; }
   var api = {
-    on: !!BASE, base: BASE, user: user, req: req, sync: sync, push: push, local: local, wsUrl: wsUrl,
+    on: !!BASE, base: BASE, user: user, req: req, score: score, sync: sync, push: push, local: local, wsUrl: wsUrl,
     saveSession: function (j) { saveUser(j); sync(); },
     register: function (o) { return req("POST", "/api/register", o).then(function (j) { if (j.ok) { saveUser(j); sync(); } return j; }); },
     login: function (o) { return req("POST", "/api/login", o).then(function (j) { if (j.ok) { saveUser(j); sync(); } return j; }); },

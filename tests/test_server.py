@@ -375,6 +375,26 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         # настройки переживают «Выключить игру»
         await play({"action": "boss_reset"}); self.assertEqual(A.BOSS.cfg["dmg_easy"], 1)
 
+    async def test_leaderboards(self):
+        A = self.A
+        d = await self.cl.get("/api/leaderboards"); self.assertEqual(d.status, 401)                       # без входа не видно
+        self.assertEqual((await self.cl.post("/api/score", json={"game": "mines", "score": 50})).status, 401)
+        h1 = await self.race_user("lb_1"); h2 = await self.race_user("lb_2")
+        post = lambda h, g, v: self.cl.post("/api/score", json={"game": g, "score": v}, headers=h)
+        d = await (await post(h1, "mines", 90)).json(); self.assertTrue(d["record"])
+        d = await (await post(h1, "mines", 120)).json(); self.assertFalse(d["record"])                      # хуже — не рекорд
+        d = await (await post(h1, "mines", 70)).json(); self.assertTrue(d["record"])
+        await post(h2, "mines", 60); await post(h2, "snake", 30); await post(h1, "snake", 50)
+        d = await (await post(h1, "mines", 1)).json(); self.assertTrue(d.get("ignored"))                   # нереальное время
+        d = await (await post(h1, "snake", 9999)).json(); self.assertTrue(d.get("ignored"))
+        self.assertEqual((await post(h1, "race", 5)).status, 400)                                           # серверные игры клиент не пишет
+        self.assertEqual((await post(h1, "nope", 5)).status, 400)
+        d = await (await self.cl.get("/api/leaderboards?game=mines", headers=h1)).json()
+        self.assertEqual([r["nick"] for r in d["rows"]], ["lb_2", "lb_1"]); self.assertEqual(d["me"], {"rank": 2, "score": 70})   # меньше время — выше
+        d = await (await self.cl.get("/api/leaderboards?game=snake", headers=h2)).json()
+        self.assertEqual([r["nick"] for r in d["rows"]], ["lb_1", "lb_2"]); self.assertEqual(d["me"]["rank"], 2)                   # больше очков — выше
+        d = await (await self.cl.get("/api/leaderboards", headers=h1)).json(); self.assertEqual(len(d["boards"]), len(A.BOARDS))
+
     async def test_lucky_schedule(self):
         A = self.A; A.ONLINE.clear(); A.LUCKY.update(next=0); A.LK.clear()
         h = await self.race_user("online1"); d = await (await self.cl.get("/api/play", headers=h)).json()

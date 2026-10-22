@@ -141,7 +141,7 @@ def functional(b, base):
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
     pg.click("#startBtn"); check("меню: «Вход для учителя» ученикам не показывается", "Вход для учителя" not in pg.inner_text("#smenu") and "Кабинет" not in pg.inner_text("#smenu"))
-    check("«Пуск» открывает меню (12 пунктов)", pg.locator("#smenu.on a").count() == 12, pg.locator("#smenu.on a").count())
+    check("«Пуск» открывает меню (13 пунктов)", pg.locator("#smenu.on a").count() == 13, pg.locator("#smenu.on a").count())
     pg.keyboard.press("Escape"); check("Esc закрывает меню", pg.locator("#smenu.on").count() == 0)
     pg.click("#startBtn"); pg.mouse.click(900, 300); check("клик вне меню закрывает его", pg.locator("#smenu.on").count() == 0)
     # проекты
@@ -696,7 +696,7 @@ def extras(b, base):
     check("главный экран: видна серия", "Серия: 1 день" in pg.inner_text(".dlg"), pg.inner_text(".dlg")[:120])
     # 4. игры
     gamepage(pg, base, "mines"); pg.click("#gh .mn .c >> nth=40")
-    r = pg.evaluate("""()=>{const root=document.querySelector('.gm');return [root.dataset.state,document.querySelectorAll('.mn .c.o').length]}""")
+    r = pg.evaluate("""()=>{const root=document.querySelector('.gm');return [root.dataset.state,document.querySelectorAll('.mn .c.op').length]}""")
     check("сапёр: первый клик безопасен и открывает клетки", r[0] in ("playing", "won") and r[1] >= 1, r)
     res = pg.evaluate("""()=>{const h=document.createElement('div');document.body.appendChild(h);const g=Games.mount(h,'mines');const root=h.querySelector('.gm');
       h.querySelector('.mn .c:nth-child(41)').click();const cs=g._cells();const mines=cs.filter(c=>c.m).length;const firstOpen=cs[40].o===1&&!cs[40].m;
@@ -733,7 +733,7 @@ def extras(b, base):
     fl = pg.evaluate("document.querySelectorAll('#gh .mn .c.fl').length")
     check("сапёр: длинное нажатие ставит ровно один флажок", fl == 1, fl)
     pg.wait_for_timeout(800); pg.click("#gh .mn .c >> nth=40")
-    check("сапёр: следующий тап после флажка работает", pg.evaluate("document.querySelectorAll('#gh .mn .c.o').length") > 0)
+    check("сапёр: следующий тап после флажка работает", pg.evaluate("document.querySelectorAll('#gh .mn .c.op').length") > 0)
     pg.evaluate("""()=>{const g=document.querySelector('#gh .gm');const cs=Array.from(document.querySelectorAll('#gh .mn .c'));cs.forEach(c=>{})}""")
     # пасхалка: 2267
     pg.goto(base + "index.html"); pg.wait_for_timeout(400)
@@ -742,13 +742,13 @@ def extras(b, base):
     pg.keyboard.type("2267"); pg.wait_for_selector("#egg", timeout=4000)
     check("пасхалка: код 2267 открывает игру", pg.evaluate("document.getElementById('egg').dataset.state") == "playing")
     pg.keyboard.press("Space"); pg.wait_for_timeout(200); pg.evaluate("Egg._t().win()"); pg.wait_for_timeout(300)
-    check("пасхалка: победа показывает «Позови преподавателя»", "Позови преподавателя" in pg.inner_text("#egm"))
+    check("пасхалка: победа показывает «Ты убежал!»", "Ты убежал" in pg.inner_text("#egm"))
     pg.keyboard.press("Escape"); check("пасхалка: Esc закрывает", pg.locator("#egg").count() == 0)
     # страница игры для всех: победа даёт красную пятёрку
     ctx3 = new_ctx(b); p3 = ctx3.new_page(); p3.goto(base + "run.html"); p3.wait_for_selector("#pl")
     check("игра для всех: сначала «Ещё не пройдено»", "Ещё не пройдено" in p3.inner_text("#st"))
     p3.click("#pl"); p3.wait_for_selector("#egg"); p3.keyboard.press("Space"); p3.wait_for_timeout(200); p3.evaluate("Egg._t().win()"); p3.wait_for_timeout(300)
-    check("игра для всех: после победы красная 5 и «Позови преподавателя»", "5" in p3.inner_text("#egm") and "Позови преподавателя" in p3.inner_text("#egm"))
+    check("игра для всех: после победы «Ты убежал!»", "Ты убежал" in p3.inner_text("#egm"))
     p3.click("#egj"); p3.wait_for_selector("#egg", state="detached"); check("игра для всех: результат сохранён и виден на странице", "Пройдено" in p3.inner_text("#st"), p3.inner_text("#st")); ctx3.close()
     check("игры и подсказки: нет ошибок в консоли", not bag, bag[:3]); ctx.close()
 
@@ -1236,8 +1236,22 @@ def lucky(b, base):
     for c in (c0, c1, c2, c3, c4): c.close()
 
 
+def leaders(b, base):
+    print("\n== ТАБЛИЦА ЛИДЕРОВ (настоящий сервер) ==")
+    api = start_api(base.rstrip("/")); bag = []; A = sys.modules["app"]; A.LUCKY.update(next=time.time() + 99999)
+    ctx = api_ctx(b, api); pg = ctx.new_page(); attach_errors(pg, bag); pg.goto(base + "index.html"); pg.wait_for_selector("#gate")
+    pg.fill("#gn", "lead_1"); pg.fill("#gp", "secret1"); pg.fill("#ge", "lead_1@mail.ru"); pg.click("#ggo"); pg.wait_for_selector("#gate", state="detached", timeout=8000)
+    pg.wait_for_timeout(1200); pg.evaluate("Net.score('mines', 77)"); pg.evaluate("Net.score('snake', 40)"); pg.wait_for_timeout(800)
+    pg.goto(base + "leaders.html"); pg.wait_for_selector(".rw.me", timeout=8000)
+    check("лидеры: свой результат в таблице сапёра подсвечен", "lead_1" in pg.inner_text(".rw.me") and "1:17" in pg.inner_text(".rw.me"), pg.inner_text(".rw.me"))
+    pg.click('button[data-g="snake"]'); pg.wait_for_selector(".rw.me:has-text('40 очк.')", timeout=4000); check("лидеры: вкладка «Змейка» показывает очки", True)
+    pg.click('button[data-g="race"]'); check("лидеры: пустая игра говорит «Пока никого»", "Пока никого" in pg.inner_text("#app"))
+    check("лидеры: нет ошибок в консоли", not [x for x in bag if "Failed to load resource" not in x], bag[:3])
+    ctx.close()
+
+
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "admin", "lucky", "botguard", "unlock", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "leaders", "admin", "lucky", "botguard", "unlock", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox", "--disable-features=LocalNetworkAccessChecks,LocalNetworkAccess,PrivateNetworkAccessRespectPreflightResults"])

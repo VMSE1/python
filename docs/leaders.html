@@ -1,0 +1,34 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com https://course.2-27-53-182.sslip.io wss://course.2-27-53-182.sslip.io; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Таблица лидеров</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="live.css"><link rel="stylesheet" href="boss.css"></head><body>
+<main class="wrap lvwrap">
+<div class="crumbs">Таблица лидеров</div>
+<div id="app" class="lv bs" aria-live="polite"></div>
+</main>
+<script src="site.js"></script><script src="config.js"></script><script src="net.js"></script>
+<script>
+layout("leaders.html","Таблица лидеров");
+(function(){
+var app=document.getElementById("app"),cur="",DATA=null,tm=null;
+function esc(t){return String(t==null?"":t).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function fmt(b,v){if(b.unit==="с"&&v>=60)return Math.floor(v/60)+":"+("0"+Math.round(v%60)).slice(-2);return String(v)+" "+b.unit}
+function medal(n){return n===1?"🥇":n===2?"🥈":n===3?"🥉":n+"."}
+function draw(){
+ if(!DATA)return;var bs=DATA.boards;if(!cur)cur=bs[0].game;
+ var b=bs.filter(function(x){return x.game===cur})[0]||bs[0];
+ var h='<div class="bhd">Таблица лидеров</div><p class="m">Результаты всех зарегистрированных игроков. Лучший результат каждого. Побеждай в играх за награды и на уроках, чтобы попасть сюда.</p>';
+ h+='<div class="seg" role="tablist" style="flex-wrap:wrap">'+bs.map(function(x){return'<button type="button" role="tab" data-g="'+x.game+'" class="'+(x.game===b.game?"on":"")+'" aria-selected="'+(x.game===b.game)+'">'+esc(x.title.replace(/ \(.*\)/,"").replace("Босс-арена: урон за бой","Босс-арена"))+'</button>'}).join("")+'</div>';
+ h+='<div class="rate"><div class="bhd" style="font-size:14px;margin:0 0 6px">'+esc(b.title)+'</div><div class="m" style="margin-bottom:6px">'+(b.better==="asc"?"Чем меньше время, тем выше место.":"Чем больше, тем выше место.")+'</div>';
+ if(!b.rows.length)h+='<div class="m">Пока никого. Стань первым!</div>';
+ b.rows.forEach(function(r){h+='<div class="rw'+(r.me?" me":"")+'"><span style="min-width:34px">'+medal(r.rank)+'</span><b>'+esc(r.nick)+(r.me?" (ты)":"")+'</b><span>'+fmt(b,r.score)+'</span></div>'});
+ if(b.me&&!b.rows.some(function(r){return r.me}))h+='<div class="rw me"><span style="min-width:34px">'+b.me.rank+'.</span><b>ты</b><span>'+fmt(b,b.me.score)+'</span></div>';
+ else if(!b.me)h+='<div class="m" style="margin-top:8px">У тебя здесь пока нет результата.</div>';
+ h+='</div>';
+ app.innerHTML=h;
+ Array.prototype.forEach.call(app.querySelectorAll("button[data-g]"),function(x){x.onclick=function(){cur=x.getAttribute("data-g");draw()}})}
+function load(){Net.req("GET","/api/leaderboards").then(function(j){
+ if(j.status===401){app.innerHTML='<div class="box"><p>Войди, чтобы видеть таблицы лидеров.</p></div>';return}
+ if(!j.ok){app.innerHTML='<div class="bad">'+esc(j.error||"Не получилось")+'</div>';return}
+ DATA=j;draw()}).catch(function(e){app.innerHTML='<div class="bad">'+esc(e.message)+'</div>'})}
+if(!Net.on)app.innerHTML='<div class="box"><p>Сервер пока не подключён.</p></div>';
+else{load();tm=setInterval(function(){if(!document.hidden)load()},15000)}
+})();
+</script></body></html>

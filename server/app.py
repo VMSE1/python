@@ -48,6 +48,7 @@ def init_db():
     CREATE INDEX IF NOT EXISTS subs_ut ON subs(uid, task);
     CREATE TABLE IF NOT EXISTS recov(id INTEGER PRIMARY KEY, uid INTEGER, ch TEXT, exp INTEGER, tries INTEGER DEFAULT 0, ts INTEGER, code TEXT, mailed INTEGER DEFAULT 0);
     CREATE TABLE IF NOT EXISTS lucky(id INTEGER PRIMARY KEY, uid INTEGER, ts INTEGER, kind TEXT, note TEXT);
+    CREATE TABLE IF NOT EXISTS scores(uid INTEGER, game TEXT, best REAL, ts INTEGER, PRIMARY KEY(uid, game));
     """)
     cols = [r[1] for r in db.execute("PRAGMA table_info(users)")]
     if "email" not in cols:
@@ -1018,6 +1019,91 @@ def scare_send(nick=None, kind="random", now=None):
     return row[1]
 
 
+# ---------------------------------------------------------------- таблицы лидеров
+# game -> (название, лучше меньше или больше, подпись, границы правдоподобия для игр, где счёт присылает браузер, или None для серверных)
+BOARDS = {
+    "mines": ("Сапёр", "asc", "с", (5, 3600)),
+    "snake": ("Змейка", "desc", "очк.", (1, 397)),
+    "runner": ("Бегун", "desc", "очк.", (1, 100000)),
+    "maze": ("Лабиринт", "desc", "очк.", (1, 500)),
+    "barrels": ("Скелет и бочки (тренировка)", "asc", "с", (12, 75)),
+    "skull": ("Убеги от скелета", "asc", "с", (10, 3600)),
+    "race": ("Гонка по Python", "asc", "с", None),
+    "boss": ("Босс-арена: урон за бой", "desc", "урона", None),
+}
+
+
+def score_record(uid, game, val, now=None):
+    """Запоминает лучший результат ученика в игре. Возвращает True, если это новый личный рекорд."""
+    b = BOARDS.get(game)
+    if not b:
+        return False
+    now = int(now or time.time())
+    row = db.execute("SELECT best FROM scores WHERE uid=? AND game=?", (uid, game)).fetchone()
+    better = row is None or (val < row[0] if b[1] == "asc" else val > row[0])
+    if better:
+        db.execute("INSERT INTO scores(uid,game,best,ts) VALUES(?,?,?,?) ON CONFLICT(uid,game) DO UPDATE SET best=excluded.best, ts=excluded.ts", (uid, game, float(val), now))
+        db.commit()
+    return better
+
+
+def board_rows(game, uid=None, limit=10):
+    b = BOARDS[game]
+    order = "ASC" if b[1] == "asc" else "DESC"
+    rows = db.execute("SELECT s.uid,u.nick,s.best FROM scores s JOIN users u ON u.id=s.uid WHERE s.game=? ORDER BY s.best %s, s.ts ASC LIMIT ?" % order, (game, limit)).fetchall()
+    out = [{"rank": i + 1, "nick": n, "score": round(v, 1) if v != int(v) else int(v), "me": u == uid} for i, (u, n, v) in enumerate(rows)]
+    me = None
+    if uid is not None:
+        r = db.execute("SELECT best FROM scores WHERE uid=? AND game=?", (uid, game)).fetchone()
+        if r:
+            cmp = "<" if b[1] == "asc" else ">"
+            rank = db.execute("SELECT COUNT(*) FROM scores WHERE game=? AND best %s ?" % cmp, (game, r[0])).fetchone()[0] + 1
+            me = {"rank": rank, "score": round(r[0], 1) if r[0] != int(r[0]) else int(r[0])}
+    return {"game": game, "title": b[0], "unit": b[2], "better": b[1], "rows": out, "me": me}
+
+
+async def score_post(req):
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    if limited("score:%d" % u[0], 40, 60):
+        return jerr("Слишком часто.", 429)
+    d = await body(req)
+    g = str(d.get("game", ""))
+    b = BOARDS.get(g)
+    if not b or not b[3]:
+        return jerr("Для этой игры результат не принимается.")
+    try:
+        v = float(d.get("score"))
+    except Exception:
+        return jerr("Неверный результат.")
+    lo, hi = b[3]
+    if not (lo <= v <= hi) or v != v:
+        return web.json_response({"ok": True, "record": False, "ignored": True})   # нереальный результат молча не засчитываем
+    return web.json_response({"ok": True, "record": score_record(u[0], g, v)})
+
+
+async def leaderboards(req):
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти, чтобы видеть таблицы лидеров.", 401)
+    game = req.query.get("game")
+    if game:
+        if game not in BOARDS:
+            return jerr("Такой игры нет.")
+        return web.json_response({"ok": True, **board_rows(game, u[0], 20)})
+    return web.json_response({"ok": True, "boards": [board_rows(g, u[0], 10) for g in BOARDS]})
+
+
+def boss_record():
+    """Когда бой кончился, лучший урон каждого игрока попадает в таблицу лидеров (один раз за бой)."""
+    if BOSS.phase == "end" and not BOSS.recorded:
+        BOSS.recorded = True
+        for uid, p in BOSS.players.items():
+            if p["dmg"] > 0:
+                score_record(uid, "boss", p["dmg"])
+
+
 # ---------------------------------------------------------------- гонка
 RACE = R.Race()
 BOSS = B.Boss()
@@ -1062,9 +1148,11 @@ async def t_play(req):
         return web.json_response(BOSS.view())
     elif a == "boss_cfg":
         BOSS.edit(d)
+        boss_record()
         return web.json_response(BOSS.view())
     elif a == "boss_stop":
         BOSS.stop()
+        boss_record()
         return web.json_response(BOSS.view())
     elif a == "boss_reset":
         BOSS.reset()
@@ -1164,6 +1252,7 @@ async def boss_answer(req):
         return jerr("Нужно войти.", 401)
     d = await body(req)
     r = BOSS.answer(u[0], d.get("a"))
+    boss_record()
     return web.json_response({**BOSS.view(u[0], _i(d.get("since"))), **r})
 
 
@@ -1207,6 +1296,9 @@ async def race_submit(req):
     # за время проверки игра могла закончиться или игрока могли исключить
     if ok and RACE.phase == "run" and u[0] in RACE.players and RACE.players[u[0]]["done"] == i:
         RACE.accepted(u[0])
+        pl = RACE.players.get(u[0])
+        if pl and pl.get("fin") is not None:
+            score_record(u[0], "race", pl["fin"])
     elif ok:
         ok, msg = False, "Игра уже закончилась."
     return web.json_response({"ok": True, "passed": ok, "msg": msg, **RACE.view(u[0])})
@@ -1241,7 +1333,7 @@ def make_app():
     app.add_routes([
         web.get("/api/ping", ping), web.post("/api/register", register), web.post("/api/login", login), web.post("/api/logout", logout),
         web.post("/api/recover", recover), web.post("/api/recover/confirm", recover_confirm), web.get("/api/teacher/recov", t_recov), web.post("/api/submit", submit), web.get("/api/teacher/subs", t_subs), web.get("/api/teacher/sub", t_sub),
-        web.get("/api/play", play_state), web.post("/api/lucky/spin", lucky_spin), web.post("/api/lucky/finish", lucky_finish), web.get("/api/teacher/lucky", t_lucky), web.post("/api/teacher/play", t_play), web.post("/api/race/join", race_join), web.post("/api/boss/join", boss_join), web.get("/api/boss/state", boss_state), web.post("/api/boss/ask", boss_ask), web.post("/api/boss/answer", boss_answer), web.get("/api/race/state", race_state), web.post("/api/race/submit", race_submit),
+        web.get("/api/play", play_state), web.post("/api/lucky/spin", lucky_spin), web.post("/api/lucky/finish", lucky_finish), web.get("/api/teacher/lucky", t_lucky), web.post("/api/teacher/play", t_play), web.post("/api/race/join", race_join), web.post("/api/boss/join", boss_join), web.post("/api/score", score_post), web.get("/api/leaderboards", leaderboards), web.get("/api/boss/state", boss_state), web.post("/api/boss/ask", boss_ask), web.post("/api/boss/answer", boss_answer), web.get("/api/race/state", race_state), web.post("/api/race/submit", race_submit),
         web.get("/api/me", me), web.put("/api/progress", put_progress),
         web.get("/api/teacher/check", t_check), web.get("/api/teacher/users", t_users), web.post("/api/teacher/reset", t_reset), web.delete("/api/teacher/user", t_delete),
         web.get("/ws", ws_handler),

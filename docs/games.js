@@ -12,13 +12,14 @@ var Games = (function () {
   function rnd(n) { return Math.floor(Math.random() * n); }
   function best(id, v) { try { var k = "best_" + id, o = +localStorage.getItem(k) || 0; if (v != null && v > o) { localStorage.setItem(k, v); o = v; } return o; } catch (e) { return v || 0; } }
   function shell(host, g, extra) {
-    host.innerHTML = '<div class="gm" data-state="ready" data-score="0"><div class="gm-top"><b>' + E(g.name) + '</b><span class="gm-st"></span><button class="btn sm ghost" type="button" data-r>Заново</button></div>' +
+    host.innerHTML = '<div class="gm" data-g="' + g.id + '" data-state="ready" data-score="0"><div class="gm-top"><b>' + E(g.name) + '</b><span class="gm-st"></span><button class="btn sm ghost" type="button" data-r>Заново</button></div>' +
       '<p class="m gm-hint">' + E(g.hint) + "</p>" + extra + "</div>";
     return host.firstChild;
   }
   function setState(root, st, score, text) {
     root.setAttribute("data-state", st); if (score != null) root.setAttribute("data-score", score);
     root.querySelector(".gm-st").textContent = text || "";
+    if ((st === "won" || st === "over") && score > 0) { try { if (window.Net && Net.score) Net.score(root.getAttribute("data-g"), score); } catch (e) {} }
   }
   function dpad(root, press) {
     var d = document.createElement("div"); d.className = "gm-pad";
@@ -69,7 +70,7 @@ var Games = (function () {
       if (btns.length !== N * N) build();
       mEl.textContent = "Мин: " + Math.max(0, MN - flags);
       cells.forEach(function (c, i) {
-        var cls = "c" + (c.o ? " o" + (c.m ? " mine" : "") + (c.boom ? " boom" : "") + (c.a && !c.m ? " n" + c.a : "") : "") + (c.f && !c.o ? " fl" : "") + (c.bad ? " bad" : ""),
+        var cls = "c" + (c.o ? " op" + (c.m ? " mine" : "") + (c.boom ? " boom" : "") + (c.a && !c.m ? " n" + c.a : "") : "") + (c.f && !c.o ? " fl" : "") + (c.bad ? " bad" : ""),
             t = c.o ? (c.m ? "✱" : (c.a || "")) : (c.bad ? "✕" : (c.f ? "⚑" : ""));
         var b = btns[i]; if (b.className !== cls) b.className = cls; if (b.textContent !== t) b.textContent = t;
       });

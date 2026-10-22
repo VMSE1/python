@@ -41,7 +41,7 @@
       '<div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center"><button type="button" id="egj">Прыжок</button><button type="button" id="egx" class="g">Выйти</button></div>';
     document.body.appendChild(ov);
     var cv = ov.querySelector("#egc"), c = cv.getContext("2d"), msg = ov.querySelector("#egm"), title = ov.querySelector("#egt");
-    var GOAL = 25, raf = 0, last = 0, T = 0, s, UM = 5, PW = 36, PH = MH * UM;
+    var GOAL = 25, raf = 0, last = 0, T = 0, s, t0 = performance.now(), UM = 5, PW = 36, PH = MH * UM;
     var BOOST = { shield: { name: "Щит", col: "#4db8ff", dur: 0 }, slow: { name: "Замедление", col: "#ffe14d", dur: 6 }, jump2: { name: "Двойной прыжок", col: "#6dff8a", dur: 9 } };
     function reset() {
       s = { y: 0, vy: 0, on: true, obs: [], items: [], cleared: 0, gap: 150, speed: 230, next: 1.2, nextItem: 5, state: "play", f: 0, ft: 0, flash: 0, jumps: 0, shield: false, slow: 0, jump2: 0, note: "", noteT: 0 };
@@ -126,6 +126,7 @@
     function winScreen() {
       var d = new Date(), pad = function (x) { return ("0" + x).slice(-2); }, stamp = pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
       try { localStorage.setItem("skull", JSON.stringify({ at: d.toISOString(), nick: who() })); } catch (e) {}
+      try { if (window.Net && Net.score) Net.score("skull", Math.round((performance.now() - t0) / 1000)); } catch (e) {}
       msg.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap"><div style="font:400 clamp(44px,10vw,72px)/1 \'Press Start 2P\',monospace;color:#d98a00;background:#fff;border:5px solid #000;padding:10px 22px;box-shadow:6px 6px 0 #000" aria-label="Секретная игра пройдена">★</div><div style="text-align:left"><b style="font-size:1.4em">Ты убежал!</b><br>Секрет найден. Скелет теперь твой друг.<br><span style="opacity:.85">' + (who() ? who() + " · " : "") + stamp + '</span></div></div>';
       if (opts.onWin) { try { opts.onWin(); } catch (e) {} }
     }

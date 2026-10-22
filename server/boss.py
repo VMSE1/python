@@ -142,6 +142,7 @@ class Boss:
         self.last_tick = 0.0
         self.next_big = 0.0
         self.won = False
+        self.recorded = False
 
     # --- события
     def ev(self, kind, nick="", v=0):

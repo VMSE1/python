@@ -182,6 +182,7 @@
   function practice() {
     if (ov) return;
     game(function (win, secs) {
+      if (win) { try { if (window.Net && Net.score) Net.score("barrels", Math.round(secs)); } catch (e) {} }
       mount('<div class="tt">' + (win ? "Ты дошёл!" : "Не вышло") + '</div><div class="tx">' + (win ? "Тренировка пройдена за " + secs + " с. Оценок за неё нет, это просто секрет." : "Бочка оказалась быстрее. Тренировка не считается, можно ещё раз.") + '</div><div class="pad"><button type="button" id="lka">Ещё раз</button><button type="button" id="lkx">Закрыть</button></div>');
       ov.querySelector("#lkx").onclick = close; ov.querySelector("#lka").onclick = function () { close(); practice(); }; ov.querySelector("#lka").focus();
     });
