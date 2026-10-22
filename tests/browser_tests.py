@@ -893,7 +893,7 @@ def botguard(b, base):
     cdp = ctx.new_cdp_session(pg)
     import threading as _th
     cdp.on("Debugger.paused", lambda e: _th.Timer(0.4, lambda: None).start() or pg.wait_for_timeout(400) or cdp.send("Debugger.resume"))
-    cdp.send("Debugger.enable"); pg.wait_for_timeout(3500)
+    cdp.send("Debugger.enable"); pg.wait_for_timeout(6000)
     check("F12: при открытых инструментах разработчика редактор блокируется", pg.evaluate("document.getElementById('code').readOnly") and "F12" in pg.inner_text("#hn"), pg.inner_text("#hn")[:60])
     cdp.send("Debugger.disable"); pg.wait_for_timeout(2500)
     check("F12: после закрытия инструментов редактор снова доступен", not pg.evaluate("document.getElementById('code').readOnly"))
@@ -901,7 +901,7 @@ def botguard(b, base):
     ctx.close()
     # 5. поддельный «режим учителя» из консоли не отключает проверку на F12
     ctx = new_ctx(b, raw=True); ctx.add_init_script("localStorage.setItem('teacher','x')"); pg = ctx.new_page(); pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code")
-    cdp = ctx.new_cdp_session(pg); cdp.on("Debugger.paused", lambda e: pg.wait_for_timeout(400) or cdp.send("Debugger.resume")); cdp.send("Debugger.enable"); pg.wait_for_timeout(3500)
+    cdp = ctx.new_cdp_session(pg); cdp.on("Debugger.paused", lambda e: pg.wait_for_timeout(400) or cdp.send("Debugger.resume")); cdp.send("Debugger.enable"); pg.wait_for_timeout(6000)
     check("F12: флажок teacher в localStorage не освобождает от блокировки", pg.evaluate("document.getElementById('code').readOnly"))
     ctx.close()
 

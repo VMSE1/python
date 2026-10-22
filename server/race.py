@@ -186,7 +186,7 @@ class Race:
         fl = meta_flags(meta)
         if fl is None:
             return "Код отправлен не через страницу гонки."
-        if fl.get("a") or fl.get("d") or fl.get("e"):
+        if fl.get("a") or fl.get("d") or fl.get("e", 0) >= 3:
             return "Ввод заблокирован защитой (бот, F12 или правка из консоли)."
         if len(code.strip()) > 20 and fl.get("t", 0) < len(code.strip()) * 0.6:
             return "Код не набран руками на странице."

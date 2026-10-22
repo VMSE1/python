@@ -51,19 +51,21 @@ var Honest = (function () {
      подделанное событие), откатывается, а попытка записывается в счётчик e. */
   function attach(ta, o) {
     o = o || {}; try { ta.maxLength = MAXC; } catch (e) {} var id = o.id || "x", key = "hn_" + id, ckey = "hnc_" + id, st = { t: 0, p: 0, b: 0, e: 0, s: 0, a: 0, d: 0 }, last = 0, win = [], lkey = "hnl_" + id, locked = false, kd = [], orphan = 0, lastKey = 0;
-    try { var sv = JSON.parse(localStorage.getItem(key) || "null"); if (sv && typeof sv.t === "number") st = { t: sv.t | 0, p: sv.p | 0, b: sv.b | 0, e: sv.e | 0, s: sv.s | 0, a: sv.a | 0, d: sv.d | 0 }; } catch (e) {}
+    try { var sv = JSON.parse(localStorage.getItem(key) || "null"); if (sv && typeof sv.t === "number") st = { t: sv.t | 0, p: sv.p | 0, b: sv.b | 0, e: sv.e | 0, s: sv.s | 0, a: 0, d: 0 } /* бот и F12 не переносим между визитами: ложное срабатывание не должно висеть вечно */; } catch (e) {}
     var shadow = NAT.get.call(ta), hist = [shadow], initial = o.starter != null ? o.starter : shadow;
-    try { var hc = localStorage.getItem(ckey); if (hc && hc !== hash(shadow)) st.e++; } catch (e) {}
+    
     function lock(why) {
       if (locked) return; locked = true; st.a = 1;
       try { ta.readOnly = true; ta.setAttribute("aria-readonly", "true"); } catch (e) {}
       try { localStorage.setItem(lkey, String(Date.now())); } catch (e) {}
       save(); say("bot", 0);
+      /* ложное срабатывание не должно запирать ученика надолго: через 45 секунд редактор открывается снова */
+      setTimeout(function () { locked = false; st.a = 0; orphan = 0; kd = []; try { ta.readOnly = false; ta.setAttribute("aria-readonly", "false"); localStorage.removeItem(lkey); } catch (e) {} save(); say("devtools-off", 0); }, 45000);
     }
     var devLocked = false;
     function devOpen() {
       var t0 = performance.now(); debugger; /* при открытых инструментах разработчика здесь остановка: проходит много времени */
-      if (performance.now() - t0 > 120) return true;
+      if (performance.now() - t0 > 300) return true;
       var hit = false, el = new Image(); try { Object.defineProperty(el, "id", { get: function () { hit = true; return ""; } }); console.debug(el); } catch (e) {}
       return hit;
     }
@@ -83,7 +85,7 @@ var Honest = (function () {
         if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (k === "i" || k === "j" || k === "c")) || (e.ctrlKey && k === "u") || (e.metaKey && e.altKey && (k === "i" || k === "j" || k === "c" || k === "u"))) { e.preventDefault(); e.stopPropagation(); say("devkey", 0); }
       }, true);
       ta.addEventListener("contextmenu", function (e) { e.preventDefault(); }, true);
-      setInterval(function () { if (document.hidden || teacherOk) return; try { devLock(devOpen()); } catch (e) {} }, 1000);
+      var devHits = 0; setInterval(function () { if (document.hidden || teacherOk) return; try { if (devOpen()) { if (++devHits >= 3) devLock(true); } else { devHits = 0; devLock(false); } } catch (e) {} }, 1000);
     }
     function save() { try { localStorage.setItem(key, JSON.stringify(st)); localStorage.setItem(ckey, hash(shadow)); } catch (e) {} }
     function say(kind, n) { if (o.onBlock) o.onBlock(kind, n); }
@@ -118,7 +120,7 @@ var Honest = (function () {
       var grow = v.length - shadow.length;
       if (!undo && grow > 0 && v.length > MAXC) { e.stopImmediatePropagation(); put(shadow); say("size", 0); return; }
       if ((undo && hist.indexOf(v) < 0) || (!undo && (grow > BULK + 5 || (grow > 0 && tooFast(grow))))) { e.stopImmediatePropagation(); revert(undo ? "script" : "bulk"); if (!undo) { st.e--; st.b++; save(); } return; }
-      if (!TEST && !locked && t === "insertText" && d.length === 1 && !(navigator.maxTouchPoints > 0) && performance.now() - lastKey > 700) { if (++orphan >= 12) lock("orphan"); }
+      if (!TEST && !locked && t === "insertText" && d.length === 1 && !(navigator.maxTouchPoints > 0) && performance.now() - lastKey > 700) { if (++orphan >= 40) lock("orphan"); }
       if (/^insert(Text|CompositionText|ReplacementText)$/.test(t)) st.t += d.length;
       else if (t === "insertLineBreak" || t === "insertParagraph") st.t += 1;
       remember(v); tick(); save();
@@ -128,7 +130,7 @@ var Honest = (function () {
         var now = performance.now(); lastKey = now; kd.push(now); if (kd.length > 40) kd.shift();
         if (kd.length >= 30) {
           var d = [], i, m = 0, v = 0; for (i = 1; i < kd.length; i++) { d.push(kd[i] - kd[i - 1]); } d = d.filter(function (x) { return x < 1500; });
-          if (d.length >= 28) { for (i = 0; i < d.length; i++) m += d[i]; m /= d.length; for (i = 0; i < d.length; i++) v += (d[i] - m) * (d[i] - m); var sd = Math.sqrt(v / d.length); if (m > 0 && sd / m < 0.22 && m < 700) lock("rhythm"); }
+          if (d.length >= 28) { for (i = 0; i < d.length; i++) m += d[i]; m /= d.length; for (i = 0; i < d.length; i++) v += (d[i] - m) * (d[i] - m); var sd = Math.sqrt(v / d.length); if (m > 0 && sd / m < 0.2 && m < 250) lock("rhythm"); }
         }
       }
       if (e.key !== "Tab" || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
@@ -141,7 +143,7 @@ var Honest = (function () {
       fill: function (text) { put(text); remember(text); save(); if (ta.oninput) ta.oninput(); } };
     if (S) S.set(ta, h); save();
     if (!TEST) watchTools();
-    try { var lt = +localStorage.getItem(lkey) || 0; if (lt && Date.now() - lt < 15 * 60 * 1000) { lock("saved"); } else if (lt) localStorage.removeItem(lkey); } catch (e) {}
+    try { var lt = +localStorage.getItem(lkey) || 0; if (lt && Date.now() - lt < 45 * 1000) { lock("saved"); } else if (lt) localStorage.removeItem(lkey); } catch (e) {}
     if (!TEST && !locked) { var sig = autoSign(); if (sig) lock(sig); }
   }
   function H(ta) { var h = S && S.get(ta); if (!h) throw new Error("Honest: поле не подключено"); return h; }
