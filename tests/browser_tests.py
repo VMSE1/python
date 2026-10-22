@@ -1069,7 +1069,7 @@ def gate(b, base):
     cx = api_ctx(b, "http://127.0.0.1:9"); q = cx.new_page(); q.goto(base + "index.html"); q.wait_for_timeout(6000)
     check("вход: если сервер не отвечает, окно входа не закрывает сайт", q.locator("#gate").count() == 0 and q.locator("a.ico").count() > 0)
     # кабинет по ключу
-    ct = api_ctx(b, api); t = ct.new_page(); attach_errors(t, bag); t.goto(base + "teacher.html"); t.wait_for_selector("#sk")
+    ct = api_ctx(b, api); t = ct.new_page(); attach_errors(t, bag); t.goto(base + "teacher.html"); t.wait_for_selector("#tf"); t.evaluate("document.querySelector(\"details\").open=true")
     t.fill("#sk", "bad"); t.click("#sin"); t.wait_for_selector("#sm.bad"); check("кабинет: неверный ключ не пускает", "не подошёл" in t.inner_text("#sm"))
     t.fill("#sk", "teacher-secret"); t.click("#sin"); t.wait_for_selector("#tb", timeout=8000)
     check("кабинет: по ключу видны вкладки Игра, Сдачи, Пароли", all(x in t.inner_text("#tb") for x in ("Игра", "Сдачи", "Пароли")))
@@ -1087,7 +1087,7 @@ def boss(b, base):
         ctx = api_ctx(b, api, w, h, mobile=mobile); pg = ctx.new_page(); attach_errors(pg, bag); pg.goto(base + "index.html"); pg.wait_for_selector("#gate")
         pg.fill("#gn", nick); pg.fill("#gp", "secret1"); pg.fill("#ge", nick + "@mail.ru"); pg.click("#ggo"); pg.wait_for_selector("#gate", state="detached", timeout=8000); pg.wait_for_timeout(500); return ctx, pg
     c1, s1 = student("anya_b"); c2, s2 = student("boris_b", 390, 780, True)
-    ct = api_ctx(b, api, gate=False); t = ct.new_page(); attach_errors(t, bag); t.goto(base + "teacher.html"); t.wait_for_selector("#sk")
+    ct = api_ctx(b, api, gate=False); t = ct.new_page(); attach_errors(t, bag); t.goto(base + "teacher.html"); t.wait_for_selector("#tf"); t.evaluate("document.querySelector(\"details\").open=true")
     t.fill("#sk", "teacher-secret"); t.click("#sin"); t.wait_for_selector("#tb", timeout=8000); t.click('#tb button[data-k="game"]'); t.wait_for_selector("#ba")
     check("кабинет: есть кнопки босса и «Выключить игру»", all(x in t.inner_text("#tab") for x in ("Запустить арену", "Начать бой", "Остановить бой", "Выключить игру")))
     t.click("#ba"); t.wait_for_selector("#bmsg.ok", timeout=6000)
@@ -1129,7 +1129,7 @@ def admin(b, base):
         ctx = api_ctx(b, api, w, h, mobile=mobile); pg = ctx.new_page(); attach_errors(pg, bag); pg.goto(base + "index.html"); pg.wait_for_selector("#gate")
         pg.fill("#gn", nick); pg.fill("#gp", "secret1"); pg.fill("#ge", nick + "@mail.ru"); pg.click("#ggo"); pg.wait_for_selector("#gate", state="detached", timeout=8000); pg.wait_for_timeout(500); return ctx, pg
     c1, s1 = student("adm_one"); c2, s2 = student("adm_two", 390, 780, True)
-    ct = api_ctx(b, api, gate=False); t = ct.new_page(); attach_errors(t, bag); t.goto(base + "teacher.html"); t.wait_for_selector("#sk")
+    ct = api_ctx(b, api, gate=False); t = ct.new_page(); attach_errors(t, bag); t.goto(base + "teacher.html"); t.wait_for_selector("#tf"); t.evaluate("document.querySelector(\"details\").open=true")
     t.fill("#sk", "teacher-secret"); t.click("#sin"); t.wait_for_selector("#tb", timeout=8000); t.click('#tb button[data-k="game"]'); t.wait_for_selector("#gla")
     t.click("#gla"); t.wait_for_selector("#gmsg.ok", timeout=6000)
     for pg in (s1, s2): pg.wait_for_selector("#lk", timeout=9000)
