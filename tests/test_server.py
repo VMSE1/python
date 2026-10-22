@@ -137,6 +137,56 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         r = await self.cl.post("/api/teacher/play", json={"action": "kick", "nick": "vera"}, headers=T); d = await r.json(); self.assertEqual([w["nick"] for w in d["winners"]], ["anya", "boris"])
         r = await self.cl.post("/api/teacher/play", json={"action": "stop"}, headers=T); d = await r.json(); self.assertEqual(d["phase"], "end")
 
+    async def test_boss_arena(self):
+        A = self.A; A.BOSS.reset(); T = {"X-Teacher-Key": "teacher-secret"}
+        A.B.MIN_THINK = 0; A.B.ANSWER_GAP = 0
+        r = await self.cl.post("/api/teacher/play", json={"action": "boss_announce"}); self.assertEqual(r.status, 403)
+        d = await (await self.cl.get("/api/play")).json(); self.assertEqual(d["game"], "race")
+        d = await (await self.cl.post("/api/teacher/play", json={"action": "boss_announce"}, headers=T)).json(); self.assertEqual(d["phase"], "intro")
+        d = await (await self.cl.get("/api/play")).json(); self.assertEqual((d["game"], d["phase"]), ("boss", "intro"))
+        h1, h2 = await self.race_user("anya"), await self.race_user("boris")
+        r = await self.cl.post("/api/boss/join", json={}); self.assertEqual(r.status, 401)
+        for h in (h1, h2):
+            self.assertEqual((await self.cl.post("/api/boss/join", json={}, headers=h)).status, 200)
+        r = await self.cl.post("/api/boss/ask", json={"lvl": "easy"}, headers=h1); self.assertEqual(r.status, 400)  # бой ещё не идёт
+        d = await (await self.cl.post("/api/teacher/play", json={"action": "boss_start", "hp_per": 10000}, headers=T)).json()
+        self.assertEqual((d["phase"], d["hpmax"], d["hp"]), ("run", 40000, 40000))   # минимум 40 000
+        r = await self.cl.post("/api/boss/ask", json={"lvl": "nope"}, headers=h1); self.assertEqual(r.status, 400)
+        d = await (await self.cl.post("/api/boss/ask", json={"lvl": "easy"}, headers=h1)).json()
+        self.assertEqual(len(d["q"]["opts"]), 4); self.assertNotIn("ok", d["q"]); self.assertNotIn("answer", json.dumps(d))
+        uid1 = [u for u, p in A.BOSS.players.items() if p["nick"] == "anya"][0]
+        right = A.BOSS.players[uid1]["q"]["ok"]
+        d = await (await self.cl.post("/api/boss/answer", json={"a": right}, headers=h1)).json()
+        self.assertTrue(d["right"]); self.assertEqual(d["dmg"], 100); self.assertEqual(d["hp"], 39900); self.assertEqual(d["me"]["dmg"], 100)
+        # сложный вопрос, верно, серия 2 даёт множитель 1.1
+        d = await (await self.cl.post("/api/boss/ask", json={"lvl": "hard"}, headers=h1)).json(); self.assertEqual(d["q"]["dmg"], 300)
+        d = await (await self.cl.post("/api/boss/answer", json={"a": A.BOSS.players[uid1]["q"]["ok"]}, headers=h1)).json(); self.assertEqual(d["dmg"], 330)
+        # ответ без вопроса
+        d = await (await self.cl.post("/api/boss/answer", json={"a": 0}, headers=h1)).json(); self.assertIn("error", d)
+        # неверный ответ лечит босса и оглушает
+        uid2 = [u for u, p in A.BOSS.players.items() if p["nick"] == "boris"][0]
+        await self.cl.post("/api/boss/ask", json={"lvl": "easy"}, headers=h2)
+        wrong = (A.BOSS.players[uid2]["q"]["ok"] + 1) % 4; hp0 = A.BOSS.hp
+        d = await (await self.cl.post("/api/boss/answer", json={"a": wrong}, headers=h2)).json()
+        self.assertFalse(d["right"]); self.assertGreater(d["heal"], 0); self.assertGreaterEqual(A.BOSS.hp, hp0)
+        r = await self.cl.post("/api/boss/ask", json={"lvl": "easy"}, headers=h2); self.assertEqual(r.status, 400); self.assertIn("Оглушён", (await r.json())["error"])
+        # лечение босса со временем
+        A.BOSS.hp = 30000; A.BOSS.tick(A.BOSS.last_tick + 60); self.assertGreater(A.BOSS.hp, 30000)
+        # рейтинг
+        st = await (await self.cl.get("/api/boss/state", headers=h2)).json(); self.assertEqual(st["players"][0]["nick"], "anya"); self.assertEqual(st["me"]["rank"], 2)
+        # победа
+        A.BOSS.hp = 50
+        await self.cl.post("/api/boss/ask", json={"lvl": "easy"}, headers=h1)
+        d = await (await self.cl.post("/api/boss/answer", json={"a": A.BOSS.players[uid1]["q"]["ok"]}, headers=h1)).json()
+        self.assertEqual((d["phase"], d["won"], d["hp"]), ("end", True, 0))
+        # учитель выключает игру
+        d = await (await self.cl.post("/api/teacher/play", json={"action": "boss_reset"}, headers=T)).json(); self.assertEqual(d["phase"], "idle")
+        d = await (await self.cl.get("/api/play")).json(); self.assertEqual(d["game"], "race")
+        # запуск гонки гасит арену
+        await self.cl.post("/api/teacher/play", json={"action": "boss_announce"}, headers=T); await self.cl.post("/api/teacher/play", json={"action": "announce"}, headers=T)
+        self.assertEqual(A.BOSS.phase, "idle")
+        await self.cl.post("/api/teacher/play", json={"action": "reset"}, headers=T)
+
     async def test_race_antiscript(self):
         A = self.A; A.RACE.reset(); T = {"X-Teacher-Key": "teacher-secret"}; A.R.MIN_GAP = 0; A.R.TYPE_RATE = 1e9
         await self.cl.post("/api/teacher/play", json={"action": "announce"}, headers=T)

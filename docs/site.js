@@ -222,11 +222,12 @@ function fetchIssues(label, cb, fail) {
 (function () {
   if (typeof document === "undefined" || location.protocol === "file:") return;
   var path = location.pathname.split("/").pop() || "index.html";
-  if (/^(race|teacher|students)\.html$/.test(path)) return;
+  if (/^(race|boss|teacher|students)\.html$/.test(path)) return;
   try { if (sessionStorage.getItem("tkey")) return; } catch (e) {}
   var busy = false, started = false;
   function api() { return String(window.API_BASE || "").replace(/\/+$/, ""); }
-  function goRace() { try { sessionStorage.setItem("playBack", location.href); } catch (e) {} location.href = "race.html"; }
+  var gameName = "race";
+  function goRace() { try { sessionStorage.setItem("playBack", location.href); } catch (e) {} location.href = gameName === "boss" ? "boss.html" : "race.html"; }
   function intro() {
     var run = function () { window.Egg.play({ ms: 5000, onClose: goRace }); };
     if (window.Egg && window.Egg.play) run(); else { var sc = document.createElement("script"); sc.src = "egg.js"; sc.onload = run; sc.onerror = goRace; document.head.appendChild(sc); }
@@ -245,7 +246,7 @@ function fetchIssues(label, cb, fail) {
     var seen = ""; try { seen = sessionStorage.getItem("playSeen") || ""; } catch (e) {}
     if (seen === String(j.id)) return;
     try { sessionStorage.setItem("playSeen", String(j.id)); } catch (e) {}
-    started = true;
+    started = true; gameName = j.game === "boss" ? "boss" : "race";
     if (j.phase === "run") goRace(); else intro();
   }
   function poll() {
@@ -263,7 +264,7 @@ function fetchIssues(label, cb, fail) {
 (function () {
   if (typeof document === "undefined" || location.protocol === "file:") return;
   var path = location.pathname.split("/").pop() || "index.html";
-  if (/^(teacher|students|account)\.html$/.test(path)) return;
+  if (/^(teacher|students|account)\.html$/.test(path) || (path === "boss.html" && /[?&]board=1/.test(location.search))) return;
   function need(src, cb) { var s = document.createElement("script"); s.src = src; s.onload = cb; s.onerror = function () {}; document.head.appendChild(s); }
   function go() {
     if (!window.Net || !Net.on || Net.user()) return;

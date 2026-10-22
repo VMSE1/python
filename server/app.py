@@ -16,6 +16,7 @@ from email.message import EmailMessage
 from aiohttp import web, WSMsgType
 
 import race as R
+import boss as B
 
 DB_PATH = os.environ.get("DB_PATH", "data.sqlite")
 TEACHER_KEY = os.environ.get("TEACHER_KEY", "")
@@ -946,13 +947,18 @@ async def t_lucky(req):
 
 # ---------------------------------------------------------------- гонка
 RACE = R.Race()
+BOSS = B.Boss()
 JUDGE_SEM = None
 
 
 async def play_state(req):
     """Дешёвый публичный запрос: ученики опрашивают его раз в несколько секунд, чтобы узнать, не началась ли игра."""
     RACE.tick()
-    out = {"ok": True, "id": RACE.id, "phase": RACE.phase, "intro": max(0, int(RACE.intro_end - time.time() + .999)) if RACE.phase == "intro" else 0, "n": len(RACE.players), "t": int(time.time() * 1000)}
+    BOSS.tick()
+    if BOSS.phase in ("intro", "lobby", "run"):
+        out = {"ok": True, "game": "boss", "id": BOSS.id, "phase": BOSS.phase, "intro": max(0, int(BOSS.intro_end - time.time() + .999)) if BOSS.phase == "intro" else 0, "n": len(BOSS.players), "t": int(time.time() * 1000)}
+    else:
+        out = {"ok": True, "game": "race", "id": RACE.id, "phase": RACE.phase, "intro": max(0, int(RACE.intro_end - time.time() + .999)) if RACE.phase == "intro" else 0, "n": len(RACE.players), "t": int(time.time() * 1000)}
     u = user_from(req) if req.headers.get("Authorization") else None
     if u:
         ONLINE[u[0]] = time.time()
@@ -969,7 +975,28 @@ async def t_play(req):
         return jerr("Нужен ключ учителя.", 403)
     d = await body(req)
     a = d.get("action")
-    if a == "announce":
+    if a == "boss_announce":
+        RACE.reset()
+        BOSS.announce()
+        return web.json_response(BOSS.view())
+    elif a == "boss_start":
+        if not BOSS.start(d.get("hp_per")):
+            return jerr("Сначала нажми «Запустить арену».")
+        return web.json_response(BOSS.view())
+    elif a == "boss_stop":
+        BOSS.stop()
+        return web.json_response(BOSS.view())
+    elif a == "boss_reset":
+        BOSS.reset()
+        return web.json_response(BOSS.view())
+    elif a == "boss_kick":
+        if not BOSS.kick(d.get("nick", "")):
+            return jerr("Такого игрока нет.")
+        return web.json_response(BOSS.view())
+    elif a == "boss_state":
+        return web.json_response(BOSS.view())
+    elif a == "announce":
+        BOSS.reset()
         RACE.announce()
     elif a == "start":
         RACE.tick()
@@ -991,6 +1018,57 @@ async def t_play(req):
     else:
         return jerr("Неизвестное действие.")
     return web.json_response(RACE.view())
+
+
+# ---------------------------------------------------------------- босс-арена
+def _i(x):
+    try:
+        return int(x or 0)
+    except Exception:
+        return 0
+
+
+async def boss_join(req):
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти или зарегистрироваться.", 401)
+    e = BOSS.join(u[0], u[1])
+    if e:
+        return jerr(e)
+    return web.json_response(BOSS.view(u[0]))
+
+
+async def boss_state(req):
+    u = user_from(req) if req.headers.get("Authorization") else None
+    try:
+        since = int(req.query.get("since", "0"))
+    except Exception:
+        since = 0
+    if u:
+        ONLINE[u[0]] = time.time()
+    resp = web.json_response(BOSS.view(u[0] if u else None, since))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+async def boss_ask(req):
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    d = await body(req)
+    q, err = BOSS.ask(u[0], str(d.get("lvl", "")))
+    if err:
+        return jerr(err)
+    return web.json_response({"ok": True, "q": q, **BOSS.view(u[0], _i(d.get("since")))})
+
+
+async def boss_answer(req):
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    d = await body(req)
+    r = BOSS.answer(u[0], d.get("a"))
+    return web.json_response({**BOSS.view(u[0], _i(d.get("since"))), **r})
 
 
 async def race_join(req):
@@ -1067,7 +1145,7 @@ def make_app():
     app.add_routes([
         web.get("/api/ping", ping), web.post("/api/register", register), web.post("/api/login", login), web.post("/api/logout", logout),
         web.post("/api/recover", recover), web.post("/api/recover/confirm", recover_confirm), web.get("/api/teacher/recov", t_recov), web.post("/api/submit", submit), web.get("/api/teacher/subs", t_subs), web.get("/api/teacher/sub", t_sub),
-        web.get("/api/play", play_state), web.post("/api/lucky/spin", lucky_spin), web.post("/api/lucky/finish", lucky_finish), web.get("/api/teacher/lucky", t_lucky), web.post("/api/teacher/play", t_play), web.post("/api/race/join", race_join), web.get("/api/race/state", race_state), web.post("/api/race/submit", race_submit),
+        web.get("/api/play", play_state), web.post("/api/lucky/spin", lucky_spin), web.post("/api/lucky/finish", lucky_finish), web.get("/api/teacher/lucky", t_lucky), web.post("/api/teacher/play", t_play), web.post("/api/race/join", race_join), web.post("/api/boss/join", boss_join), web.get("/api/boss/state", boss_state), web.post("/api/boss/ask", boss_ask), web.post("/api/boss/answer", boss_answer), web.get("/api/race/state", race_state), web.post("/api/race/submit", race_submit),
         web.get("/api/me", me), web.put("/api/progress", put_progress),
         web.get("/api/teacher/check", t_check), web.get("/api/teacher/users", t_users), web.post("/api/teacher/reset", t_reset), web.delete("/api/teacher/user", t_delete),
         web.get("/ws", ws_handler),

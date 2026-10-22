@@ -1,0 +1,188 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com https://course.2-27-53-182.sslip.io wss://course.2-27-53-182.sslip.io; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Босс-арена</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="live.css"><link rel="stylesheet" href="boss.css"></head><body>
+<main class="wrap lvwrap">
+<div class="crumbs">Босс-арена</div>
+<div id="app" class="lv bs" aria-live="polite"></div>
+</main>
+<script src="site.js"></script><script src="config.js"></script><script src="net.js"></script><script src="egg.js"></script>
+<script>
+layout("boss.html","Босс-арена");
+(function(){
+var app=document.getElementById("app"),BOARD=/[?&]board=1/.test(location.search);
+if(BOARD)app.classList.add("big");
+var S={st:null,seq:0,busy:false,joining:false,tm:null,q:null,fb:null,lastLvl:"",ending:false};
+function $(i){return document.getElementById(i)}
+function esc(t){return String(t==null?"":t).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function num(n){return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g," ")}
+var BACK="";try{BACK=sessionStorage.getItem("playBack")||""}catch(e){}
+var E=window.Egg;
+var COLS=["#d62839","#2a7fd6","#2a9d4a","#d98a00","#8a3fd6","#d6397a","#0f8f8f"];
+function hue(n){var h=0;for(var i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))>>>0;return COLS[h%COLS.length]}
+
+/* ---------- сцена ---------- */
+var W=640,H=360,cv=null,cx=null,raf=0,T=0,last=0;
+var fx={shake:0,flash:0,flashCol:"#fff",hpShown:null,balls:[],txt:[],banner:null,men:{},laugh:0,boom:0,rage:false};
+function addTxt(x,y,s,col,big){fx.txt.push({x:x,y:y,s:s,col:col,t:0,big:big})}
+function bossPos(){return{x:W/2,y:96}}
+function slot(i,n){ /* ряд человечков: до 12 в ряд, при большем числе второй ряд */
+ var per=n>12?Math.ceil(n/2):n,row=n>12?(i<per?0:1):0,idx=n>12&&i>=per?i-per:i,cnt=n>12?(row===0?per:n-per):n;
+ var gap=Math.min(54,(W-40)/Math.max(1,cnt));var x0=W/2-gap*(cnt-1)/2;
+ return{x:x0+idx*gap,y:n>12?(row===0?262:322):300}}
+function manOf(nick){var m=fx.men[nick];return m}
+function layoutMen(st){
+ var pl=st.players.slice(0,24),n=pl.length;
+ pl.forEach(function(p,i){var s=slot(i,n),m=fx.men[p.nick];
+  if(!m)m=fx.men[p.nick]={x:s.x,y:s.y,jump:0,ph:Math.random()*6};
+  m.tx=s.x;m.ty=s.y;m.nick=p.nick;m.dmg=p.dmg;m.me=p.me;m.streak=p.streak;m.on=true});
+ Object.keys(fx.men).forEach(function(k){if(!pl.some(function(p){return p.nick===k}))delete fx.men[k]})}
+function spawnHit(ev){
+ var m=manOf(ev.nick),bp=bossPos(),sx=m?m.x:60+Math.random()*(W-120),sy=(m?m.y:300)-30;
+ if(m)m.jump=1;
+ fx.balls.push({x:sx,y:sy,tx:bp.x+(Math.random()*40-20),ty:bp.y+40,t:0,big:ev.k==="bighit",v:ev.v})}
+function applyEvents(evs){
+ evs.forEach(function(ev){
+  if(ev.k==="hit"||ev.k==="bighit")spawnHit(ev);
+  else if(ev.k==="heal"){var bp=bossPos();addTxt(bp.x+(Math.random()*80-40),bp.y+10,"+"+ev.v,"#52ff7a",false);fx.laugh=.5;fx.flash=.25;fx.flashCol="#00ff66"}
+  else if(ev.k==="bigheal"){fx.banner={s:"БОСС ЛЕЧИТСЯ +"+num(ev.v),col:"#52ff7a",t:0};fx.laugh=1.6;fx.flash=.6;fx.flashCol="#00ff66"}
+  else if(ev.k==="start"){fx.banner={s:"БОЙ!",col:"#ffe14d",t:0}}
+  else if(ev.k==="dead"){fx.boom=1.8;fx.banner={s:"БОСС ПОВЕРЖЕН!",col:"#ffe14d",t:0}}
+ })}
+function frame(ts){
+ raf=requestAnimationFrame(frame);
+ var dt=Math.min(.05,(ts-last)/1000||0);last=ts;T+=dt;
+ if(!cx)return;
+ var st=S.st;if(!st)return;
+ var hpT=st.hp;if(fx.hpShown==null)fx.hpShown=hpT;fx.hpShown+=(hpT-fx.hpShown)*Math.min(1,dt*5);
+ var frac=st.hpmax?Math.max(0,fx.hpShown/st.hpmax):1;fx.rage=frac<.25&&st.phase==="run";
+ /* фон */
+ var g=cx.createLinearGradient(0,0,0,H);g.addColorStop(0,fx.rage?"#3a0610":"#1a0838");g.addColorStop(1,"#0a0318");cx.fillStyle=g;cx.fillRect(0,0,W,H);
+ for(var i=0;i<26;i++){cx.fillStyle="rgba(255,255,255,"+(.3+.3*Math.sin(T*2+i*7))+")";cx.fillRect((i*83)%W,(i*47)%150,2,2)}
+ cx.fillStyle="#241042";cx.fillRect(0,236,W,H-236);cx.fillStyle="#3a1a66";cx.fillRect(0,236,W,4);
+ /* босс */
+ var bp=bossPos(),u=8,sk=E.SKULL,bw=sk[0].length*u,bh=sk.length*u;
+ var sh=fx.shake>0?(Math.random()*2-1)*fx.shake*10:0;
+ var bob=Math.sin(T*2)*4+(fx.laugh>0?Math.sin(T*40)*3:0);
+ var dead=st.phase==="end"&&st.won;
+ if(dead&&fx.boom>0){fx.boom-=dt}
+ var bx=Math.round(bp.x-bw/2+sh),by=Math.round(6+bob+(dead?Math.min(120,(1.8-Math.max(0,fx.boom))*80):0));
+ if(!dead||fx.boom>0){
+  var over=fx.rage?{X:"#ffb3a7",E:"#ff2a2a"}:(fx.flash>0&&fx.flashCol==="#00ff66"?{X:"#c9ffd6"}:{E:"#ff3b3b"});
+  cx.globalAlpha=dead?Math.max(0,fx.boom/1.8):1;
+  E.sprite(cx,sk,bx,by,u,over);
+  /* рот-смех при лечении */
+  if(fx.laugh>0){cx.fillStyle="#16060a";var mo=Math.abs(Math.sin(T*18))*14+4;cx.fillRect(bx+u*5,by+u*14,u*6,mo)}
+  cx.globalAlpha=1}
+ /* полоса здоровья */
+ cx.fillStyle="#000";cx.fillRect(40,H-28,W-80,16);cx.fillStyle="#3a0a14";cx.fillRect(43,H-25,W-86,10);
+ cx.fillStyle=frac<.25?"#ff2a2a":"#e8364a";cx.fillRect(43,H-25,(W-86)*frac,10);
+ /* человечки */
+ var MAN=E.MAN,LEG=E.LEGS;
+ Object.keys(fx.men).forEach(function(k){var m=fx.men[k];
+  m.x+=(m.tx-m.x)*Math.min(1,dt*6);m.y+=(m.ty-m.y)*Math.min(1,dt*6);
+  if(m.jump>0)m.jump=Math.max(0,m.jump-dt*3);
+  var uu=3,lift=Math.sin(m.jump*Math.PI)*18,x=Math.round(m.x-4.5*uu),y=Math.round(m.y-14*uu-lift+Math.sin(T*3+m.ph)*1.5);
+  E.sprite(cx,MAN,x,y,uu,{R:hue(m.nick)});
+  E.sprite(cx,LEG[Math.floor(T*4+m.ph)%2],x,y+11*uu,uu);
+  if(m.me){cx.fillStyle="#ffe14d";cx.fillRect(Math.round(m.x)-3,y-10,6,6)}
+  cx.font="600 10px 'IBM Plex Mono',monospace";cx.textAlign="center";cx.fillStyle=m.me?"#ffe14d":"#fff";cx.fillText(m.nick.slice(0,9),m.x,m.y+13);
+  cx.fillStyle="#ffb84d";cx.fillText(num(m.dmg),m.x,m.y+24);
+  if(m.streak>=3){cx.fillStyle="#ff6a3d";cx.fillText("x"+Math.min(2,1+.1*(m.streak-1)).toFixed(1),m.x,y-2)}})
+ /* снаряды */
+ fx.balls=fx.balls.filter(function(b){b.t+=dt*2.2;var k=Math.min(1,b.t),x=b.x+(b.tx-b.x)*k,y=b.y+(b.ty-b.y)*k-Math.sin(k*Math.PI)*40;
+  cx.fillStyle=b.big?"#ff5af0":"#ffe14d";var r=b.big?7:4;cx.fillRect(x-r,y-r,r*2,r*2);cx.fillStyle="#fff";cx.fillRect(x-r/2,y-r/2,r,r);
+  if(k>=1){fx.shake=Math.max(fx.shake,b.big?.7:.35);addTxt(b.tx,b.ty-10,"-"+b.v,b.big?"#ff5af0":"#ffe14d",b.big);fx.flash=Math.max(fx.flash,.12);fx.flashCol="#fff";return false}return true});
+ /* вспышка */
+ if(fx.flash>0){cx.globalAlpha=Math.min(.35,fx.flash);cx.fillStyle=fx.flashCol;cx.fillRect(0,0,W,H);cx.globalAlpha=1;fx.flash-=dt}
+ fx.shake=Math.max(0,fx.shake-dt*2.5);fx.laugh=Math.max(0,fx.laugh-dt);
+ /* всплывающие цифры */
+ fx.txt=fx.txt.filter(function(o){o.t+=dt;var a=Math.max(0,1-o.t/1.1);cx.globalAlpha=a;cx.font="700 "+(o.big?22:15)+"px 'IBM Plex Mono',monospace";cx.textAlign="center";cx.fillStyle="#000";cx.fillText(o.s,o.x+1,o.y-o.t*40+1);cx.fillStyle=o.col;cx.fillText(o.s,o.x,o.y-o.t*40);cx.globalAlpha=1;return o.t<1.1});
+ /* надпись */
+ if(fx.banner){var b=fx.banner;b.t+=dt;var a2=Math.min(1,b.t*4)*Math.max(0,1-(b.t-1.6)/.6);cx.globalAlpha=Math.max(0,a2);cx.font="400 28px 'Press Start 2P',monospace";cx.textAlign="center";cx.fillStyle="#000";cx.fillText(b.s,W/2+3,172+3);cx.fillStyle=b.col;cx.fillText(b.s,W/2,172);cx.globalAlpha=1;if(b.t>2.2)fx.banner=null}
+ if(st.phase==="end"&&!st.won){cx.fillStyle="rgba(0,0,0,.45)";cx.fillRect(0,0,W,H)}
+}
+
+/* ---------- опрос сервера ---------- */
+function api(m,p,b){return Net.req(m,p,b)}
+function stop(){clearTimeout(S.tm);S.tm=null}
+function schedule(){stop();var ph=S.st&&S.st.phase;S.tm=setTimeout(poll,ph==="run"?1200:ph==="idle"?3000:2000)}
+function take(j){
+ if(!j||!j.ok||j.game!=="boss")return;
+ var first=S.st==null;S.st=j;S.qAt=performance.now();
+ if(first)fx.hpShown=j.hp;
+ if(j.events&&j.events.length){var evs=j.events.filter(function(e){return e.n>S.seq});if(!first||true){if(!first)applyEvents(evs)}}
+ S.seq=Math.max(S.seq,j.seq||0);
+ layoutMen(j)}
+function poll(){
+ if(S.busy)return;S.busy=true;
+ api("GET","/api/boss/state?since="+S.seq).then(function(j){S.busy=false;
+  if(j.status===401){Net.logout().then(function(){location.reload()});return}
+  if(!j.ok){draw(null,j.error);schedule();return}
+  take(j);
+  if(!BOARD&&!j.me.joined&&!S.joining&&(j.phase==="intro"||j.phase==="lobby"||j.phase==="run")){S.joining=true;api("POST","/api/boss/join",{}).then(function(r){S.joining=false;if(r.ok)take(r);draw(S.st)}).catch(function(){S.joining=false});}
+  draw(S.st);schedule()
+ }).catch(function(e){S.busy=false;draw(null,e.message);schedule()})}
+
+/* ---------- интерфейс ---------- */
+function hpBar(st){var pc=st.hpmax?Math.max(0,st.hp/st.hpmax*100):0;return'<div class="hpb" role="img" aria-label="Здоровье босса '+num(st.hp)+' из '+num(st.hpmax)+'"><i style="width:'+pc+'%"></i><b>БОСС: '+num(st.hp)+' / '+num(st.hpmax)+'</b></div>'}
+function rating(st){
+ var rows=st.players.slice(0,BOARD?12:8);
+ var h='<div class="rate"><div class="bhd" style="font-size:14px;margin:0 0 6px">Рейтинг по урону</div>';
+ if(!rows.length)h+='<div class="m">Пока никого.</div>';
+ rows.forEach(function(p,i){h+='<div class="rw'+(p.me?" me":"")+'"><span>'+(i===0?"🥇":i===1?"🥈":i===2?"🥉":(i+1)+".")+'</span><b>'+esc(p.nick)+(p.me?" (ты)":"")+'</b><span>'+num(p.dmg)+'</span></div>'});
+ var me=st.me&&st.me.joined&&!rows.some(function(p){return p.me});
+ if(me)h+='<div class="rw me"><span>'+st.me.rank+'.</span><b>ты</b><span>'+num(st.me.dmg)+'</span></div>';
+ return h+'</div>'}
+function head(st){
+ var p=st.phase;
+ if(p==="idle")return'<div class="bhd">Арены сейчас нет</div><p class="m">Учитель выключил игру или она ещё не началась. Когда она запустится, эта страница откроется сама.</p>';
+ if(p==="intro"||p==="lobby")return'<div class="bhd">Босс просыпается…</div><p class="m">В арене: <b>'+st.n+'</b>. Жди сигнала учителя. Отвечай на вопросы и бей босса вместе со всем классом!</p>';
+ if(p==="run")return'<div class="bhd">Бой идёт · '+Math.floor(st.elapsed/60)+':'+("0"+Math.floor(st.elapsed%60)).slice(-2)+'</div>';
+ return'<div class="bhd">'+(st.won?"Босс повержен!":"Бой окончен")+'</div>'}
+function ctlHtml(st){
+ if(BOARD)return"";
+ var me=st.me;
+ if(st.phase==="end"){
+  var top=st.players[0];
+  return'<div class="box fin"><p>'+(st.won?'<b>Победа всего класса!</b> ':'Учитель остановил бой. ')+(me.joined?'Твой урон: <b>'+num(me.dmg)+'</b>, место <b>'+me.rank+'</b>, верных ответов '+me.ok+', лучшая серия '+me.best+'.':'')+(top?' Лучший боец: <b>'+esc(top.nick)+'</b> ('+num(top.dmg)+').':'')+'</p>'+(BACK?'<p><a class="btn" href="'+esc(BACK)+'">Вернуться на сайт</a></p>':'<p><a class="btn" href="index.html">На главный экран</a></p>')+'</div>'}
+ if(st.phase!=="run")return"";
+ if(!me.joined)return'<div class="m">Подключаемся к бою…</div>';
+ if(S.fb)return fbHtml();
+ if(st.q)return qHtml(st.q);
+ var stun=me.stun>0;
+ return'<div class="ctl"><p class="m">'+(stun?'Оглушён! Подожди '+Math.ceil(me.stun)+' с. ':'')+'Выбери вопрос. Серия верных ответов подряд усиливает удар до x2, ошибка лечит босса.'+(me.streak?' Серия: <b>'+me.streak+'</b>.':'')+'</p><div class="pick"><button type="button" class="ez" id="qe"'+(stun?" disabled":"")+'>Простой вопрос<br>удар 100</button><button type="button" class="hd" id="qh"'+(stun?" disabled":"")+'>Сложный вопрос (код)<br>удар 300</button></div></div>'}
+function qHtml(q){
+ var parts=String(q.text).split("\n"),code=parts.length>1||/[=()\[\]:]/.test(q.text)&&q.lvl==="hard";
+ return'<div class="qbox"><div class="m">'+(q.lvl==="hard"?"Сложный · удар "+q.dmg:"Простой · удар "+q.dmg)+'</div>'+(q.lvl==="hard"?'<div class="qt">Что выведет код?</div><pre>'+esc(q.text)+'</pre>':'<div class="qt">'+esc(q.text)+'</div>')+
+ '<div class="opts" role="group" aria-label="Варианты">'+q.opts.map(function(o,i){return'<button type="button" data-i="'+i+'">'+esc(o)+'</button>'}).join("")+'</div><div class="tm"><i id="tmb" style="width:'+Math.max(0,q.left/q.limit*100)+'%"></i></div></div>'}
+function fbHtml(){var f=S.fb;
+ return'<div class="qbox"><div class="qt">'+(f.right?'Попал! −'+num(f.dmg)+' босса'+(f.mult>1?' · серия x'+f.mult:''):f.late?'Время вышло.':'Мимо! Босс залечил '+f.heal+' и ты оглушён на 3 с')+'</div>'+(f.opts?'<div class="opts">'+f.opts.map(function(o,i){return'<button type="button" disabled class="'+(i===f.right_i?"ok":i===f.chosen?"no":"")+'">'+esc(o)+'</button>'}).join("")+'</div>':'')+'</div>'}
+function draw(st,err){
+ if(!st){if(!$("bs_err")){app.innerHTML='<div class="bad" id="bs_err" role="alert"></div>'}$("bs_err").textContent=err||"Нет связи. Пробую снова…";return}
+ if(!$("bs_main")){app.innerHTML='<div id="bs_main"><div id="bs_head"></div><canvas id="bs_cv" class="stage" width="'+W+'" height="'+H+'" aria-label="Арена: босс и ученики"></canvas><div id="bs_hp"></div><div id="bs_ctl"></div><div id="bs_rate"></div></div>';cv=$("bs_cv");cx=cv.getContext("2d");cx.imageSmoothingEnabled=false;if(!raf)raf=requestAnimationFrame(frame)}
+ $("bs_head").innerHTML=head(st);$("bs_hp").innerHTML=st.phase==="idle"?"":hpBar(st);$("bs_rate").innerHTML=st.phase==="idle"?"":rating(st);
+ if(BOARD){return}
+ var c=$("bs_ctl"),sig=st.phase+"|"+(S.fb?"f":st.q?"q"+st.q.text:"p")+"|"+(st.me.stun>0?Math.ceil(st.me.stun):0)+"|"+(st.me.streak||0);
+ if(c.getAttribute("data-sig")!==sig){c.setAttribute("data-sig",sig);c.innerHTML=ctlHtml(st);bind(c)}
+ }
+function bind(c){
+ var e=c.querySelector("#qe"),h=c.querySelector("#qh");
+ if(e)e.onclick=function(){ask("easy")};if(h)h.onclick=function(){ask("hard")};
+ c.querySelectorAll(".opts button[data-i]").forEach(function(b){b.onclick=function(){answer(+b.getAttribute("data-i"))}})}
+function ask(l){
+ api("POST","/api/boss/ask",{lvl:l,since:S.seq}).then(function(j){
+  if(!j.ok){var m=$("bs_ctl");if(m)m.insertAdjacentHTML("afterbegin",'<div class="bad" role="alert">'+esc(j.error||"Не вышло")+'</div>');return}
+  S.lastLvl=l;take(j);draw(S.st)}).catch(function(){})}
+function answer(i){
+ var st=S.st,opts=st&&st.q?st.q.opts.slice():null;
+ document.querySelectorAll(".opts button").forEach(function(b){b.disabled=true});
+ api("POST","/api/boss/answer",{a:i,since:S.seq}).then(function(j){
+  if(j.error){var m=$("bs_ctl");if(m)m.insertAdjacentHTML("afterbegin",'<div class="bad" role="alert">'+esc(j.error)+'</div>');return}
+  var hadQ=S.st&&S.st.q;take(j);if(S.st)S.st.q=null;
+  S.fb={right:j.right,dmg:j.dmg,mult:j.mult||1,heal:j.heal||0,late:j.late,opts:opts,chosen:i,right_i:j.right_i};
+  draw(S.st);setTimeout(function(){S.fb=null;if(S.st)draw(S.st)},j.right?700:1600)}).catch(function(){})}
+setInterval(function(){var st=S.st,tb=$("tmb");if(tb&&st&&st.q&&S.qAt){var left=st.q.left-(performance.now()-S.qAt)/1000;tb.style.width=Math.max(0,left/st.q.limit*100)+"%"}},200);
+window.addEventListener("beforeunload",function(){cancelAnimationFrame(raf)});
+if(!Net.on){app.innerHTML='<div class="box"><p>Сервер пока не подключён.</p></div>'}
+else if(!BOARD&&!Net.user()){app.innerHTML='<div class="box"><p>Войди, чтобы играть.</p></div>'}
+else poll();
+})();
+</script></body></html>

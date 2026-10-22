@@ -1,0 +1,25 @@
+/* Босс-арена */
+.bs .bhd{font:400 clamp(14px,3.2vw,22px)/1.5 var(--px);color:var(--title);margin:6px 0 10px}
+.bs .stage{display:block;width:100%;height:auto;border:4px solid #000;background:#120428;image-rendering:pixelated;box-shadow:var(--hard)}
+.bs .hpb{position:relative;height:30px;margin:10px 0;border:3px solid #000;background:#3a0a14;box-shadow:var(--hard);overflow:hidden}
+.bs .hpb i{position:absolute;inset:0 auto 0 0;background:linear-gradient(#ff5a5a,#c01a2f);transition:width .5s}
+.bs .hpb b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 15px var(--mono);color:#fff;text-shadow:1px 1px 0 #000}
+.bs .ctl{margin:12px 0}
+.bs .pick{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.bs .pick button{min-height:84px;font:600 clamp(15px,3.6vw,20px)/1.3 var(--mono);border:3px solid #000;box-shadow:var(--hard);cursor:pointer;padding:10px}
+.bs .pick .ez{background:#9be3a0}.bs .pick .hd{background:#ff9d6e}
+.bs .pick button:disabled{opacity:.5;cursor:not-allowed}
+.bs .qbox{border:3px solid #000;background:#fff7d6;padding:12px 14px;box-shadow:var(--hard)}
+.bs .qbox pre{margin:8px 0;padding:10px;background:#1b1b2b;color:#e8e8f4;font:500 clamp(13px,3.3vw,17px)/1.5 var(--mono);overflow:auto;white-space:pre-wrap}
+.bs .qbox .qt{font:600 clamp(15px,3.6vw,19px)/1.5 var(--mono)}
+.bs .opts{display:grid;gap:8px;margin-top:10px}
+.bs .opts button{text-align:left;min-height:52px;padding:10px 14px;font:600 clamp(14px,3.4vw,18px)/1.3 var(--mono);border:3px solid #000;background:#fff;cursor:pointer;white-space:pre-wrap}
+.bs .opts button.ok{background:#9be3a0}.bs .opts button.no{background:#ff9d9d}
+.bs .opts button:disabled{cursor:default}
+.bs .tm{height:8px;background:#ddd;margin-top:10px;border:2px solid #000}.bs .tm i{display:block;height:100%;background:#2a7fd6}
+.bs .rate{margin:12px 0;border:3px solid #000;background:#fff7d6;padding:8px 14px;box-shadow:var(--hard)}
+.bs .rate .rw{display:flex;gap:10px;padding:4px 0;font:600 15px var(--mono)}.bs .rate .rw b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bs .rate .rw.me{background:rgba(255,225,77,.6)}
+.bs.big .rate .rw{font-size:22px}.bs.big .bhd{font-size:30px}
+.bs .fin{background:#dff5df;border-color:#1b7a2e}
+@media(max-width:560px){.bs .pick{grid-template-columns:1fr}}

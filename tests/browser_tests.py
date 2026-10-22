@@ -1079,6 +1079,49 @@ def gate(b, base):
     for c in (ctx, cx, ct): c.close()
 
 
+def boss(b, base):
+    print("\n== БОСС-АРЕНА (настоящий сервер) ==")
+    api = start_api(base.rstrip("/")); bag = []; A = sys.modules["app"]; BM = sys.modules["boss"]; BM.MIN_THINK = 0.2; BM.ANSWER_GAP = 0.1
+    A.LUCKY.update(next=time.time() + 99999)
+    def student(nick, w=1280, h=800, mobile=False):
+        ctx = api_ctx(b, api, w, h, mobile=mobile); pg = ctx.new_page(); attach_errors(pg, bag); pg.goto(base + "index.html"); pg.wait_for_selector("#gate")
+        pg.fill("#gn", nick); pg.fill("#gp", "secret1"); pg.fill("#ge", nick + "@mail.ru"); pg.click("#ggo"); pg.wait_for_selector("#gate", state="detached", timeout=8000); pg.wait_for_timeout(500); return ctx, pg
+    c1, s1 = student("anya_b"); c2, s2 = student("boris_b", 390, 780, True)
+    ct = api_ctx(b, api, gate=False); t = ct.new_page(); attach_errors(t, bag); t.goto(base + "teacher.html"); t.wait_for_selector("#sk")
+    t.fill("#sk", "teacher-secret"); t.click("#sin"); t.wait_for_selector("#tb", timeout=8000); t.click('#tb button[data-k="game"]'); t.wait_for_selector("#ba")
+    check("кабинет: есть кнопки босса и «Выключить игру»", all(x in t.inner_text("#tab") for x in ("Запустить арену", "Начать бой", "Остановить бой", "Выключить игру")))
+    t.click("#ba"); t.wait_for_selector("#bmsg.ok", timeout=6000)
+    for pg in (s1, s2): pg.wait_for_url("**/boss.html", timeout=14000)
+    check("арена: у всех открылась страница босса", True)
+    s1.wait_for_selector("#bs_cv", timeout=8000); wf(s1, "document.body.innerText.includes('В арене: 2')", timeout=10000)
+    check("арена: в зале ожидания видно число игроков", True)
+    t.click("#bs"); t.wait_for_selector("#bmsg.ok:has-text('Бой начался')", timeout=6000)
+    s1.wait_for_selector("#qe", timeout=8000); check("арена: у ученика кнопки простого и сложного вопроса", "Сложный" in s1.inner_text("#bs_ctl"))
+    check("арена: канвас нарисован (не пустой)", s1.evaluate("(()=>{const c=document.getElementById('bs_cv').getContext('2d').getImageData(0,0,640,360).data;let n=0;for(let i=0;i<c.length;i+=4*50)if(c[i]>100)n++;return n>20})()"))
+    def hit(pg, sel, right):
+        pg.click(sel); pg.wait_for_selector(".opts button[data-i]", timeout=6000)
+        u = [x for x in A.BOSS.players.values() if x["q"]][0]; idx = u["q"]["ok"] if right else (u["q"]["ok"] + 1) % 4
+        pg.wait_for_timeout(400); pg.click('.opts button[data-i="%d"]' % idx); pg.wait_for_selector("#bs_ctl .qbox .qt:has-text('!')", timeout=6000)
+    hp0 = A.BOSS.hp; hit(s1, "#qe", True)
+    check("арена: верный ответ бьёт босса на 100", A.BOSS.hp <= hp0 - 99 + 1 and any(p["dmg"] == 100 for p in A.BOSS.players.values()), (hp0, A.BOSS.hp))
+    s1.wait_for_selector("#qh", timeout=6000); hit(s1, "#qh", True)
+    check("арена: сложный вопрос бьёт на 330 (серия x1.1)", any(p["dmg"] == 430 for p in A.BOSS.players.values()), [p["dmg"] for p in A.BOSS.players.values()])
+    s1.screenshot(path="/tmp/boss_arena.png"); s1.locator("#bs_cv").screenshot(path="/tmp/boss_cv.png")
+    s2.wait_for_selector("#qe", timeout=6000); hit(s2, "#qe", False)
+    check("арена: неверный ответ лечит босса и показывает «Мимо»", "Мимо" in s2.inner_text("#bs_ctl") and any(p["bad"] == 1 for p in A.BOSS.players.values()))
+    s2.wait_for_function("document.querySelector('#bs_ctl .pick')") if False else s2.wait_for_timeout(1800)
+    check("арена: рейтинг показывает игроков по урону", "anya_b" in s1.inner_text("#bs_rate") and s1.inner_text("#bs_rate").index("anya_b") < s1.inner_text("#bs_rate").index("boris_b"))
+    BM_hp = A.BOSS.hp; A.BOSS.next_big = 0; A.BOSS.tick(time.time() + 1); s1.wait_for_timeout(1800)
+    check("арена: большое лечение босса видно в событиях", any(e["k"] == "bigheal" for e in A.BOSS.events))
+    A.BOSS.hp = 80; s1.wait_for_selector("#qe", timeout=8000); s1.click("#qe"); s1.wait_for_selector(".opts button[data-i]", timeout=6000); s1.wait_for_timeout(400)
+    s1.click('.opts button[data-i="%d"]' % [x for x in A.BOSS.players.values() if x["q"]][0]["q"]["ok"])
+    s1.wait_for_selector("text=Босс повержен", timeout=8000); check("арена: победа показывает «Босс повержен» и итог", "Твой урон" in s1.inner_text("#bs_ctl"))
+    t.once("dialog", lambda d: d.accept()); t.click("#br"); t.wait_for_selector("#bmsg.ok:has-text('выключена')", timeout=6000)
+    s2.wait_for_selector("text=Арены сейчас нет", timeout=8000); check("арена: «Выключить игру» закрывает арену у всех", True)
+    check("арена: нет ошибок в консоли", not [x for x in bag if "Failed to load resource" not in x], bag[:3])
+    for c in (c1, c2, ct): c.close()
+
+
 def lucky(b, base):
     print("\n== РУЛЕТКА «ТРИ ЧЕРЕПА», ИГРА С БОЧКАМИ, СЕКРЕТЫ ==")
     import urllib.request, json as _j
@@ -1150,7 +1193,7 @@ def lucky(b, base):
 
 
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "lucky", "botguard", "unlock", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "lucky", "botguard", "unlock", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox", "--disable-features=LocalNetworkAccessChecks,LocalNetworkAccess,PrivateNetworkAccessRespectPreflightResults"])
