@@ -177,7 +177,7 @@ async def body(req):
 
 
 async def ping(req):
-    return web.json_response({"ok": True, "v": 2, "t": int(time.time())})
+    return web.json_response({"ok": True, "v": 2, "feat": ["boss"], "t": int(time.time())})
 
 
 async def register(req):
