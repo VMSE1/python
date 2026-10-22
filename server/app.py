@@ -20,6 +20,10 @@ import boss as B
 
 DB_PATH = os.environ.get("DB_PATH", "data.sqlite")
 TEACHER_KEY = os.environ.get("TEACHER_KEY", "")
+TEACHER_USER = os.environ.get("TEACHER_USER", "")
+TEACHER_SALT = os.environ.get("TEACHER_SALT", "")
+TEACHER_HASH = os.environ.get("TEACHER_HASH", "")
+TSESS = {}  # токен сессии учителя (вход по логину и паролю) -> до какого времени действует
 ORIGINS = [o.strip() for o in os.environ.get("ALLOW_ORIGINS", "https://vmse1.github.io,http://127.0.0.1:8000,http://localhost:8000").split(",") if o.strip()]
 PORT = int(os.environ.get("PORT", "8080"))
 # Почта (необязательно). Без неё код для восстановления пароля показывается только учителю в кабинете.
@@ -105,6 +109,29 @@ def lock_fail(key, now=None):
     return int(sec)
 
 
+def guard():
+    """Защита от ботов и подмены прогресса. Тесты отключают её: BOT_GUARD=0."""
+    return os.environ.get("BOT_GUARD", "1") != "0"
+
+
+BOT_UA = ("python", "aiohttp", "httpx", "requests", "urllib", "curl", "wget", "scrapy", "selenium", "headless")
+BOT_MSG = "Ай-ай-ай! Ботам тут не место. Заходи через сайт курса и отвечай сам."
+
+
+MIN_ANSWER_SEC = 1.0
+
+
+def is_bot(req):
+    """Скрипты на Python не шлют Origin сайта курса и подписываются своим User-Agent.
+    Подделать это можно, но это отсекает «написал бота за вечер»."""
+    if not guard():
+        return False
+    if req.headers.get("Origin", "") not in ORIGINS:
+        return True
+    ua = req.headers.get("User-Agent", "").lower()
+    return not ua or any(x in ua for x in BOT_UA)
+
+
 def client_ip(req):
     return req.headers.get("X-Forwarded-For", req.remote or "?").split(",")[0].strip()
 
@@ -113,9 +140,17 @@ def jerr(msg, status=400):
     return web.json_response({"ok": False, "error": msg}, status=status)
 
 
+def tkey_valid(k):
+    """Ключ учителя с сервера или токен, выданный после входа по логину и паролю."""
+    k = str(k or "")
+    if TEACHER_KEY and hmac.compare_digest(k.encode(), TEACHER_KEY.encode()):
+        return True
+    exp = TSESS.get(k)
+    return bool(exp and exp > time.time())
+
+
 def teacher_ok(req):
-    k = req.headers.get("X-Teacher-Key", "")
-    return bool(TEACHER_KEY) and hmac.compare_digest(k.encode(), TEACHER_KEY.encode())
+    return tkey_valid(req.headers.get("X-Teacher-Key", ""))
 
 
 def user_from(req):
@@ -128,6 +163,9 @@ def user_from(req):
 
 def clean_str(v, n):
     return " ".join(str(v or "").split())[:n]
+
+
+MAX_NEW, NEW_WINDOW = 10, 600
 
 
 def merge_progress(old, new):
@@ -183,6 +221,8 @@ async def ping(req):
 
 async def register(req):
     ip = client_ip(req)
+    if is_bot(req):
+        return jerr(BOT_MSG, 403)
     if limited("reg:" + ip, 80, 3600):
         return jerr("Слишком много регистраций с этой сети. Попробуй позже.", 429)
     d = await body(req)
@@ -229,6 +269,8 @@ async def login(req):
     nick, pw = str(d.get("nick", "")).strip(), str(d.get("password", ""))
     ip = client_ip(req)
     # много учеников сидят за одним школьным Wi-Fi (один IP), поэтому общий лимит по IP щедрый; главная защита идёт по паре «ник + IP» и по самому нику
+    if is_bot(req):
+        return jerr(BOT_MSG, 403)
     if limited("login:" + ip, 300, 600):
         return jerr("Слишком много попыток с этой сети. Подожди несколько минут.", 429)
     k1, k2 = "u:%s|%s" % (nick.lower(), ip), "n:" + nick.lower()
@@ -289,7 +331,27 @@ async def put_progress(req):
         old = json.loads(u[4] or "{}")
     except Exception:
         old = {}
+    # «passed/done» нельзя подделать пачкой из консоли: не больше MAX_NEW новых отметок за окно времени
+    now = time.time()
+    times = [t for t in old.get("_t", []) if isinstance(t, (int, float)) and now - t < NEW_WINDOW]
+    dropped, new = 0, dict(new)
+    for k in ("passed", "done"):
+        nb = new.get(k) if isinstance(new.get(k), dict) else {}
+        ob = old.get(k) if isinstance(old.get(k), dict) else {}
+        keep = {}
+        for i, v in nb.items():
+            if v and i not in ob and re.match(r"^\d{1,2}\.\d{1,2}$", str(i)):
+                if guard() and len(times) >= MAX_NEW:
+                    dropped += 1
+                    continue
+                times.append(now)
+            keep[i] = v
+        new[k] = keep
     merged = merge_progress(old, new)
+    merged["_t"] = times
+    if dropped or old.get("sus"):
+        sus = old.get("sus") if isinstance(old.get("sus"), dict) else {}
+        merged["sus"] = {"n": int(sus.get("n", 0)) + dropped, "last": int(now) if dropped else sus.get("last", 0)}
     db.execute("UPDATE users SET progress=?, updated=? WHERE id=?", (json.dumps(merged, ensure_ascii=False), int(time.time()), u[0]))
     db.commit()
     return web.json_response({"ok": True, "progress": merged})
@@ -307,7 +369,7 @@ async def t_users(req):
             p = {}
         out.append({"nick": nick, "fio": fio, "group": grp, "created": cr, "updated": up, "email": em or "",
                     "passed": sorted((p.get("passed") or {}).keys()), "done": sorted((p.get("done") or {}).keys()),
-                    "streak": (p.get("streak") or {}).get("n", 0)})
+                    "streak": (p.get("streak") or {}).get("n", 0), "sus": (p.get("sus") or {}).get("n", 0)})
     return web.json_response({"ok": True, "users": out})
 
 
@@ -335,6 +397,28 @@ async def t_delete(req):
     cur = db.execute("DELETE FROM users WHERE nick=?", (nick,))
     db.commit()
     return web.json_response({"ok": cur.rowcount > 0})
+
+
+async def t_login(req):
+    if is_bot(req):
+        return jerr(BOT_MSG, 403)
+    if limited("tl:" + client_ip(req), 120, 600):
+        return jerr("Слишком много попыток. Подожди несколько минут.", 429)
+    d = await body(req)
+    login, pw = str(d.get("login", "")).strip(), str(d.get("password", ""))
+    ok = bool(TEACHER_USER and TEACHER_SALT and TEACHER_HASH)
+    h = pw_hash(pw, bytes.fromhex(TEACHER_SALT)).hex() if ok else ""
+    ok = ok and hmac.compare_digest(login.lower().encode(), TEACHER_USER.lower().encode()) and hmac.compare_digest(h.encode(), TEACHER_HASH.encode())
+    if not ok:
+        return jerr("Неверный логин или пароль.", 401)
+    now = time.time()
+    for k in [k for k, v in TSESS.items() if v < now]:
+        del TSESS[k]
+    while len(TSESS) >= 50:
+        del TSESS[min(TSESS, key=TSESS.get)]
+    tok = secrets.token_urlsafe(24)
+    TSESS[tok] = now + 12 * 3600
+    return web.json_response({"ok": True, "token": tok})
 
 
 async def t_check(req):
@@ -372,6 +456,8 @@ class Room:
         self.dirty = False
         self.touched = time.time()
         self.cloud_task = None
+        self.fp_strikes = {}    # устройство (адрес + User-Agent) -> штрафы, чтобы не обходить бан новым ником
+        self.banned = set()     # ники, заблокированные в этой комнате
         self.saved = {}         # ник -> счёт, чтобы при обрыве связи очки не терялись
 
     def board(self, n=10):
@@ -483,6 +569,10 @@ async def ws_handler(req):
     ws = web.WebSocketResponse(heartbeat=25, max_msg_size=8192)
     await ws.prepare(req)
     ip = client_ip(req)
+    if is_bot(req):
+        await send(ws, {"t": "err", "m": BOT_MSG})
+        await ws.close()
+        return ws
     if limited("ws:" + ip, 60, 60):
         await send(ws, {"t": "err", "m": "Слишком много подключений."})
         await ws.close()
@@ -568,10 +658,14 @@ async def on_msg(ws, role, d):
         if len(r.players) >= 150:
             await send(ws, {"t": "err", "m": "В комнате нет мест."})
             return
+        fp = role.get("fp", "")
+        if nick.lower() in r.banned or r.fp_strikes.get(fp, 0) >= 6:
+            await send(ws, {"t": "err", "m": "Ай-ай-ай! Ты заблокирован в этой игре за бота."})
+            return
         if any(p["nick"].lower() == nick.lower() for p in r.players.values()):
             await send(ws, {"t": "err", "m": "Такой ник уже есть в комнате. Добавь цифру."})
             return
-        r.players[ws] = {"nick": nick, "score": r.saved.get(nick.lower(), 0), "ans": None, "words": 0}
+        r.players[ws] = {"nick": nick, "score": r.saved.get(nick.lower(), 0), "ans": None, "words": 0, "fp": fp, "strikes": r.fp_strikes.get(fp, 0) % 3}
         role["room"] = r
         await send(ws, {"t": "joined", "kind": r.kind, "title": r.title, "state": r.state, "total": len(r.qs)})
         await plist(r)
@@ -618,6 +712,17 @@ async def on_msg(ws, role, d):
         if i != room.i or not 0 <= k < 4:
             return
         q = room.qs[room.i]
+        if guard() and time.time() - room.t0 < MIN_ANSWER_SEC:
+            p["strikes"] = p.get("strikes", 0) + 1
+            room.fp_strikes[p.get("fp", "")] = room.fp_strikes.get(p.get("fp", ""), 0) + 1
+            if p["strikes"] >= 3:
+                room.banned.add(p["nick"].lower())
+                await send(ws, {"t": "err", "m": "Ай-ай-ай! Ответы быстрее человека. Ты заблокирован в этой игре."})
+                await send(room.host, {"t": "err", "m": "Заблокирован за бота: " + p["nick"]})
+                await ws.close()
+            else:
+                await send(ws, {"t": "err", "m": "Ай-ай-ай! Слишком быстро, так отвечает бот. Предупреждение %d из 3." % p["strikes"]})
+            return
         left = max(0.0, q["sec"] - (time.time() - room.t0))
         gain = int(500 + 500 * left / q["sec"]) if k == q["a"] else 0
         p["ans"] = (k, gain)
@@ -1353,7 +1458,7 @@ async def race_submit(req):
 
 
 def teacher_ok_key(k):
-    return bool(TEACHER_KEY) and hmac.compare_digest(str(k or "").encode(), TEACHER_KEY.encode())
+    return tkey_valid(k)
 
 
 async def janitor(app):
@@ -1379,7 +1484,7 @@ def make_app():
     init_db()
     app = web.Application(middlewares=[cors], client_max_size=64 * 1024)
     app.add_routes([
-        web.get("/api/ping", ping), web.post("/api/register", register), web.post("/api/login", login), web.post("/api/logout", logout),
+        web.post("/api/teacher/login", t_login), web.get("/api/ping", ping), web.post("/api/register", register), web.post("/api/login", login), web.post("/api/logout", logout),
         web.post("/api/recover", recover), web.post("/api/recover/confirm", recover_confirm), web.get("/api/teacher/recov", t_recov), web.post("/api/submit", submit), web.get("/api/teacher/subs", t_subs), web.get("/api/teacher/sub", t_sub),
         web.get("/api/play", play_state), web.post("/api/lucky/spin", lucky_spin), web.post("/api/lucky/finish", lucky_finish), web.get("/api/teacher/lucky", t_lucky), web.post("/api/teacher/play", t_play), web.post("/api/race/join", race_join), web.post("/api/boss/join", boss_join), web.post("/api/score", score_post), web.get("/api/leaderboards", leaderboards), web.get("/api/boss/state", boss_state), web.post("/api/boss/ask", boss_ask), web.post("/api/boss/answer", boss_answer), web.get("/api/race/state", race_state), web.post("/api/race/submit", race_submit),
         web.get("/api/me", me), web.put("/api/progress", put_progress),

@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(ROOT, "server"))
 class TestServerApi(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = tempfile.mkdtemp()
-        os.environ["DB_PATH"] = os.path.join(self.tmp, "t.sqlite"); os.environ["TEACHER_KEY"] = "teacher-secret"
+        os.environ["DB_PATH"] = os.path.join(self.tmp, "t.sqlite"); os.environ["TEACHER_KEY"] = "teacher-secret"; os.environ["BOT_GUARD"] = "0"
         import importlib, app as A
         self.A = importlib.reload(A); self.A.HITS.clear(); self.A.FAILS.clear(); self.A.ROOMS.clear()
         self.cl = TestClient(TestServer(self.A.make_app())); await self.cl.start_server()
