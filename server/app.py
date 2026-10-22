@@ -1044,9 +1044,18 @@ def scare_send(nick=None, kind="random", now=None):
         row = db.execute("SELECT id,nick FROM users WHERE id=?", (_rnd.choice(c),)).fetchone() if c else None
     if not row:
         return ""
-    k = "skull"
+    k = "thanks" if kind == "thanks" else "skull"
     SCARES[row[0]] = {"id": int(now * 1000), "kind": k}
     return row[1]
+
+
+def thanks_all(now=None):
+    """«Спасибо за урок»: каждому ученику, который сейчас на сайте, выскакивает скелет с большим сердцем. Возвращает число учеников."""
+    now = now or time.time()
+    c = online_uids(now)
+    for uid in c:
+        SCARES[uid] = {"id": int(now * 1000), "kind": "thanks"}
+    return len(c)
 
 
 # ---------------------------------------------------------------- таблицы лидеров
@@ -1225,6 +1234,11 @@ async def t_play(req):
     elif a == "scare_cfg":
         scare_set_cfg(d)
         return web.json_response({"ok": True, "scare": SCFG})
+    elif a == "thanks":
+        n = thanks_all()
+        if not n:
+            return jerr("Сейчас на сайте нет вошедших учеников.")
+        return web.json_response({"ok": True, "count": n})
     elif a == "scare":
         who = scare_send(str(d.get("nick", "")).strip() or None, str(d.get("kind", "random")))
         if not who:

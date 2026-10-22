@@ -243,7 +243,7 @@ function fetchIssues(label, cb, fail) {
   function scare(sc) {
     var seen = ""; try { seen = sessionStorage.getItem("scareSeen") || ""; } catch (e) {}
     if (!sc || seen === String(sc.id)) return; try { sessionStorage.setItem("scareSeen", String(sc.id)); } catch (e) {}
-    var go = function () { window.Scare.show("skull"); };
+    var go = function () { window.Scare.show(sc.kind === "thanks" ? "thanks" : "skull"); };
     var needS = function () { if (window.Scare) go(); else { var s2 = document.createElement("script"); s2.src = "scare.js"; s2.onload = go; document.head.appendChild(s2); } };
     if (window.Egg) needS(); else { var s3 = document.createElement("script"); s3.src = "egg.js"; s3.onload = needS; document.head.appendChild(s3); }
   }

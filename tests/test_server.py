@@ -395,6 +395,19 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([r["nick"] for r in d["rows"]], ["lb_1", "lb_2"]); self.assertEqual(d["me"]["rank"], 2)                   # больше очков — выше
         d = await (await self.cl.get("/api/leaderboards", headers=h1)).json(); self.assertEqual(len(d["boards"]), len(A.BOARDS))
 
+    async def test_thanks_all(self):
+        A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.ONLINE.clear(); A.SCARES.clear(); A.SCFG["auto"] = False
+        post = lambda: self.cl.post("/api/teacher/play", json={"action": "thanks"}, headers=T)
+        d = await (await post()).json(); self.assertFalse(d["ok"])                                           # никого онлайн
+        h1, h2 = await self.race_user("th_1"), await self.race_user("th_2")
+        await self.cl.get("/api/play", headers=h1); await self.cl.get("/api/play", headers=h2)
+        self.assertEqual((await self.cl.post("/api/teacher/play", json={"action": "thanks"})).status, 403)
+        d = await (await post()).json(); self.assertEqual(d["count"], 2)
+        for h in (h1, h2):
+            g = await (await self.cl.get("/api/play", headers=h)).json(); self.assertEqual(g["scare"]["kind"], "thanks")
+            g = await (await self.cl.get("/api/play", headers=h)).json(); self.assertNotIn("scare", g)       # один раз
+        A.SCFG["auto"] = True
+
     async def test_scare_auto(self):
         A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.ONLINE.clear(); A.SCARES.clear()
         h = await self.race_user("sca_1"); await self.cl.get("/api/play", headers=h)                       # попал в онлайн

@@ -1155,6 +1155,12 @@ def admin(b, base):
     t.click("#scr"); t.wait_for_selector("#gmsg.ok:has-text('Скример')", timeout=6000)
     A.LK.clear(); A.SCARES.clear()
     for pg in (s1, s2): pg.reload(); pg.wait_for_timeout(900)
+    t.click("#thx"); t.wait_for_selector("#gmsg.ok:has-text('Спасибо отправлено')", timeout=6000)
+    for pg in (s1, s2): pg.wait_for_selector("#scare", timeout=9000)
+    check("спасибо: у всех онлайн выскочил скелет с сердцем и надписью", all("Спасибо за урок" in pg.inner_text("#scare") for pg in (s1, s2)))
+    s1.click("#scare"); check("спасибо: закрывается касанием", s1.locator("#scare").count() == 0)
+    s2.locator("#scare canvas").screenshot(path="/tmp/thanks.png")
+    for pg in (s1, s2): pg.reload(); pg.wait_for_timeout(900)
     # настройки босса: точное HP без минимума
     t.evaluate("document.querySelector('#bform').closest('details').open=true"); t.click("#ba"); t.wait_for_selector("#bmsg.ok", timeout=6000)
     for pg in (s1, s2): pg.wait_for_url("**/boss.html", timeout=14000)
