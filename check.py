@@ -233,31 +233,44 @@ def check_task(task, file_override=None):
                 problems.append("%s вызвала ошибку: %s" % (shown, item["error"]))
             elif not same(item["value"], c["expect"]):
                 problems.append("%s вернула %r, а нужно %r" % (shown, item["value"], c["expect"]))
-    for case in task.get("cases", []):
-        out, err, workdir = run_program(path, case.get("stdin", []))
-        inp = ", ".join(case.get("stdin", [])) or "(без ввода)"
+    def run_case(case, stdin):
+        pr = []
+        out, err, workdir = run_program(path, stdin)
+        inp = ", ".join(stdin) or "(без ввода)"
         if out is None:
-            problems.append("Ввод [%s]: %s" % (inp, err))
-            continue
+            pr.append("Ввод [%s]: %s" % (inp, err))
+            return pr
         if err:
-            problems.append("Ввод [%s]: программа упала: %s" % (inp, err))
-            continue
+            pr.append("Ввод [%s]: программа упала: %s" % (inp, err))
+            return pr
         n = norm(out)
         for m in case.get("must", []):
             if not has_text(out, m):
-                problems.append("Ввод [%s]: в выводе должно быть «%s»" % (inp, m))
+                pr.append("Ввод [%s]: в выводе должно быть «%s»" % (inp, m))
         for m in case.get("must_not", []):
             if has_text(out, m):
-                problems.append("Ввод [%s]: в выводе не должно быть «%s»" % (inp, m))
+                pr.append("Ввод [%s]: в выводе не должно быть «%s»" % (inp, m))
         for fname, expected in case.get("files", {}).items():
             fp = os.path.join(workdir, fname)
             if not os.path.exists(fp):
-                problems.append("Ввод [%s]: программа должна создать файл %s" % (inp, fname))
+                pr.append("Ввод [%s]: программа должна создать файл %s" % (inp, fname))
             else:
                 with open(fp, encoding="utf-8") as f:
                     got = [ln.strip() for ln in f.read().splitlines() if ln.strip()]
                 if got != expected:
-                    problems.append("Файл %s: ожидали %r, получили %r" % (fname, expected, got))
+                    pr.append("Файл %s: ожидали %r, получили %r" % (fname, expected, got))
+
+        return pr
+
+    for case in task.get("cases", []):
+        stdin = case.get("stdin", [])
+        got = run_case(case, stdin)
+        alt = [x.replace("ё", "е").replace("Ё", "Е") for x in stdin]
+        if got and alt != stdin:   # ученик мог сравнивать с «желтый» без ё: пробуем и такой ввод
+            got2 = run_case(case, alt)
+            if not got2:
+                got = got2
+        problems.extend(got)
     result["status"] = "ok" if not problems else "fail"
     result["messages"] = problems[:6]
     return result
