@@ -140,7 +140,8 @@ def functional(b, base):
     check("карта: 25 квадратов, один «следующий»", pg.locator(".node").count() == 25 and pg.locator(".node.next").count() == 1)
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
-    pg.click("#startBtn"); check("«Пуск» открывает меню (13 пунктов)", pg.locator("#smenu.on a").count() == 13, pg.locator("#smenu.on a").count())
+    pg.click("#startBtn"); check("меню: «Вход для учителя» ученикам не показывается", "Вход для учителя" not in pg.inner_text("#smenu") and "Кабинет" not in pg.inner_text("#smenu"))
+    pg.click("#startBtn"); check("«Пуск» открывает меню (12 пунктов)", pg.locator("#smenu.on a").count() == 12, pg.locator("#smenu.on a").count())
     pg.keyboard.press("Escape"); check("Esc закрывает меню", pg.locator("#smenu.on").count() == 0)
     pg.click("#startBtn"); pg.mouse.click(900, 300); check("клик вне меню закрывает его", pg.locator("#smenu.on").count() == 0)
     # проекты
