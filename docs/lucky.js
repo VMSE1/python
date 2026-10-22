@@ -153,14 +153,17 @@
         if (!j.ok) { msg.textContent = j.error || "Не получилось."; setTimeout(close, 2500); return; }
         var t0 = performance.now(), stop = [900, 1400, 1900], done = [false, false, false], raf = 0;
         function fr(now) {
-          var el = now - t0, all = true;
+          var el = Math.max(0, (now || performance.now()) - t0), all = true;
           cs.forEach(function (c, i) {
             if (done[i]) return;
-            if (el >= stop[i]) { done[i] = true; drawSym(c, j.reels[i], 100, 100); } else { all = false; drawSym(c, names[Math.floor(el / 70 + i * 2) % names.length], 100, 100, Math.round(Math.sin(el / 30) * 6)); }
+            if (el >= stop[i]) { done[i] = true; drawSym(c, j.reels[i], 100, 100); } else { all = false; drawSym(c, names[(Math.floor(el / 70 + i * 2) % names.length + names.length) % names.length], 100, 100, Math.round(Math.sin(el / 30) * 6)); }
           });
-          if (!all) raf = requestAnimationFrame(fr); else setTimeout(function () { after(j); }, 700);
+          if (!all) raf = requestAnimationFrame(fr); else if (!fin) { fin = true; clearTimeout(fb); setTimeout(function () { after(j); }, 700); }
         }
-        raf = requestAnimationFrame(fr); cleanup.push(function () { cancelAnimationFrame(raf); });
+        /* страховка: если анимация не может идти (вкладка в фоне, ошибка рисования), через 3 секунды показываем результат сами */
+        var fin = false, fb = setTimeout(function () { if (fin) return; fin = true; cancelAnimationFrame(raf); cs.forEach(function (c, i) { try { drawSym(c, j.reels[i], 100, 100); } catch (e) {} }); after(j); }, 3500);
+        var fr0 = fr; fr = function (now) { if (fin) return; try { fr0(now); } catch (e) { if (!fin) { fin = true; clearTimeout(fb); after(j); } } };
+        raf = requestAnimationFrame(fr); cleanup.push(function () { fin = true; clearTimeout(fb); cancelAnimationFrame(raf); });
       }).catch(function (e) { msg.textContent = e.message; setTimeout(close, 2500); });
     };
     function after(j) {

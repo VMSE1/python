@@ -1123,6 +1123,10 @@ def lucky(b, base):
     s3.evaluate("Lucky._t.hit()"); s3.wait_for_selector("#lc", timeout=9000)
     check("игра: бочка попала — одна попытка, «Ха-ха-ха», оценка сгорела", "Ха-ха-ха" in s3.inner_text("#lk") and "оценки нет" in s3.inner_text("#lk"))
     rows = tget("/api/teacher/lucky")["rows"]; check("кабинет: проигрыш записан", any(r["nick"] == "lucky_lose" and r["kind"] == "burned" for r in rows))
+    # 3б) медленная сеть на телефоне: барабан не должен зависать (раньше падала анимация и оставалось «Крутим…»)
+    c5, s5 = student("slow_1"); A.LUCKY_ODDS = 0.0; s5.route("**/api/lucky/spin", lambda r: (time.sleep(2.5), r.continue_()))
+    tpost("/api/teacher/play", {"action": "lucky", "nick": "slow_1"}); s5.wait_for_selector("#lk", timeout=9000); s5.click("#lks"); s5.wait_for_selector("#lc", timeout=15000)
+    check("рулетка: при медленном ответе сервера барабан доходит до результата", "Ха-ха-ха" in s5.inner_text("#lk")); c5.close()
     # 4) секреты
     c4, s4 = student("secret_1")
     s4.click("body")
