@@ -26,7 +26,11 @@ var Net = (function () {
     var sl = ls("streak", {}), ss = p.streak || {};
     if (ss.last && String(ss.last) >= String(sl.last || "")) lset("streak", { last: ss.last, n: ss.n | 0, best: Math.max(ss.best | 0, sl.best | 0), days: Array.isArray(ss.days) ? ss.days : (sl.days || []) });
   }
-  function saveUser(j) { lset("acct", { token: j.token, nick: j.nick, fio: j.fio, group: j.group }); try { localStorage.setItem("nick", j.nick); localStorage.setItem("fio", j.fio); localStorage.setItem("group", j.group); } catch (e) {} apply(j.progress); }
+  /* прогресс принадлежит одному аккаунту: при смене аккаунта и выходе чужие выполненные задания стираем */
+  var PKEYS = ["passed", "done", "played", "streak", "hintN", "skull"];
+  function wipe() { try { PKEYS.forEach(function (k) { localStorage.removeItem(k); }); } catch (e) {} }
+  function owner() { try { var o = localStorage.getItem("powner"); if (o) return o; var a = ls("acct", null); return a && a.nick ? a.nick : ""; } catch (e) { return ""; } }
+  function saveUser(j) { var prev = owner(); if (prev && String(prev).toLowerCase() !== String(j.nick).toLowerCase()) wipe(); try { localStorage.setItem("powner", j.nick); } catch (e) {} lset("acct", { token: j.token, nick: j.nick, fio: j.fio, group: j.group }); try { localStorage.setItem("nick", j.nick); localStorage.setItem("fio", j.fio); localStorage.setItem("group", j.group); } catch (e) {} apply(j.progress); }
   var timer = null;
   function sync() {
     if (!user()) return Promise.resolve(null);
@@ -42,7 +46,7 @@ var Net = (function () {
     saveSession: function (j) { saveUser(j); sync(); },
     register: function (o) { return req("POST", "/api/register", o).then(function (j) { if (j.ok) { saveUser(j); sync(); } return j; }); },
     login: function (o) { return req("POST", "/api/login", o).then(function (j) { if (j.ok) { saveUser(j); sync(); } return j; }); },
-    logout: function () { var p = user() ? req("POST", "/api/logout").catch(function () {}) : Promise.resolve(); try { localStorage.removeItem("acct"); } catch (e) {} return p; },
+    logout: function () { var p = user() ? req("POST", "/api/logout").catch(function () {}) : Promise.resolve(); wipe(); try { localStorage.removeItem("acct"); localStorage.removeItem("powner"); } catch (e) {} return p; },
     tkey: function (v) { try { if (v != null) sessionStorage.setItem("tkey", v); return sessionStorage.getItem("tkey") || ""; } catch (e) { return v || ""; } }
   };
   if (BASE && user()) { var last = 0; try { last = +sessionStorage.getItem("nsync") || 0; } catch (e) {} if (Date.now() - last > 60000) { try { sessionStorage.setItem("nsync", Date.now()); } catch (e) {} setTimeout(sync, 800); } }

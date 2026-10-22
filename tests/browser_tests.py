@@ -1246,6 +1246,17 @@ def leaders(b, base):
     check("лидеры: свой результат в таблице сапёра подсвечен", "lead_1" in pg.inner_text(".rw.me") and "1:17" in pg.inner_text(".rw.me"), pg.inner_text(".rw.me"))
     pg.click('button[data-g="snake"]'); pg.wait_for_selector(".rw.me:has-text('40 очк.')", timeout=4000); check("лидеры: вкладка «Змейка» показывает очки", True)
     pg.click('button[data-g="race"]'); check("лидеры: пустая игра говорит «Пока никого»", "Пока никого" in pg.inner_text("#app"))
+    # смена аккаунта в одном браузере: чужие выполненные задания не переходят
+    pg.goto(base + "index.html"); pg.wait_for_timeout(800)
+    pg.evaluate("localStorage.setItem('passed', JSON.stringify({'1.1':1,'1.2':1})); Net.sync()"); pg.wait_for_timeout(1200)
+    pg.evaluate("Net.logout()"); pg.wait_for_timeout(600)
+    check("аккаунты: после выхода выполненные задания стёрты", pg.evaluate("localStorage.getItem('passed')") is None)
+    pg.evaluate("localStorage.setItem('passed', JSON.stringify({'1.1':1})); localStorage.setItem('powner','lead_1')"); pg.reload(); pg.wait_for_selector("#gate")   # вход устарел, а задания лежат от прошлого аккаунта
+    pg.fill("#gn", "lead_2"); pg.fill("#gp", "secret1"); pg.fill("#ge", "lead_2@mail.ru"); pg.click("#ggo"); pg.wait_for_timeout(1500); pg.wait_for_selector("#gate", state="detached", timeout=8000); pg.wait_for_timeout(800)
+    check("аккаунты: у нового ученика нет чужих заданий", "1.1" not in (pg.evaluate("localStorage.getItem('passed')") or ""), pg.evaluate("localStorage.getItem('passed')"))
+    pg.evaluate("Net.logout()"); pg.wait_for_timeout(500); pg.reload(); pg.wait_for_selector("#gate")
+    pg.evaluate("Net.login({nick:'lead_1',password:'secret1'})"); pg.wait_for_timeout(1500)
+    check("аккаунты: при возврате в свой аккаунт задания приходят с сервера", "1.1" in (pg.evaluate("localStorage.getItem('passed')") or ""), pg.evaluate("localStorage.getItem('passed')"))
     check("лидеры: нет ошибок в консоли", not [x for x in bag if "Failed to load resource" not in x], bag[:3])
     ctx.close()
 
