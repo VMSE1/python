@@ -1000,7 +1000,7 @@ def lucky_set_cfg(d):
 
 
 # ---------------------------------------------------------------- скример (шутка учителя)
-SCARE_KINDS = ("bear", "chick", "bunny")
+SCARE_KINDS = ("skull",)
 
 
 def scare_send(nick=None, kind="random", now=None):
@@ -1013,7 +1013,7 @@ def scare_send(nick=None, kind="random", now=None):
         row = db.execute("SELECT id,nick FROM users WHERE id=?", (_rnd.choice(c),)).fetchone() if c else None
     if not row:
         return ""
-    k = kind if kind in SCARE_KINDS else _rnd.choice(SCARE_KINDS)
+    k = "skull"
     SCARES[row[0]] = {"id": int(now * 1000), "kind": k}
     return row[1]
 

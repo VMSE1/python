@@ -347,9 +347,9 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         h1, h2 = await self.race_user("sc_1"), await self.race_user("sc_2")
         await self.cl.get("/api/play", headers=h1); await self.cl.get("/api/play", headers=h2)
         r = await self.cl.post("/api/teacher/play", json={"action": "scare", "nick": "sc_1"}); self.assertEqual(r.status, 403)
-        d = await (await self.cl.post("/api/teacher/play", json={"action": "scare", "nick": "sc_1", "kind": "bunny"}, headers=T)).json(); self.assertEqual(d["scare_nick"], "sc_1")
+        d = await (await self.cl.post("/api/teacher/play", json={"action": "scare", "nick": "sc_1"}, headers=T)).json(); self.assertEqual(d["scare_nick"], "sc_1")
         d1 = await (await self.cl.get("/api/play", headers=h1)).json(); d2 = await (await self.cl.get("/api/play", headers=h2)).json()
-        self.assertEqual(d1["scare"]["kind"], "bunny"); self.assertNotIn("scare", d2)
+        self.assertEqual(d1["scare"]["kind"], "skull"); self.assertNotIn("scare", d2)
         d1 = await (await self.cl.get("/api/play", headers=h1)).json(); self.assertNotIn("scare", d1)       # показывается один раз
         d = await (await self.cl.post("/api/teacher/play", json={"action": "scare", "kind": "что-то"}, headers=T)).json(); self.assertIn(d["scare_nick"], ("sc_1", "sc_2"))
         got = [await (await self.cl.get("/api/play", headers=h)).json() for h in (h1, h2)]

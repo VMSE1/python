@@ -1145,11 +1145,11 @@ def admin(b, base):
     t.evaluate("document.querySelector('#lform').closest('details').open=true"); t.fill("#lf_odds", "100"); t.click("#lcs"); t.wait_for_selector("#gmsg.ok:has-text('сохранены')", timeout=6000)
     check("рулетка: шанс меняется из кабинета", A.LCFG["odds"] == 1.0, A.LCFG)
     # скример
-    t.select_option("#scs", "bear"); t.fill("#scn", "adm_two"); t.click("#scg"); t.wait_for_selector("#gmsg.ok:has-text('Скример')", timeout=6000)
-    s2.wait_for_selector("#scare", timeout=9000); check("скример: у выбранного ученика выскочил зверёк", "Мишка" in s2.inner_text("#scare"))
+    t.fill("#scn", "adm_two"); t.click("#scg"); t.wait_for_selector("#gmsg.ok:has-text('Скример')", timeout=6000)
+    s2.wait_for_selector("#scare", timeout=9000); check("скример: у выбранного ученика выскочил зверёк", "Скелет" in s2.inner_text("#scare") and s2.locator("#scare canvas").count() == 1)
     check("скример: у другого ученика его нет", s1.locator("#scare").count() == 0)
     s2.click("#scare"); check("скример: закрывается касанием", s2.locator("#scare").count() == 0)
-    t.select_option("#scs", "random"); t.click("#scr"); t.wait_for_selector("#gmsg.ok:has-text('Скример')", timeout=6000)
+    t.click("#scr"); t.wait_for_selector("#gmsg.ok:has-text('Скример')", timeout=6000)
     A.LK.clear(); A.SCARES.clear()
     for pg in (s1, s2): pg.reload(); pg.wait_for_timeout(900)
     # настройки босса: точное HP без минимума
