@@ -395,6 +395,17 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([r["nick"] for r in d["rows"]], ["lb_1", "lb_2"]); self.assertEqual(d["me"]["rank"], 2)                   # больше очков — выше
         d = await (await self.cl.get("/api/leaderboards", headers=h1)).json(); self.assertEqual(len(d["boards"]), len(A.BOARDS))
 
+    async def test_scare_auto(self):
+        A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.ONLINE.clear(); A.SCARES.clear()
+        h = await self.race_user("sca_1"); await self.cl.get("/api/play", headers=h)                       # попал в онлайн
+        A.SCFG.update(auto=True, every_min=60, every_max=60); A.SCARE["next"] = 0
+        d = await (await self.cl.get("/api/play", headers=h)).json(); self.assertIn("scare", d)            # само выдалось
+        self.assertGreater(A.SCARE["next"], time.time() + 25)                                                # следующий позже
+        A.SCARE["next"] = 0; A.SCFG["auto"] = False; d = await (await self.cl.get("/api/play", headers=h)).json(); self.assertNotIn("scare", d)   # выключено
+        d = await (await self.cl.post("/api/teacher/play", json={"action": "scare_cfg", "auto": True, "every_min": 1, "every_max": 999999}, headers=T)).json()
+        self.assertEqual((d["scare"]["auto"], d["scare"]["every_min"], d["scare"]["every_max"]), (True, 30, 86400))   # границы
+        d = await (await self.cl.get("/api/teacher/lucky", headers=T)).json(); self.assertIn("next_in", d["scare"])
+
     async def test_lucky_schedule(self):
         A = self.A; A.ONLINE.clear(); A.LUCKY.update(next=0); A.LK.clear()
         h = await self.race_user("online1"); d = await (await self.cl.get("/api/play", headers=h)).json()

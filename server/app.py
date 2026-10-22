@@ -973,7 +973,7 @@ async def t_lucky(req):
     now = time.time()
     rows = db.execute("SELECT u.nick,u.fio,l.ts,l.kind,l.note FROM lucky l JOIN users u ON u.id=l.uid ORDER BY l.id DESC LIMIT 100").fetchall()
     cur = [e["nick"] for u, e in LK.items() if lucky_active(u, now)]
-    return web.json_response({"ok": True, "online": len(online_uids(now)), "cur": ", ".join(cur), "active": cur, "cfg": LCFG, "next_in": max(0, int(LUCKY["next"] - now)),
+    return web.json_response({"ok": True, "online": len(online_uids(now)), "cur": ", ".join(cur), "active": cur, "cfg": LCFG, "next_in": max(0, int(LUCKY["next"] - now)), "scare": dict(SCFG, next_in=max(0, int(SCARE["next"] - now))),
                               "rows": [{"nick": a, "fio": b, "ts": c, "kind": k, "note": n} for a, b, c, k, n in rows]})
 
 
@@ -1002,6 +1002,36 @@ def lucky_set_cfg(d):
 
 # ---------------------------------------------------------------- скример (шутка учителя)
 SCARE_KINDS = ("skull",)
+
+
+# Сам по себе скример выдаётся случайному ученику из онлайн в случайный момент (настройки меняются в кабинете).
+SCFG = {"auto": True, "every_min": 900, "every_max": 2700}        # по умолчанию раз в 15–45 минут
+SCARE = {"next": time.time() + _rnd.uniform(900, 2700)}
+
+
+def scare_schedule(now=None):
+    now = now or time.time()
+    lo, hi = sorted((max(30, int(SCFG["every_min"])), max(30, int(SCFG["every_max"]))))
+    SCARE["next"] = now + _rnd.uniform(lo, hi)
+
+
+def scare_tick(now=None):
+    now = now or time.time()
+    if SCFG["auto"] and now >= SCARE["next"]:
+        if scare_send(None, "random", now):
+            scare_schedule(now)
+        else:
+            SCARE["next"] = now + 60           # на сайте никого нет: попробуем через минуту
+
+
+def scare_set_cfg(d):
+    if "auto" in d:
+        SCFG["auto"] = bool(d["auto"])
+    if "every_min" in d:
+        SCFG["every_min"] = int(_num(d["every_min"], 30, 86400, SCFG["every_min"]))
+    if "every_max" in d:
+        SCFG["every_max"] = int(_num(d["every_max"], 30, 86400, SCFG["every_max"]))
+    scare_schedule()
 
 
 def scare_send(nick=None, kind="random", now=None):
@@ -1122,6 +1152,7 @@ async def play_state(req):
     if u:
         ONLINE[u[0]] = time.time()
         lucky_tick()
+        scare_tick()
         if lucky_active(u[0]):
             e = LK[u[0]]
             out["lucky"] = {"id": e["id"], "left": int(e["until"] - time.time())}
@@ -1191,6 +1222,9 @@ async def t_play(req):
     elif a == "lucky_cfg":
         lucky_set_cfg(d)
         return web.json_response({"ok": True, "cfg": LCFG})
+    elif a == "scare_cfg":
+        scare_set_cfg(d)
+        return web.json_response({"ok": True, "scare": SCFG})
     elif a == "scare":
         who = scare_send(str(d.get("nick", "")).strip() or None, str(d.get("kind", "random")))
         if not who:
