@@ -40,3 +40,4 @@
 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) | Формат `task.json` |
 | [`SECURITY.md`](../SECURITY.md) | Угрозы и защита одной таблицей |
 - [14-peredacha.md](14-peredacha.md): передача проекта в новый диалог.
+- [15-fishki.md](15-fishki.md): все фишки сайта: игры, рулетка, пасхалки, защита, кабинет.
