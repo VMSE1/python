@@ -1,6 +1,7 @@
 """Браузерные тесты сайта (Playwright): дымовые, функциональные, безопасность, производительность, нагрузка.
 Запуск из корня репозитория:  pip install playwright && playwright install chromium && python tests/browser_tests.py
 """
+from urllib.parse import unquote
 import base64, functools, http.server, json, os, re, socketserver, sys, threading, time
 from playwright.sync_api import sync_playwright
 
@@ -67,6 +68,18 @@ def _honest_test(route):
     r = route.fetch(); body = r.text()
     assert "var TEST = false;" in body
     route.fulfill(response=r, body=body.replace("var TEST = false;", "var TEST = true;"))
+
+
+class FP:
+    """Раньше заявка уходила на GitHub и метаданные читались из адреса. Теперь они уходят на сервер, а тест берёт их напрямую у Honest."""
+    def __init__(self, url):
+        import types; self.value = types.SimpleNamespace(url=url)
+
+
+def issue_url(pg):
+    from urllib.parse import quote
+    meta = pg.evaluate("Honest.meta(document.getElementById('code'))"); code = pg.evaluate("Honest.code(document.getElementById('code'))")
+    return "https://x/issues/new?meta=" + quote(meta, safe="") + "&code=" + quote(code, safe="")
 
 
 def new_ctx(b, w=1280, h=820, mobile=False, seen=True, raw=False, brief=False, bot=False):
@@ -202,7 +215,7 @@ def teacher(b, base):
               issue(6, "<script>window.__xss=2</script>", "1.3", "ошибки")]
     ctx = new_ctx(b); log = []; mock_github(ctx, {"сдача": issues, "проект": [issue(9, XSS, "1.1", None, title="[Проект] " + XSS, body_extra="")]}, log=log)
     pg = ctx.new_page(); bag = []; attach_errors(pg, bag); dialogs = []; pg.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
-    pg.goto(base + "teacher.html"); pg.wait_for_selector(".gate")
+    pg.goto(base + "teacher.html"); pg.wait_for_selector(".gate"); pg.evaluate("(document.querySelector('.gate details')||{}).open=true")
     check("кабинет: ученику виден только вход", pg.locator(".kpi").count() == 0 and "Кабинет учителя" not in pg.evaluate("document.querySelector('#smenu').textContent"))
     pg.fill("#tk", "ghp_bad"); pg.click("#in"); pg.wait_for_selector("#gm.bad"); check("кабинет: неверный токен отклонён", "не подошёл" in pg.inner_text("#gm"))
     pg.fill("#tk", "ghp_other"); pg.click("#in"); pg.wait_for_selector("#gm:has-text('владелец')"); check("кабинет: чужой аккаунт отклонён", True)
@@ -215,7 +228,7 @@ def teacher(b, base):
     pg.click("#tb button >> nth=0")
     check("кабинет: пункт появился в «Пуске»", "Кабинет" in pg.evaluate("document.querySelector('#smenu').textContent"))
     check("кабинет: токен в sessionStorage, не в localStorage", pg.evaluate("!!sessionStorage.tk && !localStorage.tk"))
-    pg.click("#tb button >> nth=4"); pg.fill("#qi", base64.b64encode(json.dumps({"n": "anna", "l": 0, "d": "x", "a": [[0, 0], [1, 1]]}).encode()).decode()); pg.click("#qg"); pg.wait_for_timeout(200)
+    pg.click("#tb button[data-k=quiz]"); pg.fill("#qi", base64.b64encode(json.dumps({"n": "anna", "l": 0, "d": "x", "a": [[0, 0], [1, 1]]}).encode()).decode()); pg.click("#qg"); pg.wait_for_timeout(200)
     pg.click("#tb button >> nth=0"); pg.wait_for_selector("#csv")
     with pg.expect_download() as d: pg.click("#csv")
     path = d.value.path(); data = open(path, encoding="utf-8-sig", newline="").read()
@@ -232,7 +245,7 @@ def teacher(b, base):
     check("безопасность: токен уходил только на api.github.com", hosts <= {"api.github.com"}, hosts)
     # TTL запомненного токена
     pg.evaluate("localStorage.setItem('tk','ghp_good');localStorage.setItem('tkAt',String(Date.now()-8*864e5));localStorage.setItem('teacher','VMSE1');sessionStorage.clear()")
-    pg.goto(base + "teacher.html"); pg.wait_for_selector(".gate"); check("безопасность: запомненный токен истекает через 7 дней", pg.evaluate("!localStorage.tk"))
+    pg.goto(base + "teacher.html"); pg.wait_for_selector(".gate"); pg.evaluate("(document.querySelector('.gate details')||{}).open=true"); check("безопасность: запомненный токен истекает через 7 дней", pg.evaluate("!localStorage.tk"))
     pg.evaluate("localStorage.setItem('tk','ghp_good');localStorage.setItem('tkAt',String(Date.now()));localStorage.setItem('teacher','VMSE1')")
     pg.goto(base + "teacher.html"); pg.wait_for_selector(".kpi", timeout=10000); pg.click("#out"); pg.wait_for_url("**/index.html")
     check("безопасность: выход стирает токен", pg.evaluate("!localStorage.tk && !sessionStorage.tk && !localStorage.teacher"))
@@ -445,7 +458,7 @@ def honest(b, base):
     check("честный ввод: обычный набор работает", pg.input_value("#code").endswith("print(1)    ") or "print(1)" in pg.input_value("#code"))
     pg.keyboard.press("Backspace"); pg.keyboard.press("Backspace"); pg.keyboard.type("x")
     pg.fill("#nick", "snake_42"); pg.fill("#group", "9А")
-    with ctx.expect_page() as np: pg.click("#go")
+    np = FP(issue_url(pg))
     raw = unquote(unquote(np.value.url)); import re as _re
     m = _re.search(r"meta=(v1;[^&]*)", raw); meta = dict(p.split("=") for p in m.group(1).split(";")[1:]) if m else {}
     final = pg.input_value("#code")
@@ -453,11 +466,11 @@ def honest(b, base):
     check("честный ввод: Tab и стирание не считаются подменой", meta.get("e") == "0", meta)
     check("честный ввод: хеш кода в заявке совпадает с кодом", meta.get("h") == hn_hash(final), (meta.get("h"), hn_hash(final)))
     pg.reload(); pg.wait_for_selector("#code"); pg.fill("#nick", "snake_42"); pg.fill("#group", "9А")
-    with ctx.expect_page() as np2: pg.click("#go")
+    np2 = FP(issue_url(pg))
     m2 = _re.search(r"meta=(v1;[^&]*)", unquote(unquote(np2.value.url)))
     check("честный ввод: счётчик переживает перезагрузку страницы", m2 and "p=" in m2.group(1) and int(dict(p.split("=") for p in m2.group(1).split(";")[1:])["t"]) >= 9)
     pg.once("dialog", lambda d: d.accept()); pg.click("#rs"); pg.fill("#nick", "snake_42"); pg.fill("#group", "9А")
-    with ctx.expect_page() as np3: pg.click("#go")
+    np3 = FP(issue_url(pg))
     m3 = _re.search(r"meta=(v1;[^&]*)", unquote(unquote(np3.value.url)))
     check("честный ввод: «Сбросить» обнуляет счётчик", m3 and "t=0;p=0;b=0;e=0" in m3.group(1), m3 and m3.group(1))
     # обход через консоль разработчика (F12)
@@ -467,7 +480,7 @@ def honest(b, base):
     check("F12: ta.value = «...» из консоли ничего не меняет", pg.input_value("#code") == s0 and "скриптом" in pg.inner_text("#hn"), pg.input_value("#code")[:40])
     pg.evaluate("Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(document.getElementById('code'),'print(\"в обход\")')")
     pg.fill("#nick", "snake_42"); pg.fill("#group", "9А")
-    with ctx.expect_page() as npx: pg.click("#go")
+    npx = FP(issue_url(pg))
     raw = unquote(unquote(npx.value.url)); mm = _re.search(r"meta=(v1;[^&]*)", raw)
     check("F12: через родной setter код не уходит в заявку, откат и пометка", "в обход" not in raw and mm and ";e=" in mm.group(1) and int(dict(p.split("=") for p in mm.group(1).split(";")[1:])["e"]) >= 2 and pg.input_value("#code") == s0, raw[-160:])
     pg.evaluate("document.getElementById('code').dispatchEvent(new InputEvent('input',{inputType:'insertText',data:'x=1',bubbles:true}))")
@@ -500,7 +513,7 @@ def honest(b, base):
               issue(2, "boris", "1.1", "решено", "\n\n### Служебное (не меняй)\n\nv1;t=8;p=3;b=0;e=0;s=10;h=" + hn_hash(code)),
               issue(3, "vera", "1.1", "решено", "\n\n### Служебное (не меняй)\n\nv1;t=8;p=0;b=0;e=0;s=10;h=00000000"),
               issue(4, "gleb", "1.1", "решено")]
-    ctx = new_ctx(b); mock_github(ctx, {"сдача": issues, "проект": []}); pg = ctx.new_page(); pg.goto(base + "teacher.html"); pg.wait_for_selector(".gate")
+    ctx = new_ctx(b); mock_github(ctx, {"сдача": issues, "проект": []}); pg = ctx.new_page(); pg.goto(base + "teacher.html"); pg.wait_for_selector(".gate"); pg.evaluate("(document.querySelector('.gate details')||{}).open=true")
     pg.fill("#tk", "ghp_good"); pg.click("#in"); pg.wait_for_selector(".kpi", timeout=10000)
     sm = pg.inner_text("#tab")
     check("кабинет: в сводке ⚠ у тех, кто вставлял или менял код", sm.count("⚠") == 2, sm.count("⚠"))
@@ -530,7 +543,7 @@ def offline(b, base):
     check("без GitHub: нет ошибок в консоли (ученик)", not bag, bag[:3]); ctx.close()
     # учитель
     ctx = new_ctx(b); mock_github(ctx, {"сдача": [issue(1, "anna", "1.1", "решено")], "проект": []}); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
-    pg.goto(base + "teacher.html"); pg.wait_for_selector(".gate"); pg.fill("#tk", "ghp_good"); pg.click("#in"); pg.wait_for_selector(".kpi", timeout=10000)
+    pg.goto(base + "teacher.html"); pg.wait_for_selector(".gate"); pg.evaluate("(document.querySelector('.gate details')||{}).open=true"); pg.fill("#tk", "ghp_good"); pg.click("#in"); pg.wait_for_selector(".kpi", timeout=10000)
     pg.click("#tb button >> nth=2"); pg.wait_for_selector("#oi")
     pg.fill("#oi", msg); pg.click("#og"); pg.wait_for_selector("#om:has-text('Проверено')", timeout=120000)
     t = pg.inner_text("#oo")
@@ -787,7 +800,7 @@ def start_api(origin):
     return "http://127.0.0.1:%d" % box["port"]
 
 
-def api_ctx(b, api, w=1280, h=800, mobile=False):
+def api_ctx(b, api, w=1280, h=800, mobile=False, gate=True):
     ctx = new_ctx(b, w, h, mobile=mobile)
     host = api.split("//")[1]
     def html(route):
@@ -795,6 +808,7 @@ def api_ctx(b, api, w=1280, h=800, mobile=False):
         route.fulfill(response=r, body=body)
     ctx.route(re.compile(r"\.html(\?.*)?$"), html)
     ctx.route("**/config.js", lambda r: r.fulfill(body='window.API_BASE="%s";' % api, content_type="application/javascript"))
+    if not gate: ctx.add_init_script("try{sessionStorage.setItem('tkey','x')}catch(e){}")  # окно входа проверяется отдельным набором
     return ctx
 
 
@@ -815,14 +829,14 @@ def online(b, base):
     got = p2.evaluate("localStorage.getItem('passed')")
     check("профиль: прогресс переехал на другое устройство", got and '"1.2"' in got, got)
     # живая викторина
-    host = api_ctx(b, api).new_page(); attach_errors(host, bag)
+    hctx = api_ctx(b, api); hctx.add_init_script("try{sessionStorage.setItem('tkey','x')}catch(e){}"); host = hctx.new_page(); attach_errors(host, bag)
     host.goto(base + "live.html"); host.fill("#tk", "wrong"); host.click("#hq"); host.wait_for_selector("#sl"); host.select_option("#sn", "5"); host.click("#fq button[type=submit]")
     host.wait_for_selector("#er2", timeout=6000); host.wait_for_timeout(800)
     check("онлайн: неверный ключ учителя не пускает", "Неверный ключ" in host.inner_text("#er2"), host.inner_text("#er2"))
     host.fill("#tk", "teacher-secret"); host.click("#hq"); host.wait_for_selector("#sl"); host.select_option("#sn", "5"); host.select_option("#ss", "15"); host.click("#fq button[type=submit]")
     host.wait_for_selector(".bigcode", timeout=8000); code = host.inner_text(".bigcode").strip()
     check("онлайн: комната создана, код из 4 цифр", len(code) == 4 and code.isdigit(), code)
-    st = api_ctx(b, api, 390, 780, mobile=True).new_page(); attach_errors(st, bag)
+    st = api_ctx(b, api, 390, 780, mobile=True, gate=False).new_page(); attach_errors(st, bag)
     st.goto(base + "live.html?c=" + code); st.fill("#nk", "Боря"); st.click("#fs button[type=submit]"); st.wait_for_selector(".wait", timeout=6000)
     host.wait_for_function("document.getElementById('pn').textContent==='1'") if False else host.wait_for_timeout(600)
     check("онлайн: ученик виден учителю", host.inner_text("#pn") == "1")
@@ -839,12 +853,12 @@ def online(b, base):
     host.click("#nx"); host.wait_for_selector("text=Игра окончена", timeout=6000); st.wait_for_selector("text=Игра окончена", timeout=6000)
     check("онлайн: викторина доходит до итогов", "Боря" in host.inner_text(".rows"))
     # облако слов
-    h2 = api_ctx(b, api).new_page(); h2.goto(base + "live.html"); h2.fill("#tk", "teacher-secret"); h2.click("#hc"); h2.fill("#ct", "Что такое цикл?"); h2.click("#fc button[type=submit]"); h2.wait_for_selector(".bigcode", timeout=6000)
-    c2 = h2.inner_text(".bigcode").strip(); s2 = api_ctx(b, api, 390, 780, mobile=True).new_page(); s2.goto(base + "live.html?c=" + c2); s2.fill("#nk", "Вера"); s2.click("#fs button[type=submit]"); s2.wait_for_selector("#wi", timeout=6000)
+    h2 = api_ctx(b, api, gate=False).new_page(); h2.goto(base + "live.html"); h2.fill("#tk", "teacher-secret"); h2.click("#hc"); h2.fill("#ct", "Что такое цикл?"); h2.click("#fc button[type=submit]"); h2.wait_for_selector(".bigcode", timeout=6000)
+    c2 = h2.inner_text(".bigcode").strip(); s2 = api_ctx(b, api, 390, 780, mobile=True, gate=False).new_page(); s2.goto(base + "live.html?c=" + c2); s2.fill("#nk", "Вера"); s2.click("#fs button[type=submit]"); s2.wait_for_selector("#wi", timeout=6000)
     s2.fill("#wi", "повтор, for, <b>x</b>"); s2.click("#wf button[type=submit]"); h2.wait_for_selector("#cw svg", timeout=6000)
     t = h2.inner_text("#cw"); check("облако: слова учеников появились у учителя, разметка не исполняется", "повтор" in t and h2.locator("#cw b").count() == 0, t[:60])
     # кабинет учителя
-    tp = api_ctx(b, api).new_page(); tp.goto(base + "students.html"); tp.fill("#tk", "teacher-secret"); tp.click("#ld"); tp.wait_for_selector(".tbl", timeout=6000)
+    tp = api_ctx(b, api, gate=False).new_page(); tp.goto(base + "students.html"); tp.fill("#tk", "teacher-secret"); tp.click("#ld"); tp.wait_for_selector(".tbl", timeout=6000)
     check("учитель: видит зарегистрированных учеников", "Иванова Аня" in tp.inner_text(".tbl") and "2 / 25" in tp.inner_text(".tbl"), tp.inner_text(".tbl")[:120])
     bad = [e for e in bag if "favicon" not in e and "401" not in e]
     check("онлайн: нет ошибок в консоли", not bad, bad[:3])
@@ -947,7 +961,7 @@ def race(b, base):
     check("меню: вкладки «Исходники (GitHub)» у учеников нет", s1.evaluate("document.querySelector('#smenu').textContent").find("GitHub") < 0 and s1.locator("#smenu a[href*='github.com']").count() == 0)
     check("меню: есть пункт «Гонка по Python»", "Гонка по Python" in s1.evaluate("document.querySelector('#smenu').textContent"))
     ctxT = api_ctx(b, api); mock_github(ctxT, {"сдача": [], "проект": []}); t = ctxT.new_page(); attach_errors(t, bag)
-    t.goto(base + "teacher.html"); t.wait_for_selector(".gate"); t.fill("#tk", "ghp_good"); t.click("#in"); t.wait_for_selector(".kpi", timeout=10000)
+    t.goto(base + "teacher.html"); t.wait_for_selector(".gate"); t.evaluate("(document.querySelector('.gate details')||{}).open=true"); t.fill("#tk", "ghp_good"); t.click("#in"); t.wait_for_selector(".kpi", timeout=10000)
     t.click('#tb button[data-k="game"]'); t.wait_for_selector("#ga")
     t.fill("#gk", "wrong"); t.click("#ga"); t.wait_for_selector("#gmsg.bad", timeout=6000)
     check("кабинет: без верного ключа игру не запустить", "ключ" in t.inner_text("#gmsg").lower(), t.inner_text("#gmsg"))
@@ -960,7 +974,7 @@ def race(b, base):
     for pg in (s1, s2, s3): pg.wait_for_url("**/race.html", timeout=14000)
     check("заставка: через несколько секунд открывается гонка", True)
     for pg, nick in ((s1, "anya_r"), (s2, "boris_r"), (s3, "vera_r")):
-        pg.wait_for_selector("#tUp", timeout=8000); pg.click("#tUp"); pg.fill("#nk", nick); pg.fill("#pw", "secret1"); pg.click("#go"); pg.wait_for_selector("#rc_main", timeout=8000)
+        pg.wait_for_selector("#gn", timeout=8000); pg.fill("#gn", nick); pg.fill("#gp", "secret1"); pg.fill("#ge", nick + "@mail.ru"); pg.click("#ggo"); pg.wait_for_selector("#rc_main", timeout=10000)
     wf(s1, "document.body.innerText.includes('В игре: 3')", timeout=10000)
     check("гонка: все трое зарегистрировались (логин и пароль) и ждут старта", "Ждём старта" in s1.inner_text("#rc_head"))
     check("гонка: на телефоне нет горизонтальной прокрутки", not s2.evaluate("document.documentElement.scrollWidth>innerWidth+1"))
@@ -1049,9 +1063,8 @@ def gate(b, base):
     for _ in range(3): lp.fill("#gn", "masha_g"); lp.fill("#gp", "bad-pass"); lp.click("#ggo"); lp.wait_for_timeout(900)
     check("вход: после трёх неверных паролей кнопка выключена и просит подождать", "Подожди" in lp.inner_text("#ggo") and lp.is_disabled("#ggo"), lp.inner_text("#ggo")); cl.close()
     # сервер недоступен: сайт не закрывается навсегда
-    cx = api_ctx(b, "http://127.0.0.1:9"); q = cx.new_page(); q.goto(base + "index.html"); q.wait_for_selector("#gate")
-    q.wait_for_selector("#skip", timeout=9000); check("вход: если сервер не отвечает, есть «Продолжить без входа»", True)
-    q.click("#skip"); check("вход: после этого окно закрыто", q.locator("#gate").count() == 0)
+    cx = api_ctx(b, "http://127.0.0.1:9"); q = cx.new_page(); q.goto(base + "index.html"); q.wait_for_timeout(6000)
+    check("вход: если сервер не отвечает, окно входа не закрывает сайт", q.locator("#gate").count() == 0 and q.locator("a.ico").count() > 0)
     # кабинет по ключу
     ct = api_ctx(b, api); t = ct.new_page(); attach_errors(t, bag); t.goto(base + "teacher.html"); t.wait_for_selector("#sk")
     t.fill("#sk", "bad"); t.click("#sin"); t.wait_for_selector("#sm.bad"); check("кабинет: неверный ключ не пускает", "не подошёл" in t.inner_text("#sm"))

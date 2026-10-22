@@ -263,12 +263,14 @@ function fetchIssues(label, cb, fail) {
 (function () {
   if (typeof document === "undefined" || location.protocol === "file:") return;
   var path = location.pathname.split("/").pop() || "index.html";
-  if (/^(teacher|students)\.html$/.test(path)) return;
+  if (/^(teacher|students|account)\.html$/.test(path)) return;
   function need(src, cb) { var s = document.createElement("script"); s.src = src; s.onload = cb; s.onerror = function () {}; document.head.appendChild(s); }
   function go() {
     if (!window.Net || !Net.on || Net.user()) return;
     try { if (sessionStorage.getItem("tkey")) return; } catch (e) {}
-    need("gate.js");
+    /* окно входа включаем, только если сервер новой версии (v2): со старым сервером ученики не смогут зарегистрироваться */
+    var ctl = typeof AbortController === "function" ? new AbortController() : null, to = setTimeout(function () { if (ctl) ctl.abort(); }, 4000);
+    fetch(Net.base + "/api/ping", { cache: "no-store", signal: ctl ? ctl.signal : undefined }).then(function (r) { return r.json(); }).then(function (j) { clearTimeout(to); if (j && j.v >= 2) need("gate.js"); }).catch(function () { clearTimeout(to); });
   }
   function boot() {
     if (window.API_BASE === undefined) return need("config.js", boot);
