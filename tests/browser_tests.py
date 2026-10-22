@@ -74,6 +74,7 @@ def new_ctx(b, w=1280, h=820, mobile=False, seen=True, raw=False, brief=False, b
     ua = None if bot else "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
     ctx = b.new_context(viewport={"width": w, "height": h}, is_mobile=mobile, device_scale_factor=2 if mobile else 1, accept_downloads=True, user_agent=ua)
     if not bot: ctx.add_init_script("Object.defineProperty(navigator,'webdriver',{get:()=>false})")
+    ctx.route("**/config.js", lambda r: r.fulfill(body='window.API_BASE="";', content_type="application/javascript"))  # без сервера: окно входа не показывается
     if not raw: ctx.route("**/honest.js", _honest_test)
     if seen: ctx.add_init_script("localStorage.seenStart='1';localStorage.visited='1';" + ("" if brief else "window.__noBrief=true;"))
     return ctx
@@ -121,12 +122,12 @@ def functional(b, base):
     ctx = new_ctx(b); mock_github(ctx, {"проект": [issue(1, "ann", "1.1", None, title="[Проект] Бот")], "сдача": []})
     pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
     pg.goto(base + "index.html"); pg.wait_for_timeout(300)
-    check("desktop: 11 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 11 and "id=1.1" in pg.get_attribute("#cont", "href"))
+    check("desktop: 10 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 10 and "id=1.1" in pg.get_attribute("#cont", "href"))
     pg.click("a.ico >> nth=0"); pg.wait_for_url("**/tasks.html"); check("иконка «Задания» открывает карту", "tasks.html" in pg.url)
     check("карта: 25 квадратов, один «следующий»", pg.locator(".node").count() == 25 and pg.locator(".node.next").count() == 1)
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
-    pg.click("#startBtn"); check("«Пуск» открывает меню (14 пунктов)", pg.locator("#smenu.on a").count() == 14, pg.locator("#smenu.on a").count())
+    pg.click("#startBtn"); check("«Пуск» открывает меню (13 пунктов)", pg.locator("#smenu.on a").count() == 13, pg.locator("#smenu.on a").count())
     pg.keyboard.press("Escape"); check("Esc закрывает меню", pg.locator("#smenu.on").count() == 0)
     pg.click("#startBtn"); pg.mouse.click(900, 300); check("клик вне меню закрывает его", pg.locator("#smenu.on").count() == 0)
     # проекты
@@ -156,16 +157,7 @@ def functional(b, base):
     big_fill(pg, "while True: pass"); t0 = time.time(); pg.click("#chk"); pg.wait_for_selector("#res.on:not(.wait)", timeout=30000)
     check("задание: бесконечный цикл обрывается за ~8 с", "8 секунд" in pg.inner_text("#res") and time.time() - t0 < 14, "%.1fs" % (time.time() - t0))
     cls, txt = run_code('name=input("Имя: ")\ncity=input("Город: ")\nprint(f"Меня зовут {name}, я из {city}")', 90000); check("задание: после обрыва проверка снова работает", "pass" in cls, txt[:80])
-    pg.fill("#nick", ""); pg.click("#go"); check("отправка: без ника просит ник", "ник" in pg.inner_text("#msg"))
-    pg.fill("#nick", "snake_42"); pg.fill("#group", ""); pg.click("#go"); check("отправка: без группы просит группу", "групп" in pg.inner_text("#msg"))
-    with ctx.expect_page() as np:
-        pg.fill("#nick", "snake_42"); pg.fill("#group", "9А"); pg.click("#go")
-    pop = np.value.url; from urllib.parse import unquote
-    pop = unquote(unquote(pop)); check("отправка: открывается заполненная форма Issue", "issues/new" in pop and "snake_42" in pop and "template=submit.yml" in pop and "group=9А" in pop, pop[:90])
-    # длинный код
-    big_fill(pg, "x=1\n" * 5000)
-    with ctx.expect_page() as np2: pg.click("#go")
-    check("отправка: очень длинный код не ломает URL (запасной путь)", len(np2.value.url) < 8000 and "code=" not in np2.value.url)
+    pg.click("#go"); check("отправка: без входа в профиль просит войти (GitHub не используется)", "войди" in pg.inner_text("#msg").lower() and len(ctx.pages) == 1, pg.inner_text("#msg"))
     check("функциональные: нет ошибок в консоли", not bag, bag[:3])
     ctx.close()
     # облако слов
@@ -811,7 +803,7 @@ def online(b, base):
     api = start_api(base.rstrip("/")); bag = []
     ctx = api_ctx(b, api); pg = ctx.new_page(); attach_errors(pg, bag)
     pg.goto(base + "account.html"); pg.wait_for_selector("#tUp"); pg.click("#tUp")
-    pg.fill("#nk", "anya_t"); pg.fill("#fo", "Иванова Аня"); pg.fill("#gr", "9А"); pg.fill("#pw", "secret1"); pg.fill("#p2", "secret2"); pg.click("#go")
+    pg.fill("#nk", "anya_t"); pg.fill("#em", "anya@mail.ru"); pg.fill("#fo", "Иванова Аня"); pg.fill("#gr", "9А"); pg.fill("#pw", "secret1"); pg.fill("#p2", "secret2"); pg.click("#go")
     check("профиль: разные пароли не принимаются", "не совпадают" in pg.inner_text("#er"))
     pg.fill("#p2", "secret1"); pg.click("#go"); pg.wait_for_selector(".prof", timeout=8000)
     check("профиль: регистрация и вход", "anya_t" in pg.inner_text(".prof"))
@@ -934,8 +926,208 @@ def chaos(b, base):
         check("мусор в хранилище %r: нет ошибок на страницах" % j, not bag, bag[:2]); ctx.close()
 
 
+def wf(pg, expr, timeout=10000):
+    """Ждёт, пока выражение станет истинным (wait_for_function не работает из-за CSP без unsafe-eval)."""
+    end = time.time() + timeout / 1000
+    while time.time() < end:
+        try:
+            if pg.evaluate("()=>!!(" + expr + ")"): return True
+        except Exception: pass
+        pg.wait_for_timeout(120)
+    raise AssertionError("не дождались: " + expr[:90])
+
+
+def race(b, base):
+    print("\n== ГОНКА ДЛЯ ВСЕХ (настоящий сервер) ==")
+    api = start_api(base.rstrip("/")); bag = []
+    RM = sys.modules["race"]; RM.MIN_GAP = 0; RM.TYPE_RATE = 80
+    def student(page, w=1280, h=800, mobile=False):
+        ctx = api_ctx(b, api, w, h, mobile=mobile); pg = ctx.new_page(); attach_errors(pg, bag); pg.goto(base + page); return ctx, pg
+    c1, s1 = student("tasks.html"); c2, s2 = student("index.html", 390, 780, True); c3, s3 = student("theory.html")
+    check("меню: вкладки «Исходники (GitHub)» у учеников нет", s1.evaluate("document.querySelector('#smenu').textContent").find("GitHub") < 0 and s1.locator("#smenu a[href*='github.com']").count() == 0)
+    check("меню: есть пункт «Гонка по Python»", "Гонка по Python" in s1.evaluate("document.querySelector('#smenu').textContent"))
+    ctxT = api_ctx(b, api); mock_github(ctxT, {"сдача": [], "проект": []}); t = ctxT.new_page(); attach_errors(t, bag)
+    t.goto(base + "teacher.html"); t.wait_for_selector(".gate"); t.fill("#tk", "ghp_good"); t.click("#in"); t.wait_for_selector(".kpi", timeout=10000)
+    t.click('#tb button[data-k="game"]'); t.wait_for_selector("#ga")
+    t.fill("#gk", "wrong"); t.click("#ga"); t.wait_for_selector("#gmsg.bad", timeout=6000)
+    check("кабинет: без верного ключа игру не запустить", "ключ" in t.inner_text("#gmsg").lower(), t.inner_text("#gmsg"))
+    t.fill("#gk", "teacher-secret"); t.click("#ga"); t.wait_for_selector("#gmsg.ok", timeout=6000)
+    for pg in (s1, s2, s3): pg.wait_for_selector("#egp", timeout=10000)
+    check("заставка: у всех на экране «Давайте поиграем!»", all("Давайте поиграем" in pg.inner_text("#egp") for pg in (s1, s2, s3)))
+    bg = s1.evaluate("getComputedStyle(document.getElementById('egp')).backgroundImage")
+    check("заставка: жёлто-оранжевый фон", "255, 210, 74" in bg and "255, 122, 0" in bg, bg)
+    s1.screenshot(path="/tmp/race_intro.png")
+    for pg in (s1, s2, s3): pg.wait_for_url("**/race.html", timeout=14000)
+    check("заставка: через несколько секунд открывается гонка", True)
+    for pg, nick in ((s1, "anya_r"), (s2, "boris_r"), (s3, "vera_r")):
+        pg.wait_for_selector("#tUp", timeout=8000); pg.click("#tUp"); pg.fill("#nk", nick); pg.fill("#pw", "secret1"); pg.click("#go"); pg.wait_for_selector("#rc_main", timeout=8000)
+    wf(s1, "document.body.innerText.includes('В игре: 3')", timeout=10000)
+    check("гонка: все трое зарегистрировались (логин и пароль) и ждут старта", "Ждём старта" in s1.inner_text("#rc_head"))
+    check("гонка: на телефоне нет горизонтальной прокрутки", not s2.evaluate("document.documentElement.scrollWidth>innerWidth+1"))
+    t.click("#gs"); wf(t, "document.getElementById('gmsg').textContent.includes('началась')", timeout=6000)
+    for pg in (s1, s2, s3): pg.wait_for_selector("#rcode", timeout=8000)
+    check("гонка: после старта у всех появилась первая задача", all("Задача 1 из 5" in pg.inner_text("#rc_task") for pg in (s1, s2, s3)))
+    GOOD = ['name = input()\nprint(f"Привет, {name}!")', 'a = int(input())\nb = int(input())\nprint(a + b)', 'x = int(input())\nprint(4 * x)',
+            'n = int(input())\nprint("Чётное" if n % 2 == 0 else "Нечётное")', 'b = int(input())\nprint(5 if b >= 85 else 4 if b >= 70 else 3 if b >= 50 else 2)']
+    def solve(pg, i, code):
+        pg.wait_for_selector("#rcode"); wf(pg, "document.getElementById('rc_task').innerText.includes('Задача %d из')" % (i + 1)); pg.click("#rcode"); pg.keyboard.type(code, delay=40); pg.click("#rsend")
+    solve(s2, 0, 'print("Привет, Анна!")'); wf(s2, "document.getElementById('rmsg').textContent.includes('ждали')", timeout=15000)
+    check("гонка: зашитый ответ не засчитан, показана причина", "ждали" in s2.inner_text("#rmsg"), s2.inner_text("#rmsg"))
+    s2.click("#rcode"); s2.keyboard.press("Control+A"); s2.keyboard.press("Backspace")
+    for i, c in enumerate(GOOD):
+        solve(s1, i, c)
+        if i < 4: wf(s1, "document.getElementById('rc_task').innerText.includes('Задача %d из')" % (i + 2), timeout=20000)
+    s1.wait_for_selector(".fin", timeout=20000)
+    check("гонка: первый финишировал, видит «Финиш» и 1 место", "Финиш" in s1.inner_text("#rc_task") and "1" in s1.inner_text("#rc_task"), s1.inner_text("#rc_task"))
+    s1.screenshot(path="/tmp/race_run.png")
+    for i, c in enumerate(GOOD):
+        solve(s3, i, c)
+        if i < 4: wf(s3, "document.getElementById('rc_task').innerText.includes('Задача %d из')" % (i + 2), timeout=20000)
+    s3.wait_for_selector(".fin", timeout=20000)
+    for i, c in enumerate(GOOD[:3]):
+        if i == 0: s2.evaluate("document.getElementById('rc_task').innerHTML=''"); s2.wait_for_selector("#rcode", timeout=8000)
+        solve(s2, i, c)
+        if i < 2: wf(s2, "document.getElementById('rc_task').innerText.includes('Задача %d из')" % (i + 2), timeout=20000)
+    wf(s2, "document.getElementById('rc_task').innerText.includes('Задача 4 из')", timeout=20000)
+    check("гонка: у третьего ученика прогресс 3 из 5, он продолжает", True)
+    wf(s2, "document.querySelector('.pod')!==null", timeout=8000)
+    pod = s2.inner_text(".pod"); check("гонка: подиум показывает победителей по порядку", pod.find("anya_r") < pod.find("vera_r") and "anya_r" in pod and "boris_r" not in pod, pod)
+    check("гонка: на поле виден бегун каждого игрока", s2.locator(".lane").count() == 3 and s2.locator(".lane svg.rn").count() == 3, s2.locator(".lane").count())
+    # табло для проектора без входа
+    cb = api_ctx(b, api, 1280, 720); bd = cb.new_page(); attach_errors(bd, bag); bd.goto(base + "race.html?board=1"); bd.wait_for_selector(".trk", timeout=8000)
+    check("табло: без входа видно забег и подиум", "anya_r" in bd.inner_text("#app") and "Ждём" not in bd.inner_text("#rc_head") and bd.locator("#rcode").count() == 0)
+    bd.screenshot(path="/tmp/race_board.png")
+    # защита: из консоли нельзя подменить Honest / Net
+    s1.goto(base + "task.html?id=1.1"); s1.wait_for_selector("#code")
+    r = s1.evaluate("()=>{try{window.Honest=null;Honest.code=function(){return 'x'}}catch(e){} try{Net.req=null}catch(e){} return [typeof Honest.code, typeof Honest.attach, typeof Net.req, Object.isFrozen(Honest)]}")
+    check("защита: Honest и Net из консоли не подменить", r[1] == "function" and r[2] == "function" and r[3] is True and r[0] == "function", r)
+    # учитель останавливает и сбрасывает
+    t.click("#gx"); t.wait_for_selector("#gmsg.ok"); wf(t, "document.getElementById('gv').innerText.includes('окончена')", timeout=6000)
+    wf(s2, "document.getElementById('rc_head').innerText.includes('окончена')", timeout=8000)
+    check("учитель: «Остановить» завершает гонку у всех", True)
+    t.once("dialog", lambda d: d.accept()); t.click("#gr"); wf(t, "document.getElementById('gv').innerText.includes('игры нет')", timeout=6000)
+    check("учитель: «Сбросить» очищает игру", True)
+    check("гонка: нет ошибок в консоли (кроме проверки неверного ключа)", not [x for x in bag if "403" not in x], bag[:4])
+    for c in (c1, c2, c3, ctxT, cb): c.close()
+
+
+def gate(b, base):
+    print("\n== ПЕРВОЕ ОКНО: РЕГИСТРАЦИЯ, ВОССТАНОВЛЕНИЕ ПАРОЛЯ, СДАЧА НА СЕРВЕР ==")
+    import urllib.request, json as _j
+    api = start_api(base.rstrip("/")); bag = []
+    ctx = api_ctx(b, api); pg = ctx.new_page(); attach_errors(pg, bag)
+    pg.goto(base + "tasks.html"); pg.wait_for_selector("#gate", timeout=8000)
+    check("вход: при первом заходе открывается окно регистрации", "Создай профиль" in pg.inner_text("#gate") and pg.locator("#ge").count() == 1)
+    check("вход: GitHub в окне не упоминается", "github" not in pg.inner_text("#gate").lower())
+    pg.screenshot(path="/tmp/gate.png")
+    pg.click("#ggo"); check("вход: пустая форма не отправляется", "Впиши логин" in pg.inner_text("#ger"))
+    pg.fill("#gn", "masha_g"); pg.fill("#gp", "secret1"); pg.click("#ggo"); check("вход: без почты не пускает", "почту" in pg.inner_text("#ger"), pg.inner_text("#ger"))
+    pg.fill("#ge", "не-почта"); pg.click("#ggo"); pg.wait_for_function("1") if False else pg.wait_for_timeout(900)
+    check("вход: неверная почта отклонена сервером", "Почта" in pg.inner_text("#ger"), pg.inner_text("#ger"))
+    pg.fill("#ge", "masha@mail.ru"); pg.click("#ggo"); pg.wait_for_selector("#gate", state="detached", timeout=8000); pg.wait_for_timeout(500)
+    check("вход: после регистрации окно исчезает и сайт открыт", pg.locator("#gate").count() == 0 and "Задания" in pg.title() or pg.locator("#gate").count() == 0)
+    nick = pg.evaluate("(JSON.parse(localStorage.getItem('acct')||'{}')).nick"); check("вход: профиль сохранён", nick == "masha_g", nick)
+    pg.reload(); pg.wait_for_timeout(1200); check("вход: после обновления окно не возвращается", pg.locator("#gate").count() == 0)
+    # сдача на сервер вместо GitHub
+    pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code"); pg.click("#code"); pg.keyboard.press("Control+A"); pg.keyboard.press("Backspace"); pg.keyboard.type('name = input()\ncity = input()\nprint(f"Меня зовут {name}, я из {city}")', delay=30)
+    pg.click("#go"); pg.wait_for_selector("#msg.ok", timeout=20000)
+    check("сдача: сервер проверил и принял решение (без GitHub)", "Принято" in pg.inner_text("#msg"), pg.inner_text("#msg"))
+    check("сдача: нет окон GitHub", not any("github.com" in p_.url for p_ in ctx.pages))
+    def tapi(path):
+        r = urllib.request.Request(api + path, headers={"X-Teacher-Key": "teacher-secret"}); return _j.load(urllib.request.urlopen(r))
+    subs = tapi("/api/teacher/subs")["rows"]; check("сдача: учитель видит её на сервере", subs and subs[0]["nick"] == "masha_g" and subs[0]["status"] == "ok", subs[:1])
+    # забыл пароль: ученик выходит и восстанавливает по коду
+    pg.evaluate("localStorage.removeItem('acct')"); pg.goto(base + "index.html"); pg.wait_for_selector("#gate"); pg.click("#tIn"); pg.click("#gfg")
+    pg.fill("#gl", "masha@mail.ru"); pg.click("#ggo"); pg.wait_for_selector("#gc", timeout=8000)
+    rec = tapi("/api/teacher/recov")["rows"]; check("пароль: учитель видит запрос и код (почта сервера не настроена)", rec and len(rec[0]["code"]) == 6 and rec[0]["nick"] == "masha_g", rec[:1])
+    pg.fill("#gn", "masha_g"); pg.fill("#gc", "000000" if rec[0]["code"] != "000000" else "111111"); pg.fill("#gp", "newsecret1"); pg.click("#ggo"); pg.wait_for_timeout(900)
+    check("пароль: неверный код отклонён", "Неверный код" in pg.inner_text("#ger"), pg.inner_text("#ger"))
+    pg.fill("#gc", rec[0]["code"]); pg.click("#ggo"); pg.wait_for_selector("#gate", state="detached", timeout=8000)
+    check("пароль: с верным кодом вход выполнен, новый пароль работает", pg.evaluate("(JSON.parse(localStorage.getItem('acct')||'{}')).nick") == "masha_g")
+    prog = pg.evaluate("localStorage.getItem('passed')"); check("пароль: прогресс на месте после восстановления", prog and '"1.1"' in prog, prog)
+    cl = api_ctx(b, api); lp = cl.new_page(); lp.goto(base + "index.html"); lp.wait_for_selector("#gate"); lp.click("#tIn")
+    for _ in range(3): lp.fill("#gn", "masha_g"); lp.fill("#gp", "bad-pass"); lp.click("#ggo"); lp.wait_for_timeout(900)
+    check("вход: после трёх неверных паролей кнопка выключена и просит подождать", "Подожди" in lp.inner_text("#ggo") and lp.is_disabled("#ggo"), lp.inner_text("#ggo")); cl.close()
+    # сервер недоступен: сайт не закрывается навсегда
+    cx = api_ctx(b, "http://127.0.0.1:9"); q = cx.new_page(); q.goto(base + "index.html"); q.wait_for_selector("#gate")
+    q.wait_for_selector("#skip", timeout=9000); check("вход: если сервер не отвечает, есть «Продолжить без входа»", True)
+    q.click("#skip"); check("вход: после этого окно закрыто", q.locator("#gate").count() == 0)
+    # кабинет по ключу
+    ct = api_ctx(b, api); t = ct.new_page(); attach_errors(t, bag); t.goto(base + "teacher.html"); t.wait_for_selector("#sk")
+    t.fill("#sk", "bad"); t.click("#sin"); t.wait_for_selector("#sm.bad"); check("кабинет: неверный ключ не пускает", "не подошёл" in t.inner_text("#sm"))
+    t.fill("#sk", "teacher-secret"); t.click("#sin"); t.wait_for_selector("#tb", timeout=8000)
+    check("кабинет: по ключу видны вкладки Игра, Сдачи, Пароли", all(x in t.inner_text("#tb") for x in ("Игра", "Сдачи", "Пароли")))
+    t.click('#tb button[data-k="subs"]'); t.wait_for_selector("#so table", timeout=8000); check("кабинет: во вкладке «Сдачи» видна сдача ученика", "masha_g" in t.inner_text("#so") and "решено" in t.inner_text("#so"))
+    t.click('#tb button[data-k="rec"]'); t.wait_for_timeout(900); check("кабинет: во вкладке «Пароли» видно, что почта не настроена", "не настроена" in t.inner_text("#tab"), t.inner_text("#tab")[:100])
+    check("вход: нет ошибок в консоли", not [x for x in bag if "ERR_CONNECTION" not in x and "Failed to load resource" not in x], bag[:4])
+    for c in (ctx, cx, ct): c.close()
+
+
+def lucky(b, base):
+    print("\n== РУЛЕТКА «ТРИ ЧЕРЕПА», ИГРА С БОЧКАМИ, СЕКРЕТЫ ==")
+    import urllib.request, json as _j
+    api = start_api(base.rstrip("/")); bag = []; A = sys.modules["app"]; A.LUCKY.update(next=time.time() + 99999)
+    def tpost(path, body):
+        r = urllib.request.Request(api + path, data=_j.dumps(body).encode(), headers={"X-Teacher-Key": "teacher-secret", "Content-Type": "application/json"}); return _j.load(urllib.request.urlopen(r))
+    def tget(path): return _j.load(urllib.request.urlopen(urllib.request.Request(api + path, headers={"X-Teacher-Key": "teacher-secret"})))
+    def student(nick):
+        ctx = api_ctx(b, api); pg = ctx.new_page(); attach_errors(pg, bag); pg.goto(base + "index.html"); pg.wait_for_selector("#gate")
+        pg.fill("#gn", nick); pg.fill("#gp", "secret1"); pg.fill("#ge", nick + "@mail.ru"); pg.click("#ggo"); pg.wait_for_selector("#gate", state="detached", timeout=8000); pg.wait_for_timeout(600); return ctx, pg
+    c0, p0 = student("nolucky_1"); check("главный экран: значка «Убеги от скелета / получи 5» нет", "получи 5" not in p0.inner_text("body") and "Убеги" not in p0.inner_text("#smenu") if p0.locator("#smenu").count() else "получи 5" not in p0.inner_text("body"))
+    # 1) черепа не выпали: смеющийся скелет
+    c1, s1 = student("unlucky_1"); A.LUCKY_ODDS = 0.0
+    tpost("/api/teacher/play", {"action": "lucky", "nick": "unlucky_1"}); s1.wait_for_selector("#lk", timeout=9000)
+    check("рулетка: у выбранного ученика появилось окно, у остальных нет", "Тебе выпал шанс" in s1.inner_text("#lk") and p0.locator("#lk").count() == 0)
+    s1.screenshot(path="/tmp/lucky_roulette.png")
+    s1.click("#lks"); s1.wait_for_selector("#lc", timeout=9000); s1.wait_for_timeout(300)
+    t = s1.inner_text("#lk"); check("рулетка: без трёх черепов «Ха-ха-ха» и «оценки нет»", "Ха-ха-ха" in t and "оценки нет" in t and "Фортуна" in t and "Может, повезёт" in t, t[:120])
+    sums = []
+    for _ in range(8): sums.append(s1.evaluate("(()=>{const d=document.getElementById('lc').getContext('2d').getImageData(120,100,250,60).data;let n=0;for(let i=0;i<d.length;i+=4)if(d[i]<40&&d[i+1]<20)n++;return n})()")); s1.wait_for_timeout(55)
+    check("скелет смеётся: рот открывается и закрывается", max(sums) - min(sums) > 200, sums)
+    s1.screenshot(path="/tmp/lucky_laugh.png"); s1.click("#lkx"); check("рулетка: окно закрывается кнопкой", s1.locator("#lk").count() == 0)
+    # 2) три черепа: игра проходится и даёт красную пятёрку
+    c2, s2 = student("lucky_win"); A.LUCKY_ODDS = 1.0
+    tpost("/api/teacher/play", {"action": "lucky", "nick": "lucky_win"}); s2.wait_for_selector("#lk", timeout=9000); s2.click("#lks"); s2.wait_for_selector("#lkg", timeout=9000)
+    check("рулетка: три черепа открывают игру", "Три черепа" in s2.inner_text("#lk"))
+    s2.click("#lkg"); s2.wait_for_selector("#gc"); s2.evaluate("Lucky._t.nob(true)"); s2.screenshot(path="/tmp/lucky_game.png")
+    st = lambda: s2.evaluate("Lucky._t.state()")
+    def hold(key, until, tmo=12):
+        end = time.time() + tmo; s2.keyboard.down(key)
+        try:
+            while time.time() < end and not until(st()): s2.wait_for_timeout(30)
+        finally: s2.keyboard.up(key)
+        return until(st())
+    ok = hold("ArrowRight", lambda s: s["x"] >= 498) and hold("ArrowUp", lambda s: s["floor"] == 1 and not s["lad"])
+    ok = ok and hold("ArrowLeft", lambda s: s["x"] <= 130) and hold("ArrowUp", lambda s: s["floor"] == 2 and not s["lad"])
+    ok = ok and hold("ArrowRight", lambda s: s["x"] >= 498) and hold("ArrowUp", lambda s: s["floor"] == 3 and not s["lad"])
+    check("игра: по лестницам можно подняться на самый верх", ok, st())
+    hold("ArrowLeft", lambda s: s["over"], 8); s2.wait_for_selector(".five", timeout=9000)
+    check("игра: добежал до скелета — красная пятёрка и «Позови преподавателя»", s2.inner_text(".five").strip() == "5" and "Позови преподавателя" in s2.inner_text("#lk") and "lucky_win" in s2.inner_text("#lk"), s2.inner_text("#lk")[:80])
+    s2.screenshot(path="/tmp/lucky_five.png")
+    rows = tget("/api/teacher/lucky")["rows"]; check("кабинет: победа записана как красная пятёрка", any(r["nick"] == "lucky_win" and r["kind"] == "five" for r in rows), rows[:2])
+    # 3) проиграл в игре: оценка сгорает
+    c3, s3 = student("lucky_lose"); tpost("/api/teacher/play", {"action": "lucky", "nick": "lucky_lose"}); s3.wait_for_selector("#lk", timeout=9000); s3.click("#lks"); s3.wait_for_selector("#lkg", timeout=9000); s3.click("#lkg"); s3.wait_for_selector("#gc")
+    s3.evaluate("Lucky._t.hit()"); s3.wait_for_selector("#lc", timeout=9000)
+    check("игра: бочка попала — одна попытка, «Ха-ха-ха», оценка сгорела", "Ха-ха-ха" in s3.inner_text("#lk") and "оценки нет" in s3.inner_text("#lk"))
+    rows = tget("/api/teacher/lucky")["rows"]; check("кабинет: проигрыш записан", any(r["nick"] == "lucky_lose" and r["kind"] == "burned" for r in rows))
+    # 4) секреты
+    c4, s4 = student("secret_1")
+    s4.click("body")
+    for k in ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"]: s4.keyboard.press(k)
+    s4.wait_for_selector("#gc", timeout=8000); check("секрет: ↑↑↓↓←→←→BA открывает тренировочную игру", "Скелет и бочки" in s4.inner_text("#lk"))
+    s4.click("text=Выйти"); check("секрет: из тренировки можно выйти", s4.locator("#lk").count() == 0)
+    for _ in range(5): s4.click(".clock")
+    s4.wait_for_selector("#lc", timeout=6000); check("секрет: пять нажатий на часы показывают смеющегося скелета без оценок", "секрет" in s4.inner_text("#lk"))
+    s4.click("#lkx")
+    r = s4.evaluate("(()=>{let h=0;const old=Math.random;Math.random=()=>0.1;const el=document.createElement('div');for(let i=0;i<3;i++)EggHint(el);Math.random=old;return el.innerText})()")
+    check("секрет: подсказки о секретах появляются после решённых заданий", "2 2 6 7" in r and "B A" in r and "часы" in r.lower(), r[:80])
+    s4.keyboard.type("2267"); s4.wait_for_selector("#egg", timeout=5000); check("секрет: 2267 по-прежнему открывает «Убеги от скелета»", True); s4.keyboard.press("Escape")
+    check("рулетка и игра: нет ошибок в консоли", not [x for x in bag if "Failed to load resource" not in x], bag[:3])
+    for c in (c0, c1, c2, c3, c4): c.close()
+
+
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "botguard", "unlock", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "lucky", "botguard", "unlock", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox", "--disable-features=LocalNetworkAccessChecks,LocalNetworkAccess,PrivateNetworkAccessRespectPreflightResults"])

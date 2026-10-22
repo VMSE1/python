@@ -17,7 +17,7 @@ function loggedOut(){
  '<form class="box acf" id="f" novalidate>'+
  (mode==="up"?'<p class="m">Придумай ник (его увидят одноклассники в играх) и пароль. Фамилию и имя видит только учитель.</p>':'<p class="m">Введи ник и пароль, которые указал при создании профиля.</p>')+
  field("nk","Ник (псевдоним)","text",nick,mode==="up"?"3–20 символов: буквы, цифры, точка, дефис":"","username")+
- (mode==="up"?field("fo","Фамилия и имя","text",fio,"Например: Иванова Аня. Нужно, чтобы учитель понял, кто это","name")+field("gr","Группа","text",grp,"Например 9А. Нет группы: напиши «нет»","off"):"")+
+ (mode==="up"?field("em","Почта","email","","Нужна, чтобы вернуть пароль, если забудешь","email"):"")+(mode==="up"?field("fo","Фамилия и имя","text",fio,"Например: Иванова Аня. Нужно, чтобы учитель понял, кто это","name")+field("gr","Группа","text",grp,"Например 9А. Нет группы: напиши «нет»","off"):"")+
  field("pw","Пароль","password","",mode==="up"?"Минимум 6 символов. Не используй пароль от почты или соцсетей":"",mode==="up"?"new-password":"current-password")+
  (mode==="up"?field("p2","Повтори пароль","password","","","new-password"):"")+
  '<label class="chk"><input type="checkbox" id="sh"> Показать пароль</label>'+
@@ -35,7 +35,7 @@ function submit(){
  var o={nick:nick,password:pw};
  if(mode==="up"){
   if(pw!==$("p2").value){er.textContent="Пароли не совпадают.";$("p2").focus();return}
-  o.fio=$("fo").value;o.group=$("gr").value}
+  o.email=$("em").value.trim();o.fio=$("fo").value;o.group=$("gr").value}
  var b=$("go");b.disabled=true;b.textContent="Подожди…";
  Net[mode==="up"?"register":"login"](o).then(function(j){
   if(j.ok){loggedIn("Готово! Ты вошёл.");return}

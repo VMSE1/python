@@ -126,7 +126,7 @@
     function winScreen() {
       var d = new Date(), pad = function (x) { return ("0" + x).slice(-2); }, stamp = pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
       try { localStorage.setItem("skull", JSON.stringify({ at: d.toISOString(), nick: who() })); } catch (e) {}
-      msg.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap"><div style="font:400 clamp(44px,10vw,72px)/1 \'Press Start 2P\',monospace;color:#ff2a2a;background:#fff;border:5px solid #000;padding:10px 22px;box-shadow:6px 6px 0 #000" aria-label="Оценка пять">5</div><div style="text-align:left"><b style="font-size:1.4em">Позови преподавателя</b><br>Покажи ему этот экран.<br><span style="opacity:.85">' + (who() ? who() + " · " : "") + stamp + '</span></div></div>';
+      msg.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap"><div style="font:400 clamp(44px,10vw,72px)/1 \'Press Start 2P\',monospace;color:#d98a00;background:#fff;border:5px solid #000;padding:10px 22px;box-shadow:6px 6px 0 #000" aria-label="Секретная игра пройдена">★</div><div style="text-align:left"><b style="font-size:1.4em">Ты убежал!</b><br>Секрет найден. Скелет теперь твой друг.<br><span style="opacity:.85">' + (who() ? who() + " · " : "") + stamp + '</span></div></div>';
       if (opts.onWin) { try { opts.onWin(); } catch (e) {} }
     }
     function close() { if (opts.onClose) { try { opts.onClose(); } catch (e) {} } cancelAnimationFrame(raf); document.removeEventListener("keydown", key, true); ov.remove(); ST = null; }
@@ -180,5 +180,67 @@
     var tm = opts.ms ? setTimeout(close, opts.ms) : 0;
     ov.querySelector("#egdx").onclick = close; raf = requestAnimationFrame(frame); ov.querySelector("#egdx").focus();
   }
-  window.Egg = { dance: dance, start: start, _t: function () { return ST; } };
+
+  /* «Давайте поиграем!»: жёлто-оранжевый экран на 5 секунд. Два человечка пляшут под солнцем (как в Террарии). Запускает сайт, когда учитель нажал кнопку в кабинете. */
+  function play(opts) {
+    opts = opts || {};
+    if (document.getElementById("egp")) return;
+    var ov = document.createElement("div"); ov.id = "egp"; ov.setAttribute("role", "alert"); ov.setAttribute("aria-label", "Давайте поиграем");
+    ov.style.cssText = "position:fixed;inset:0;z-index:2147482600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:14px;overflow:hidden;background:linear-gradient(#ffd24a,#ff9a1f 70%,#ff7a00);animation:egpf 1.2s steps(2) infinite";
+    ov.innerHTML = '<style>@keyframes egpf{50%{filter:brightness(1.08)}}@keyframes egpt{50%{transform:scale(1.05) rotate(-1deg)}}@media (prefers-reduced-motion:reduce){#egp,#egp div{animation:none!important}}</style>' +
+      '<div style="font:400 clamp(22px,7vw,64px)/1.3 \'Press Start 2P\',monospace;color:#fff;text-shadow:4px 4px 0 #7a3a00,-2px -2px 0 #7a3a00,2px -2px 0 #7a3a00,-2px 2px 0 #7a3a00;text-align:center;animation:egpt 1s steps(2) infinite">' + String(opts.text || "Давайте поиграем!").replace(/</g, "&lt;") + '</div>' +
+      '<canvas id="egpc" width="' + W + '" height="' + H + '" style="width:min(100%,calc((100vh - 200px)*1.78),880px);height:auto;border:4px solid #7a3a00;image-rendering:pixelated;background:#ffe9a8" aria-hidden="true"></canvas>' +
+      '<div style="font:600 clamp(14px,2.6vw,22px)/1.5 \'IBM Plex Mono\',monospace;color:#5a2a00;text-align:center">' + String(opts.sub || "Сейчас откроется гонка по Python").replace(/</g, "&lt;") + '</div>';
+    document.body.appendChild(ov);
+    var c = ov.querySelector("#egpc").getContext("2d"), raf = 0, T = 0, last = 0, done = false;
+    var BODY = MAN.map(function (r) { return r.replace(/^S/, ".").replace(/S$/, "."); });
+    function arms(x, y, u, up, t, shirt) {
+      c.fillStyle = shirt; var sw = Math.round(Math.sin(t * 8) * u);
+      c.fillRect(x - u, y + u + sw, u, 4 * u); c.fillRect(x + 9 * u, y + u - sw, u, 4 * u);
+      c.fillStyle = COL.S; c.fillRect(x - u, y + sw, u, u); c.fillRect(x + 9 * u, y - sw, u, u);
+    }
+    function dancer(x, ph, shirt, hair) {
+      var U6 = 6, hop = Math.abs(Math.sin(T * 6 + ph)) * 28, sway = Math.round(Math.sin(T * 3 + ph) * 12), y = GROUND - MH * U6 - hop, o = { R: shirt, H: hair };
+      c.fillStyle = "rgba(90,40,0,.3)"; c.fillRect(x + sway - 4, GROUND, 66, 4);
+      sprite(c, BODY, x + sway, y, U6, o); sprite(c, LEGS[Math.floor(T * 6 + ph) % 2], x + sway, y + BODY.length * U6, U6, o); arms(x + sway, y, U6, true, T + ph, shirt);
+    }
+    function sun(cx, cy) {
+      var R = 46, i, a;
+      c.fillStyle = "#ffb000";
+      for (i = 0; i < 12; i++) { a = T * .5 + i * Math.PI / 6; c.beginPath(); c.moveTo(cx + Math.cos(a - .12) * (R + 4), cy + Math.sin(a - .12) * (R + 4)); c.lineTo(cx + Math.cos(a) * (R + 30 + (i % 2) * 10), cy + Math.sin(a) * (R + 30 + (i % 2) * 10)); c.lineTo(cx + Math.cos(a + .12) * (R + 4), cy + Math.sin(a + .12) * (R + 4)); c.fill(); }
+      c.fillStyle = "#ff9a00"; c.fillRect(cx - R, cy - R + 14, 2 * R, 2 * R - 28); c.fillRect(cx - R + 14, cy - R, 2 * R - 28, 2 * R); c.fillRect(cx - R + 6, cy - R + 6, 2 * R - 12, 2 * R - 12);
+      var r2 = R - 10; c.fillStyle = "#ffd000"; c.fillRect(cx - r2, cy - r2 + 10, 2 * r2, 2 * r2 - 20); c.fillRect(cx - r2 + 10, cy - r2, 2 * r2 - 20, 2 * r2); c.fillRect(cx - r2 + 4, cy - r2 + 4, 2 * r2 - 8, 2 * r2 - 8);
+      var r3 = R - 24; c.fillStyle = "#fff6a8"; c.fillRect(cx - r3, cy - r3 + 6, 2 * r3, 2 * r3 - 12); c.fillRect(cx - r3 + 6, cy - r3, 2 * r3 - 12, 2 * r3);
+    }
+    function frame(ts) {
+      var dt = Math.min(.05, (ts - (last || ts)) / 1000); last = ts; T += dt;
+      c.fillStyle = "#ffe9a8"; c.fillRect(0, 0, W, H);
+      c.fillStyle = "#fff3c4"; for (var i = 0; i < 6; i++) c.fillRect(((i * 131 + T * 14) % (W + 80)) - 60, 40 + (i % 3) * 36, 70, 12);
+      sun(W - 110, 78);
+      c.fillStyle = "#6bbf3a"; c.fillRect(0, GROUND, W, H - GROUND); c.fillStyle = "#3f8f23"; c.fillRect(0, GROUND, W, 6); c.fillStyle = "#8a5a2b"; c.fillRect(0, GROUND + 6, W, H);
+      c.fillStyle = "#7a4a1f"; for (i = 0; i < 10; i++) c.fillRect(i * 66 + 10, GROUND + 22 + (i % 2) * 14, 24, 6);
+      dancer(170, 0, "#d62839", "#3a1a0a"); dancer(330, 1.6, "#2a7fd6", "#e0a030");
+      c.fillStyle = "#c02800"; c.font = "bold 28px monospace"; c.fillText("♪", 110 + Math.sin(T * 3) * 10, 150 - (T * 40) % 60); c.fillText("♫", 460 + Math.cos(T * 3) * 10, 190 - (T * 50) % 70);
+      raf = requestAnimationFrame(frame);
+    }
+    function close() { if (done) return; done = true; cancelAnimationFrame(raf); clearTimeout(tm); ov.remove(); if (opts.onClose) { try { opts.onClose(); } catch (e) {} } }
+    var tm = setTimeout(close, Math.max(1000, opts.ms || 5000));
+    raf = requestAnimationFrame(frame);
+    return { close: close };
+  }
+
+  /* Смеющийся череп: рот открывается и закрывается, голова трясётся. Рисуется на canvas c. */
+  function laughSkull(c, x, y, u, t, open) {
+    var o = open != null ? open : Math.round((Math.sin(t * 13) * .5 + .5) * 3), sh = Math.round(Math.sin(t * 21) * u * .5);
+    x += sh; y += Math.round(Math.abs(Math.sin(t * 6.5)) * -u);
+    var top = SKULL.slice(0, 12), jaw = SKULL.slice(12, 15), body = SKULL.slice(15);
+    sprite(c, body, x, y + 15 * u, u, { X: "#e9e2d0" });
+    sprite(c, top, x, y, u, { X: "#f3ecd8" });
+    if (o > 0) { c.fillStyle = "#16060a"; c.fillRect(x + 5 * u, y + 12 * u, 7 * u, o * u); }
+    sprite(c, jaw, x, y + (12 + o) * u, u, { X: "#f3ecd8", T: "#bdb39a" });
+    c.fillStyle = "#ffe14d"; c.fillRect(x + 5 * u, y + 6 * u, u, u); c.fillRect(x + 10 * u, y + 6 * u, u, u);
+    if (Math.sin(t * 13) > .3) { c.fillStyle = "#ffe14d"; c.fillRect(x + 4 * u, y + 5 * u, u, u); c.fillRect(x + 11 * u, y + 5 * u, u, u); }
+  }
+
+  window.Egg = { laugh: laughSkull, sprite: sprite, MAN: MAN, LEGS: LEGS, COL: COL, SKULL: SKULL, MH: MH, play: play, dance: dance, start: start, _t: function () { return ST; } };
 })();

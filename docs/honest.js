@@ -153,5 +153,8 @@ var Honest = (function () {
   }
   var api = { locked: function (ta) { var h = S && S.get(ta); return !!(h && h.locked()); }, attach: attach, code: code, meta: meta, restart: function (ta) { H(ta).restart(); }, hash: hash, norm: norm, parse: parse, verdict: verdict };
   if (TEST) api._fill = function (ta, text) { H(ta).fill(text); };
+  /* из консоли нельзя подменить функции защиты: объект заморожен, а имя Honest больше не перезаписывается */
+  try { Object.freeze(api); } catch (e) {}
   return api;
 })();
+try { if (typeof window !== "undefined") Object.defineProperty(window, "Honest", { writable: false, configurable: false }); } catch (e) {}

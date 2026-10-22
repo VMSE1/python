@@ -37,11 +37,14 @@ var Net = (function () {
   function wsUrl() { return BASE.replace(/^http/, "ws") + "/ws"; }
   var api = {
     on: !!BASE, base: BASE, user: user, req: req, sync: sync, push: push, local: local, wsUrl: wsUrl,
+    saveSession: function (j) { saveUser(j); sync(); },
     register: function (o) { return req("POST", "/api/register", o).then(function (j) { if (j.ok) { saveUser(j); sync(); } return j; }); },
     login: function (o) { return req("POST", "/api/login", o).then(function (j) { if (j.ok) { saveUser(j); sync(); } return j; }); },
     logout: function () { var p = user() ? req("POST", "/api/logout").catch(function () {}) : Promise.resolve(); try { localStorage.removeItem("acct"); } catch (e) {} return p; },
     tkey: function (v) { try { if (v != null) sessionStorage.setItem("tkey", v); return sessionStorage.getItem("tkey") || ""; } catch (e) { return v || ""; } }
   };
   if (BASE && user()) { var last = 0; try { last = +sessionStorage.getItem("nsync") || 0; } catch (e) {} if (Date.now() - last > 60000) { try { sessionStorage.setItem("nsync", Date.now()); } catch (e) {} setTimeout(sync, 800); } }
+  try { Object.freeze(api); } catch (e) {}
   return api;
 })();
+try { Object.defineProperty(window, "Net", { writable: false, configurable: false }); } catch (e) {}

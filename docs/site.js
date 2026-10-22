@@ -48,7 +48,7 @@ try { if (window.top !== window.self) { document.documentElement.style.display =
 function isTeacher() { try { return !!localStorage.getItem("teacher"); } catch (e) { return false; } }
 var PAGES = {
   "tasks.html": ["Задания", "pc"], "theory.html": ["Теория", "folder"], "quiz.html": ["Квизы", "book"],
-  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "video.html": ["Видеоразборы", "video"], "teacher.html": ["Кабинет учителя", "key"], "account.html": ["Мой профиль", "user"], "students.html": ["Ученики на сервере", "user"], "live.html": ["Онлайн-игра", "bolt"], "run.html": ["Убеги от скелета", "skull"]
+  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "video.html": ["Видеоразборы", "video"], "teacher.html": ["Кабинет учителя", "key"], "account.html": ["Мой профиль", "user"], "students.html": ["Ученики на сервере", "user"], "live.html": ["Онлайн-игра", "bolt"], "run.html": ["Убеги от скелета", "skull"], "race.html": ["Гонка по Python", "bolt"]
 };
 function layout(active, title) {
   var desk = active === "desk", pg = PAGES[active] || ["Окно", "win"];
@@ -67,13 +67,12 @@ function layout(active, title) {
       };
     }
   }
-  var items = [["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"], ["video.html", "Видеоразборы", "video"], ["live.html", "Онлайн-игра", "bolt"], ["run.html", "Убеги от скелета", "skull"], ["account.html", "Мой профиль", "user"]];
+  var items = [["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"], ["video.html", "Видеоразборы", "video"], ["live.html", "Онлайн-игра", "bolt"], ["race.html", "Гонка по Python", "bolt"], ["account.html", "Мой профиль", "user"]];
   items.push(["teacher.html", teacher ? "Кабинет учителя" : "Вход для учителя", "key"]);
   if (teacher) items.push(["students.html", "Ученики на сервере", "user"]);
   var menu = items.map(function (x) { return '<li><a href="' + x[0] + '">' + pix(x[2]) + x[1] + "</a></li>"; }).join("") +
     '<hr><li><a href="#" id="guideBtn">' + pix("help") + 'Как это работает</a></li>' +
-    '<li><a href="index.html">' + pix("win") + 'Рабочий стол</a></li>' +
-    '<li><a href="' + ghUrl() + '" target="_blank" rel="noopener">' + pix("doc") + 'Исходники (GitHub)</a></li>';
+    '<li><a href="index.html">' + pix("win") + 'Рабочий стол</a></li>';
   document.body.insertAdjacentHTML("beforeend",
     '<div class="smenu" id="smenu"><div class="side">PYTHON</div><ul>' + menu + '</ul></div>' +
     '<div class="taskbar"><button class="start" id="startBtn" aria-expanded="false" aria-controls="smenu">' + pix("win") + 'Пуск</button>' +
@@ -216,6 +215,98 @@ function fetchIssues(label, cb, fail) {
     try { fetch("notice.json?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (n) { if (n) run(n); }).catch(function () {}); } catch (e) {}
   }
   if (typeof document !== "undefined") { setTimeout(poll, 150); setInterval(poll, 5000); }
+})();
+
+/* Игра для всех: учитель нажимает кнопку в кабинете, сервер переходит в режим «игра», и у всех, кто сейчас на сайте,
+   на 5 секунд появляется экран «Давайте поиграем!», а потом открывается гонка (race.html). Опрос раз в 4 секунды, запрос крошечный. */
+(function () {
+  if (typeof document === "undefined" || location.protocol === "file:") return;
+  var path = location.pathname.split("/").pop() || "index.html";
+  if (/^(race|teacher|students)\.html$/.test(path)) return;
+  try { if (sessionStorage.getItem("tkey")) return; } catch (e) {}
+  var busy = false, started = false;
+  function api() { return String(window.API_BASE || "").replace(/\/+$/, ""); }
+  function goRace() { try { sessionStorage.setItem("playBack", location.href); } catch (e) {} location.href = "race.html"; }
+  function intro() {
+    var run = function () { window.Egg.play({ ms: 5000, onClose: goRace }); };
+    if (window.Egg && window.Egg.play) run(); else { var sc = document.createElement("script"); sc.src = "egg.js"; sc.onload = run; sc.onerror = goRace; document.head.appendChild(sc); }
+  }
+  var luckyOpen = false;
+  function lucky(j) {
+    if (luckyOpen || !j.lucky || document.getElementById("notice") || document.getElementById("lk")) return;
+    luckyOpen = true;
+    var run = function () { var go = function () { window.Lucky.open(); }; if (window.Lucky) go(); else { var l = document.createElement("script"); l.src = "lucky.js"; l.onload = go; l.onerror = function () { luckyOpen = false; }; document.head.appendChild(l); } };
+    if (window.Egg) run(); else { var e = document.createElement("script"); e.src = "egg.js"; e.onload = run; e.onerror = function () { luckyOpen = false; }; document.head.appendChild(e); }
+    var wt = setInterval(function () { if (!document.getElementById("lk") && window.Lucky) { clearInterval(wt); setTimeout(function () { luckyOpen = false; }, 60000); } }, 2000);
+  }
+  function react(j) {
+    if (j && j.ok) lucky(j);
+    if (!j || !j.ok || !j.id || j.phase === "idle" || j.phase === "end" || document.getElementById("notice")) return;
+    var seen = ""; try { seen = sessionStorage.getItem("playSeen") || ""; } catch (e) {}
+    if (seen === String(j.id)) return;
+    try { sessionStorage.setItem("playSeen", String(j.id)); } catch (e) {}
+    started = true;
+    if (j.phase === "run") goRace(); else intro();
+  }
+  function poll() {
+    if (busy || started || luckyOpen || document.hidden || !api()) return; busy = true;
+    var ctl = typeof AbortController === "function" ? new AbortController() : null, to = ctl && setTimeout(function () { ctl.abort(); }, 6000);
+    var hd = {}; try { var ac = JSON.parse(localStorage.getItem("acct") || "null"); if (ac && ac.token) hd.Authorization = "Bearer " + ac.token; } catch (e) {}
+    fetch(api() + "/api/play", { cache: "no-store", headers: hd, signal: ctl ? ctl.signal : undefined }).then(function (r) { return r.ok ? r.json() : null; }).then(react).catch(function () {}).finally(function () { busy = false; if (to) clearTimeout(to); });
+  }
+  function boot() { setInterval(poll, 4000); setTimeout(poll, 600); document.addEventListener("visibilitychange", function () { if (!document.hidden) poll(); }); }
+  if (window.API_BASE !== undefined) boot();
+  else { var cs = document.createElement("script"); cs.src = "config.js"; cs.onload = boot; document.head.appendChild(cs); }
+})();
+
+/* Первое окно регистрации: пока ученик не вошёл, дальше сайт не пускает (кроме кабинета учителя). Само окно лежит в gate.js. */
+(function () {
+  if (typeof document === "undefined" || location.protocol === "file:") return;
+  var path = location.pathname.split("/").pop() || "index.html";
+  if (/^(teacher|students)\.html$/.test(path)) return;
+  function need(src, cb) { var s = document.createElement("script"); s.src = src; s.onload = cb; s.onerror = function () {}; document.head.appendChild(s); }
+  function go() {
+    if (!window.Net || !Net.on || Net.user()) return;
+    try { if (sessionStorage.getItem("tkey")) return; } catch (e) {}
+    need("gate.js");
+  }
+  function boot() {
+    if (window.API_BASE === undefined) return need("config.js", boot);
+    if (!window.Net) return need("net.js", go);
+    go();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(boot, 0); }); else setTimeout(boot, 0);
+})();
+
+/* Мелкие секреты. Находятся по подсказкам в заданиях: стрелки как в старых играх, пять нажатий на часы. Оценок за них нет. */
+(function () {
+  if (typeof document === "undefined") return;
+  var KON = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"], buf = [], clicks = [], loading = false;
+  function withLucky(cb) {
+    if (loading) return; loading = true; var done = function () { loading = false; cb(); };
+    var needL = function () { if (window.Lucky) done(); else { var l = document.createElement("script"); l.src = "lucky.js"; l.onload = done; l.onerror = function () { loading = false; }; document.head.appendChild(l); } };
+    if (window.Egg) needL(); else { var e = document.createElement("script"); e.src = "egg.js"; e.onload = needL; e.onerror = function () { loading = false; }; document.head.appendChild(e); }
+  }
+  document.addEventListener("keydown", function (e) {
+    var tg = e.target && e.target.tagName; if (tg === "TEXTAREA" || tg === "INPUT" || tg === "SELECT" || (e.target && e.target.isContentEditable) || document.getElementById("notice") || document.getElementById("lk")) { buf = []; return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var k = e.key.length === 1 ? ({ "и": "b", "ф": "a" }[e.key.toLowerCase()] || e.key.toLowerCase()) : e.key;
+    buf.push(k); if (buf.length > KON.length) buf.shift();
+    if (buf.join() === KON.join()) { buf = []; withLucky(function () { window.Lucky.practice(); }); }
+  });
+  document.addEventListener("click", function (e) {
+    var c = e.target && e.target.closest && e.target.closest(".clock"); if (!c) return;
+    var now = Date.now(); clicks = clicks.filter(function (t) { return now - t < 3000; }); clicks.push(now);
+    if (clicks.length >= 5) { clicks = []; withLucky(function () { window.Lucky.fun(); }); }
+  });
+  var HINTS = ["Подсказка для внимательных: у скелетов есть любимое число из четырёх цифр. Набери его на клавиатуре, но не в поле ввода: 2 2 6 7.",
+    "Старый секрет геймеров: ↑ ↑ ↓ ↓ ← → ← → B A. Нажми по очереди не в поле ввода и увидишь, что будет.",
+    "Часы в правом нижнем углу не любят, когда на них нажимают пять раз подряд. Проверь."];
+  /* после решённого задания иногда показываем одну подсказку (примерно в каждом третьем случае) */
+  window.EggHint = function (el) {
+    try { if (!el || Math.random() > 0.34) return; var n = +(localStorage.getItem("hintN") || 0); localStorage.setItem("hintN", String(n + 1));
+      var d = document.createElement("div"); d.className = "m"; d.style.cssText = "font-size:13px;opacity:.75;margin-top:10px;border-top:1px dashed #999;padding-top:8px"; d.textContent = "🦴 " + HINTS[n % HINTS.length]; el.appendChild(d); } catch (e) {}
+  };
 })();
 
 /* Пасхалка: цифры 2267 подряд (любая другая клавиша сбрасывает ввод) */

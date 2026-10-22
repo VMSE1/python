@@ -28,7 +28,7 @@ m.innerHTML='<div class="crumbs"><a href="tasks.html">← Все задания<
 '<div class="toolbar"><button class="btn big go" id="chk">Проверить здесь</button><span class="sp"></span><button class="btn sm ghost" id="cp">Копировать</button><button class="btn sm ghost" id="dl">Скачать .py</button><button class="btn sm ghost" id="rs">Сбросить</button></div>'+
 '<div class="res" id="res"></div><div id="next"></div>'+
 '<div class="sendbox" id="send"><input type="text" id="nick" maxlength="30" placeholder="твой ник" value="'+esc(nick)+'" aria-label="Ник (не фамилия)"><input type="text" id="group" maxlength="12" placeholder="группа (9А)" value="'+esc(grp)+'" aria-label="Номер группы, например 9А. Нет группы: нет"><button class="btn alt go" id="go">Отправить учителю</button><button class="q" id="q" title="Как это работает" aria-label="Как отправить">?</button><span id="msg" class="m" style="font-size:14px"></span></div>'+
-'<details class="box" id="off" style="margin-top:12px"><summary>Нет GitHub? Отправь без него</summary><p class="m">Получи код сдачи и отправь его учителю как удобно: в мессенджер, на почту, в школьную систему или файлом. Код получит только учитель, поэтому здесь можно написать фамилию и имя.</p><div class="sendbox" style="margin-top:8px"><input type="text" id="fio" maxlength="40" placeholder="Фамилия Имя" aria-label="Фамилия и имя" value="'+esc(fio)+'"><button class="btn alt" id="mk">Получить код сдачи</button></div><div id="offo" hidden><textarea id="tok" readonly rows="4" style="width:100%;margin-top:10px" aria-label="Код сдачи"></textarea><div class="toolbar"><button class="btn sm" id="tcp">Копировать код</button><button class="btn sm ghost" id="tdl">Скачать файл</button></div><p class="m" id="tmsg" role="status" style="font-size:14px"></p></div></details>'+
+'<details class="box" id="off" style="margin-top:12px"><summary>Нет связи с сервером? Отправь кодом</summary><p class="m">Получи код сдачи и отправь его учителю как удобно: в мессенджер, на почту, в школьную систему или файлом. Код получит только учитель, поэтому здесь можно написать фамилию и имя.</p><div class="sendbox" style="margin-top:8px"><input type="text" id="fio" maxlength="40" placeholder="Фамилия Имя" aria-label="Фамилия и имя" value="'+esc(fio)+'"><button class="btn alt" id="mk">Получить код сдачи</button></div><div id="offo" hidden><textarea id="tok" readonly rows="4" style="width:100%;margin-top:10px" aria-label="Код сдачи"></textarea><div class="toolbar"><button class="btn sm" id="tcp">Копировать код</button><button class="btn sm ghost" id="tdl">Скачать файл</button></div><p class="m" id="tmsg" role="status" style="font-size:14px"></p></div></details>'+
 '<div class="pager"><span>'+(prev?'<a class="btn ghost" href="task.html?id='+prev.id+'">← '+prev.id+'</a>':'')+'</span><span>'+(next?'<a class="btn ghost" href="task.html?id='+next.id+'">'+next.id+' →</a>':'')+'</span></div></div>'+
 '<aside class="aside">'+vidBox+'<h2>Шпаргалка</h2>'+pl.map(plate).join("")+'<p class="m" style="font-size:14px"><a href="theory.html?l='+t.lesson+'">Вся теория урока →</a></p></aside></div>';
 Explainer.bind(m);
@@ -57,6 +57,7 @@ ta.value=saved!==null?saved:t.starter;
 Honest.attach(ta,{id:t.id,starter:t.starter,onBlock:function(k){var h=document.getElementById("hn");h.className="bad";if(k==="devtools"||k==="devkey"){h.textContent="Ай-ай-ай! Инструменты разработчика (F12) тут не нужны. Закрой их, и редактор снова заработает.";h.style.cssText="background:#c01a2f;color:#fff;font-weight:700;padding:12px 14px;border:3px solid #000;font-size:16px";var c2=document.getElementById("chk");if(c2&&k==="devtools")c2.disabled=true;return}if(k==="devtools-off"){h.removeAttribute("style");h.className="m";h.textContent="Редактор снова доступен. Набирай код сам.";var c3=document.getElementById("chk");if(c3)c3.disabled=false;return}if(k==="bot"){h.textContent="Ай-ай-ай! Похоже, код вводит бот. Редактор заблокирован, учитель получит отметку. Если это ошибка, напиши учителю.";h.style.cssText="background:#c01a2f;color:#fff;font-weight:700;padding:12px 14px;border:3px solid #000;font-size:16px";var cb=document.getElementById("chk");if(cb)cb.disabled=true;return}h.textContent=k==="size"?"Слишком длинный код. Решение этой задачи намного короче: удали лишнее.":k==="bulk"?"Слишком много текста за раз. Набирай код сам, по частям.":k==="script"?"Код нельзя подставить скриптом. Набери его сам.":"Вставка отключена. Набери код сам: так ты его запомнишь."}});
 function step(n,ok){["s1","s2","s3"].forEach(function(s,k){var e=document.getElementById(s);e.className="st"+(k<n?" ok":(k===n?" on":""));e.firstChild.innerHTML=k<n?OKI:(k+1)});}
 function refreshSteps(){var d=load("done"),p=load("passed");step(d[t.id]?3:(p[t.id]?2:0));document.getElementById("send").className="sendbox"+(p[t.id]&&!d[t.id]?" ready":"")}
+var nk0=document.getElementById("nick");if(nk0&&Net.on&&Net.user())nk0.style.display="none";
 refreshSteps();if(load("passed")[t.id])Reward.show(document.getElementById("next"),t);
 ta.oninput=function(){try{localStorage.setItem(key,ta.value)}catch(e){}};
 document.getElementById("hintB").onclick=function(){var h=document.getElementById("hint");h.style.display=h.style.display==="none"?"block":"none"};
@@ -76,16 +77,19 @@ chk.onclick=function(){if(Honest.locked(ta)){var hh=document.getElementById("hn"
  });
 };
 document.getElementById("go").onclick=function(){if(Honest.locked(ta)){var hh=document.getElementById("hn");hh.className="bad";hh.textContent="Редактор заблокирован: похоже, код вводит бот.";return}
- var n=document.getElementById("nick").value.trim(),g=document.getElementById("group").value.trim(),msg=document.getElementById("msg");
- if(!n){msg.className="bad";msg.textContent="Впиши ник (не фамилию).";return}
- if(!g){msg.className="bad";msg.textContent="Впиши номер группы, например 9А. Нет группы: напиши «нет».";document.getElementById("group").focus();return}
- try{localStorage.setItem("nick",n);localStorage.setItem("group",g)}catch(e){}
- var base="/issues/new?template=submit.yml&title="+encodeURIComponent("[Сдача] "+t.id+" "+n)+"&nick="+encodeURIComponent(n)+"&group="+encodeURIComponent(g)+"&task="+encodeURIComponent(t.id+" — "+t.title)+"&meta="+encodeURIComponent(Honest.meta(ta));
- var url=ghUrl(base+"&code="+encodeURIComponent(Honest.code(ta)));
- if(url.length>7500){msg.className="warn";msg.textContent="Код длинный: нажми «Копировать» и вставь его на GitHub.";url=ghUrl(base)}
- else{msg.className="ok";msg.textContent="Открываю GitHub → нажми Submit new issue"}
- var d=load("done");d[t.id]=1;save("done",d);Net.push();refreshSteps();
- window.open(url,"_blank","noopener");
+ var msg=document.getElementById("msg"),b=this;
+ if(!Net.on||!Net.user()){msg.className="bad";msg.textContent="Сначала войди в профиль: обнови страницу и введи логин и пароль.";return}
+ if(!Honest.code(ta).trim()){msg.className="warn";msg.textContent="Сначала напиши решение.";return}
+ b.disabled=true;msg.className="m";msg.textContent="Сервер проверяет решение…";
+ Net.req("POST","/api/submit",{id:t.id,code:Honest.code(ta),meta:Honest.meta(ta)}).then(function(j){b.disabled=false;
+  if(j.status===401){msg.className="bad";msg.textContent="Вход устарел. Обнови страницу и войди снова.";Net.logout();return}
+  if(!j.ok){msg.className="bad";msg.textContent=j.error||"Не получилось отправить.";return}
+  if(j.verdict==="todo"){msg.className="warn";msg.textContent="Тут пока только заготовка. Напиши решение.";return}
+  var d=load("done");d[t.id]=1;save("done",d);
+  if(j.verdict==="ok"){var p=load("passed");p[t.id]=1;save("passed",p);msg.className="ok";msg.textContent="Принято! Сервер проверил, учитель видит решение.";Streak.touch();Reward.show(document.getElementById("next"),t);window.EggHint&&EggHint(document.getElementById("next"))}
+  else{msg.className="bad";msg.textContent="Отправлено, но тесты не пройдены: "+(j.messages||[]).slice(0,2).join("; ")}
+  Net.push();refreshSteps();
+ }).catch(function(e){b.disabled=false;msg.className="bad";msg.textContent=e.message})
 };
 document.getElementById("mk").onclick=function(){if(Honest.locked(ta)){var hh=document.getElementById("hn");hh.className="bad";hh.textContent="Редактор заблокирован: похоже, код вводит бот.";return}
  var f=document.getElementById("fio").value.trim(),g=document.getElementById("group").value.trim(),tm=document.getElementById("tmsg"),o=document.getElementById("offo");

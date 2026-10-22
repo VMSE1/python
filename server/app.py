@@ -7,15 +7,26 @@ import json
 import os
 import re
 import secrets
+import smtplib
 import sqlite3
+import tempfile
 import time
+from email.message import EmailMessage
 
 from aiohttp import web, WSMsgType
+
+import race as R
 
 DB_PATH = os.environ.get("DB_PATH", "data.sqlite")
 TEACHER_KEY = os.environ.get("TEACHER_KEY", "")
 ORIGINS = [o.strip() for o in os.environ.get("ALLOW_ORIGINS", "https://vmse1.github.io,http://127.0.0.1:8000,http://localhost:8000").split(",") if o.strip()]
 PORT = int(os.environ.get("PORT", "8080"))
+# Почта (необязательно). Без неё код для восстановления пароля показывается только учителю в кабинете.
+SMTP_HOST, SMTP_PORT = os.environ.get("SMTP_HOST", ""), int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER, SMTP_PASS = os.environ.get("SMTP_USER", ""), os.environ.get("SMTP_PASS", "")
+SMTP_FROM = os.environ.get("SMTP_FROM", "") or SMTP_USER
+TEACHER_EMAIL = os.environ.get("TEACHER_EMAIL", "")
+EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]{1,120}\.[^@\s]{2,20}$")
 MAX_PROGRESS = 20000
 NICK_RE = re.compile(r"^[A-Za-z0-9А-Яа-яЁё_.\-]{3,20}$")
 
@@ -32,7 +43,14 @@ def init_db():
       id INTEGER PRIMARY KEY, nick TEXT UNIQUE COLLATE NOCASE, fio TEXT, grp TEXT,
       salt BLOB, hash BLOB, created INTEGER, updated INTEGER, progress TEXT DEFAULT '{}');
     CREATE TABLE IF NOT EXISTS sessions(th TEXT PRIMARY KEY, uid INTEGER, created INTEGER);
+    CREATE TABLE IF NOT EXISTS subs(id INTEGER PRIMARY KEY, uid INTEGER, task TEXT, ts INTEGER, status TEXT, msgs TEXT, code TEXT, meta TEXT);
+    CREATE INDEX IF NOT EXISTS subs_ut ON subs(uid, task);
+    CREATE TABLE IF NOT EXISTS recov(id INTEGER PRIMARY KEY, uid INTEGER, ch TEXT, exp INTEGER, tries INTEGER DEFAULT 0, ts INTEGER, code TEXT, mailed INTEGER DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS lucky(id INTEGER PRIMARY KEY, uid INTEGER, ts INTEGER, kind TEXT, note TEXT);
     """)
+    cols = [r[1] for r in db.execute("PRAGMA table_info(users)")]
+    if "email" not in cols:
+        db.execute("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''")
     db.commit()
 
 
@@ -59,7 +77,30 @@ def limited(key, n, per):
     return False
 
 
-FAILS = {}  # ник -> (число, до какого времени блок)
+FAILS = {}  # ключ -> [число неудач, блок до, время последней неудачи]
+LOCK_STEPS = ((3, 30), (5, 120), (7, 300))   # после 3 неудач 30 с, после 5 две минуты, после 7 пять минут (дальше потолок 5 минут)
+FAIL_FORGET = 1800                            # через полчаса без попыток счётчик обнуляется
+
+
+def lock_wait(key):
+    f = FAILS.get(key)
+    return max(0, int(f[1] - time.time() + .999)) if f else 0
+
+
+def lock_fail(key, now=None):
+    now = now or time.time()
+    f = FAILS.get(key)
+    if not f or now - f[2] > FAIL_FORGET:
+        f = [0, 0, now]
+    f[0] += 1
+    f[2] = now
+    sec = 0
+    for n, w in LOCK_STEPS:
+        if f[0] >= n:
+            sec = w
+    f[1] = now + sec if sec else 0
+    FAILS[key] = f
+    return int(sec)
 
 
 def client_ip(req):
@@ -140,12 +181,19 @@ async def ping(req):
 
 async def register(req):
     ip = client_ip(req)
-    if limited("reg:" + ip, 15, 3600):
-        return jerr("Слишком много регистраций с этого адреса. Попробуй позже.", 429)
+    if limited("reg:" + ip, 80, 3600):
+        return jerr("Слишком много регистраций с этой сети. Попробуй позже.", 429)
     d = await body(req)
     nick, fio, grp, pw = str(d.get("nick", "")).strip(), clean_str(d.get("fio"), 60), clean_str(d.get("group"), 12), str(d.get("password", ""))
     if not NICK_RE.match(nick):
         return jerr("Ник: 3–20 символов, буквы, цифры, точка, дефис или подчёркивание.")
+    email = str(d.get("email", "")).strip()[:150]
+    if d.get("quick"):  # быстрая регистрация: логин, пароль, почта. Фамилия и группа по желанию
+        fio, grp = fio or nick, grp or "нет"
+    if email and not EMAIL_RE.match(email):
+        return jerr("Почта написана неверно. Пример: имя@mail.ru")
+    if not email and (not d.get("quick") or d.get("need_email")):
+        return jerr("Впиши почту: на неё придёт код, если забудешь пароль.")
     if len(fio) < 3:
         return jerr("Впиши фамилию и имя.")
     if not grp:
@@ -155,7 +203,7 @@ async def register(req):
     salt = secrets.token_bytes(16)
     try:
         now = int(time.time())
-        cur = db.execute("INSERT INTO users(nick,fio,grp,salt,hash,created,updated) VALUES(?,?,?,?,?,?,?)", (nick, fio, grp, salt, pw_hash(pw, salt), now, now))
+        cur = db.execute("INSERT INTO users(nick,fio,grp,salt,hash,created,updated,email) VALUES(?,?,?,?,?,?,?,?)", (nick, fio, grp, salt, pw_hash(pw, salt), now, now, email))
         db.commit()
     except sqlite3.IntegrityError:
         return jerr("Такой ник уже занят. Придумай другой.", 409)
@@ -178,18 +226,31 @@ async def login(req):
     d = await body(req)
     nick, pw = str(d.get("nick", "")).strip(), str(d.get("password", ""))
     ip = client_ip(req)
-    if limited("login:" + ip, 40, 600):
-        return jerr("Слишком много попыток. Подожди несколько минут.", 429)
-    f = FAILS.get(nick.lower())
-    if f and f[1] > time.time():
-        return jerr("Слишком много неверных паролей. Подожди 5 минут.", 429)
+    # много учеников сидят за одним школьным Wi-Fi (один IP), поэтому общий лимит по IP щедрый; главная защита идёт по паре «ник + IP» и по самому нику
+    if limited("login:" + ip, 300, 600):
+        return jerr("Слишком много попыток с этой сети. Подожди несколько минут.", 429)
+    k1, k2 = "u:%s|%s" % (nick.lower(), ip), "n:" + nick.lower()
+    w = max(lock_wait(k1), lock_wait(k2))
+    if w:
+        return web.json_response({"ok": False, "error": "Слишком много неверных паролей. Подожди %d с." % w, "wait": w}, status=429, headers={"Retry-After": str(w)})
     row = db.execute("SELECT id,nick,fio,grp,salt,hash,progress FROM users WHERE nick=?", (nick,)).fetchone()
-    ok = bool(row) and hmac.compare_digest(pw_hash(pw, row[4]), row[5])
+    # хэш считаем и для несуществующего ника, чтобы по времени ответа нельзя было узнать, есть ли такой ник
+    ok = hmac.compare_digest(pw_hash(pw, row[4] if row else b"\0" * 16), row[5] if row else b"\0" * 32) and bool(row)
     if not ok:
-        n = (f[0] if f else 0) + 1
-        FAILS[nick.lower()] = (n, time.time() + 300 if n >= 6 else 0)
-        return jerr("Неверный ник или пароль.", 401)
-    FAILS.pop(nick.lower(), None)
+        wait = lock_fail(k1)
+        # по самому нику блокируем мягче (десять неудач с разных адресов подряд): так чужой не сможет надолго «запереть» ученика
+        f = FAILS.setdefault(k2, [0, 0, time.time()])
+        if time.time() - f[2] > FAIL_FORGET:
+            f[0] = 0
+        f[0] += 1
+        f[2] = time.time()
+        if f[0] >= 10:
+            f[1] = time.time() + 120
+            wait = max(wait, 120)
+        msg = "Неверный ник или пароль." + (" Подожди %d с." % wait if wait else "")
+        return web.json_response({"ok": False, "error": msg, "wait": wait}, status=401)
+    FAILS.pop(k1, None)
+    FAILS.pop(k2, None)
     return web.json_response(session_for(row[0], row[1], row[2], row[3], row[6]))
 
 
@@ -235,14 +296,14 @@ async def put_progress(req):
 async def t_users(req):
     if not teacher_ok(req):
         return jerr("Нет доступа.", 403)
-    rows = db.execute("SELECT nick,fio,grp,created,updated,progress FROM users ORDER BY grp,fio").fetchall()
+    rows = db.execute("SELECT nick,fio,grp,created,updated,progress,email FROM users ORDER BY grp,fio").fetchall()
     out = []
-    for nick, fio, grp, cr, up, pr in rows:
+    for nick, fio, grp, cr, up, pr, em in rows:
         try:
             p = json.loads(pr or "{}")
         except Exception:
             p = {}
-        out.append({"nick": nick, "fio": fio, "group": grp, "created": cr, "updated": up,
+        out.append({"nick": nick, "fio": fio, "group": grp, "created": cr, "updated": up, "email": em or "",
                     "passed": sorted((p.get("passed") or {}).keys()), "done": sorted((p.get("done") or {}).keys()),
                     "streak": (p.get("streak") or {}).get("n", 0)})
     return web.json_response({"ok": True, "users": out})
@@ -259,7 +320,8 @@ async def t_reset(req):
     cur = db.execute("UPDATE users SET salt=?, hash=? WHERE nick=?", (salt, pw_hash(pw, salt), nick))
     db.execute("DELETE FROM sessions WHERE uid IN (SELECT id FROM users WHERE nick=?)", (nick,))
     db.commit()
-    FAILS.pop(nick.lower(), None)
+    for k in [k for k in FAILS if k == "n:" + nick.lower() or k.startswith("u:" + nick.lower() + "|")]:
+        FAILS.pop(k, None)
     return web.json_response({"ok": cur.rowcount > 0}) if cur.rowcount else jerr("Такого ника нет.", 404)
 
 
@@ -582,6 +644,400 @@ async def on_msg(ws, role, d):
         await send(ws, {"t": "wok", "left": 5 - p["words"], "added": added})
 
 
+# ---------------------------------------------------------------- почта и восстановление пароля
+def mail_ready():
+    return bool(SMTP_HOST and SMTP_USER and SMTP_PASS)
+
+
+def _send_sync(to, subject, text):
+    m = EmailMessage()
+    m["From"], m["To"], m["Subject"] = SMTP_FROM, to, subject
+    m.set_content(text)
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as sm:
+        sm.starttls()
+        sm.login(SMTP_USER, SMTP_PASS)
+        sm.send_message(m)
+
+
+MAIL_LOG = []          # (время, адрес) отправленных писем: нужно, чтобы не заспамить почту и не получить бан от почтовика
+MAIL_PER_10MIN, MAIL_PER_HOUR, MAIL_TO_ONE_10MIN = 6, 20, 2
+TEACHER_GAP = 600      # учителю уведомления уходят не чаще, чем раз в 10 минут (накопленное одним письмом)
+_teacher = {"last": 0.0, "pending": [], "task": None}
+
+
+def mail_allowed(to, now=None):
+    now = now or time.time()
+    MAIL_LOG[:] = [m for m in MAIL_LOG if now - m[0] < 3600]
+    ten = [m for m in MAIL_LOG if now - m[0] < 600]
+    return len(ten) < MAIL_PER_10MIN and len(MAIL_LOG) < MAIL_PER_HOUR and sum(1 for m in ten if m[1] == to.lower()) < MAIL_TO_ONE_10MIN
+
+
+async def send_mail(to, subject, text):
+    """Отправляет письмо в фоне. Возвращает True, если письмо ушло. Без настроенной почты или при превышении лимита просто False."""
+    if not mail_ready() or not to or not mail_allowed(to):
+        return False
+    MAIL_LOG.append((time.time(), to.lower()))
+    try:
+        await asyncio.get_running_loop().run_in_executor(None, _send_sync, to, subject, text)
+        return True
+    except Exception:
+        return False
+
+
+async def _flush_teacher():
+    await asyncio.sleep(max(1, TEACHER_GAP - (time.time() - _teacher["last"])))
+    lines, _teacher["pending"], _teacher["task"] = _teacher["pending"], [], None
+    if lines:
+        _teacher["last"] = time.time()
+        await send_mail(TEACHER_EMAIL, "Python-курс: %d уведомл." % len(lines), "\n".join(lines[-30:]) + "\n\nПодробности в кабинете учителя.")
+
+
+def notify_teacher(line):
+    """Уведомление учителю на почту: не чаще раза в 10 минут, всё накопленное одним письмом."""
+    if not (mail_ready() and TEACHER_EMAIL):
+        return
+    _teacher["pending"].append(line)
+    if _teacher["task"] is None:
+        if time.time() - _teacher["last"] >= TEACHER_GAP:
+            _teacher["last"] = time.time()
+            lines, _teacher["pending"] = _teacher["pending"], []
+            asyncio.create_task(send_mail(TEACHER_EMAIL, "Python-курс: " + lines[0][:60], "\n".join(lines) + "\n\nПодробности в кабинете учителя."))
+        else:
+            _teacher["task"] = asyncio.create_task(_flush_teacher())
+
+
+async def recover(req):
+    """Шаг 1: ученик называет логин или почту. Всегда отвечаем одинаково, чтобы нельзя было узнать, есть ли такой ник."""
+    ip = client_ip(req)
+    if limited("rec:" + ip, 30, 3600):
+        return jerr("Слишком много запросов. Попробуй позже.", 429)
+    d = await body(req)
+    who = clean_str(d.get("login"), 150)
+    ans = {"ok": True, "mailer": mail_ready(), "msg": "Если такой ученик есть, код отправлен на его почту. Если письмо не приходит, назови логин учителю: он продиктует код."}
+    if not who:
+        return jerr("Впиши логин или почту.")
+    row = db.execute("SELECT id,nick,email FROM users WHERE nick=? OR (email<>'' AND lower(email)=lower(?))", (who, who)).fetchone()
+    if not row or limited("recu:%d" % row[0], 3, 3600):
+        return web.json_response(ans)
+    code = "%06d" % secrets.randbelow(10 ** 6)
+    now = int(time.time())
+    db.execute("DELETE FROM recov WHERE uid=?", (row[0],))
+    db.execute("INSERT INTO recov(uid,ch,exp,ts,code) VALUES(?,?,?,?,?)", (row[0], th(code), now + 1800, now, code))
+    mailed = await send_mail(row[2], "Код для восстановления пароля", "Привет, %s!\n\nКод для нового пароля: %s\nОн действует 30 минут. Если это был не ты, просто игнорируй письмо.\n" % (row[1], code))
+    db.execute("UPDATE recov SET mailed=? WHERE uid=?", (1 if mailed else 0, row[0]))
+    db.commit()
+    notify_teacher("Забыт пароль: %s (письмо с кодом ученику %s). Код виден в кабинете, вкладка «Пароли»." % (row[1], "отправлено" if mailed else "НЕ отправлено, продиктуй код"))
+    return web.json_response(ans)
+
+
+async def recover_confirm(req):
+    d = await body(req)
+    nick, code, pw = str(d.get("nick", "")).strip(), str(d.get("code", "")).strip(), str(d.get("password", ""))
+    if limited("recc:" + client_ip(req), 20, 3600):
+        return jerr("Слишком много попыток. Попробуй позже.", 429)
+    if len(pw) < 6 or len(pw) > 100:
+        return jerr("Пароль: минимум 6 символов.")
+    row = db.execute("SELECT u.id,u.nick,u.fio,u.grp,u.progress,r.id,r.ch,r.exp,r.tries FROM users u JOIN recov r ON r.uid=u.id WHERE u.nick=?", (nick,)).fetchone()
+    if not row or row[7] < time.time() or row[8] >= 5:
+        return jerr("Код не подошёл или устарел. Запроси новый.", 400)
+    if not hmac.compare_digest(th(code), row[6]):
+        db.execute("UPDATE recov SET tries=tries+1 WHERE id=?", (row[5],))
+        db.commit()
+        return jerr("Неверный код.", 400)
+    salt = secrets.token_bytes(16)
+    db.execute("UPDATE users SET salt=?, hash=? WHERE id=?", (salt, pw_hash(pw, salt), row[0]))
+    db.execute("DELETE FROM sessions WHERE uid=?", (row[0],))
+    db.execute("DELETE FROM recov WHERE uid=?", (row[0],))
+    db.commit()
+    for k in [k for k in FAILS if k == "n:" + nick.lower() or k.startswith("u:" + nick.lower() + "|")]:
+        FAILS.pop(k, None)
+    return web.json_response(session_for(row[0], row[1], row[2], row[3], row[4]))
+
+
+async def t_recov(req):
+    if not teacher_ok(req):
+        return jerr("Нет доступа.", 403)
+    now = int(time.time())
+    rows = db.execute("SELECT u.nick,u.fio,u.email,r.code,r.ts,r.exp,r.mailed FROM recov r JOIN users u ON u.id=r.uid ORDER BY r.ts DESC LIMIT 50").fetchall()
+    return web.json_response({"ok": True, "mailer": mail_ready(), "rows": [{"nick": a, "fio": b, "email": c, "code": d if e + 1800 > now else "", "ts": e, "mailed": bool(g), "live": f > now} for a, b, c, d, e, f, g in rows]})
+
+
+# ---------------------------------------------------------------- сдача заданий (вместо GitHub)
+try:
+    import check as CHK
+    TASK_BY_ID = {t["id"]: t for t in CHK.load_tasks()}
+except Exception:  # pragma: no cover
+    CHK, TASK_BY_ID = None, {}
+SUB_SEM = None
+TASK_ID_RE = re.compile(r"^\d{1,2}\.\d{1,2}$")
+
+
+def mark_progress(uid, task, passed):
+    row = db.execute("SELECT progress FROM users WHERE id=?", (uid,)).fetchone()
+    try:
+        pr = json.loads(row[0] or "{}")
+    except Exception:
+        pr = {}
+    new = {"done": {task: 1}}
+    if passed:
+        new["passed"] = {task: 1}
+    pr = merge_progress(pr, new)
+    db.execute("UPDATE users SET progress=?, updated=? WHERE id=?", (json.dumps(pr, ensure_ascii=False), int(time.time()), uid))
+
+
+def _judge_task(task, code):
+    work = tempfile.mkdtemp(prefix="sub_")
+    try:
+        path = os.path.join(work, "solution.py")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(code)
+        return CHK.check_task(task, file_override=path)
+    finally:
+        import shutil
+        shutil.rmtree(work, ignore_errors=True)
+
+
+async def submit(req):
+    """Ученик сдаёт решение. Сервер сам проверяет код в песочнице, результат видит и ученик, и учитель."""
+    global SUB_SEM
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    if CHK is None:
+        return jerr("Проверка сейчас недоступна.", 503)
+    d = await body(req)
+    tid, code, meta = str(d.get("id", "")), d.get("code"), str(d.get("meta", ""))[:200]
+    task = TASK_BY_ID.get(tid) if TASK_ID_RE.match(tid) else None
+    if not task:
+        return jerr("Такого задания нет.")
+    if not isinstance(code, str) or not code.strip():
+        return jerr("Код пустой.")
+    if len(code) > 8000:
+        return jerr("Код слишком длинный.")
+    if limited("sub:%d" % u[0], 10, 60):
+        return jerr("Не так быстро. Подожди минуту.", 429)
+    if SUB_SEM is None:
+        SUB_SEM = asyncio.Semaphore(3)
+    async with SUB_SEM:
+        res = await asyncio.get_running_loop().run_in_executor(None, _judge_task, task, code)
+    status = res.get("status", "fail")
+    msgs = [str(m)[:300] for m in res.get("messages", [])][:6]
+    now = int(time.time())
+    db.execute("INSERT INTO subs(uid,task,ts,status,msgs,code,meta) VALUES(?,?,?,?,?,?,?)", (u[0], tid, now, status, json.dumps(msgs, ensure_ascii=False), code, meta))
+    db.execute("DELETE FROM subs WHERE uid=? AND task=? AND id NOT IN (SELECT id FROM subs WHERE uid=? AND task=? ORDER BY id DESC LIMIT 6)", (u[0], tid, u[0], tid))
+    if status != "todo":
+        mark_progress(u[0], tid, status == "ok")
+    db.commit()
+    return web.json_response({"ok": True, "verdict": status, "messages": msgs})
+
+
+async def t_subs(req):
+    if not teacher_ok(req):
+        return jerr("Нет доступа.", 403)
+    rows = db.execute("SELECT s.id,u.nick,u.fio,u.grp,s.task,s.ts,s.status,s.msgs,s.meta FROM subs s JOIN users u ON u.id=s.uid ORDER BY s.id DESC LIMIT 300").fetchall()
+    out = []
+    for i, nick, fio, grp, task, ts, st, msgs, meta in rows:
+        fl = R.meta_flags(meta) or {}
+        why = [n for k, n in (("a", "бот"), ("d", "F12"), ("e", "правка из консоли"), ("p", "пытался вставить"), ("b", "вставка кусками")) if fl.get(k)]
+        if not fl:
+            why.append("без служебной метки")
+        out.append({"id": i, "nick": nick, "fio": fio, "group": grp, "task": task, "ts": ts, "status": st, "msgs": json.loads(msgs or "[]"), "flags": why})
+    return web.json_response({"ok": True, "rows": out})
+
+
+async def t_sub(req):
+    if not teacher_ok(req):
+        return jerr("Нет доступа.", 403)
+    try:
+        i = int(req.query.get("id", "0"))
+    except Exception:
+        return jerr("Неверный номер.")
+    row = db.execute("SELECT code FROM subs WHERE id=?", (i,)).fetchone()
+    return web.json_response({"ok": bool(row), "code": row[0] if row else ""})
+
+
+# ---------------------------------------------------------------- рулетка «три черепа»
+import random as _rnd
+LUCKY_ODDS = float(os.environ.get("LUCKY_ODDS", "0.25"))      # шанс трёх черепов при одном вращении
+LUCKY_EVERY = (3600, 7200)                                      # раз в 1–2 часа сервер выбирает одного случайного ученика
+LUCKY_WINDOW = 600                                              # на рулетку у выбранного 10 минут
+ONLINE = {}                                                     # uid -> время последнего опроса (кто сейчас на сайте)
+SYMS = ["skull", "bone", "coin", "heart", "star"]
+LUCKY = {"next": time.time() + _rnd.uniform(*LUCKY_EVERY), "id": 0, "uid": 0, "nick": "", "until": 0.0, "spun": False, "token": "", "t0": 0.0}
+
+
+def lucky_active(now=None):
+    now = now or time.time()
+    return bool(LUCKY["uid"]) and not LUCKY["spun"] and now < LUCKY["until"]
+
+
+def lucky_pick(now=None, nick=None):
+    """Выбирает ученика: из тех, кто на сайте последние 30 секунд. Возвращает ник или ''."""
+    now = now or time.time()
+    for u in [u for u, t in ONLINE.items() if now - t > 30]:
+        ONLINE.pop(u, None)
+    cand = list(ONLINE)
+    if nick:
+        row = db.execute("SELECT id FROM users WHERE nick=?", (nick,)).fetchone()
+        cand = [row[0]] if row else []
+    if not cand:
+        return ""
+    uid = _rnd.choice(cand)
+    row = db.execute("SELECT nick FROM users WHERE id=?", (uid,)).fetchone()
+    if not row:
+        return ""
+    LUCKY.update(id=int(now * 1000), uid=uid, nick=row[0], until=now + LUCKY_WINDOW, spun=False, token="", t0=0.0, next=now + _rnd.uniform(*LUCKY_EVERY))
+    return row[0]
+
+
+def lucky_tick(now=None):
+    now = now or time.time()
+    if now >= LUCKY["next"] and not lucky_active(now):
+        if not lucky_pick(now):
+            LUCKY["next"] = now + 120          # никого нет на сайте: попробуем через две минуты
+
+
+async def lucky_spin(req):
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    now = time.time()
+    if not lucky_active(now) or LUCKY["uid"] != u[0]:
+        return jerr("Рулетка сейчас не для тебя.", 403)
+    LUCKY["spun"] = True
+    win = _rnd.random() < LUCKY_ODDS
+    if win:
+        reels = ["skull"] * 3
+        LUCKY["token"], LUCKY["t0"] = secrets.token_urlsafe(16), now
+    else:
+        reels = [_rnd.choice(SYMS) for _ in range(3)]
+        while reels == ["skull"] * 3 or (reels[0] == reels[1] == reels[2]):
+            reels = [_rnd.choice(SYMS) for _ in range(3)]
+        db.execute("INSERT INTO lucky(uid,ts,kind,note) VALUES(?,?,?,?)", (u[0], int(now), "no-skulls", ""))
+        db.commit()
+    return web.json_response({"ok": True, "reels": reels, "win": win, "token": LUCKY["token"]})
+
+
+async def lucky_finish(req):
+    """Игра закончена: победа даёт «красную пятёрку», проигрыш сжигает оценку. Попытка одна: токен гасится сразу."""
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    d = await body(req)
+    now = time.time()
+    if LUCKY["uid"] != u[0] or not LUCKY["token"] or not hmac.compare_digest(str(d.get("token", "")), LUCKY["token"]):
+        return jerr("Попытки нет.", 403)
+    LUCKY["token"] = ""
+    took = now - LUCKY["t0"]
+    won = bool(d.get("win")) and took >= 12          # быстрее 12 секунд дойти до верха нельзя: значит, подделка
+    db.execute("INSERT INTO lucky(uid,ts,kind,note) VALUES(?,?,?,?)", (u[0], int(now), "five" if won else "burned", "%ds" % took))
+    db.commit()
+    if won:
+        notify_teacher("Красная пятёрка: %s прошёл игру за %d с." % (u[1], took))
+    return web.json_response({"ok": True, "five": won, "nick": u[1], "ts": int(now)})
+
+
+async def t_lucky(req):
+    if not teacher_ok(req):
+        return jerr("Нет доступа.", 403)
+    rows = db.execute("SELECT u.nick,u.fio,l.ts,l.kind,l.note FROM lucky l JOIN users u ON u.id=l.uid ORDER BY l.id DESC LIMIT 100").fetchall()
+    return web.json_response({"ok": True, "online": len(ONLINE), "cur": LUCKY["nick"] if lucky_active() else "", "rows": [{"nick": a, "fio": b, "ts": c, "kind": k, "note": n} for a, b, c, k, n in rows]})
+
+
+# ---------------------------------------------------------------- гонка
+RACE = R.Race()
+JUDGE_SEM = None
+
+
+async def play_state(req):
+    """Дешёвый публичный запрос: ученики опрашивают его раз в несколько секунд, чтобы узнать, не началась ли игра."""
+    RACE.tick()
+    out = {"ok": True, "id": RACE.id, "phase": RACE.phase, "intro": max(0, int(RACE.intro_end - time.time() + .999)) if RACE.phase == "intro" else 0, "n": len(RACE.players), "t": int(time.time() * 1000)}
+    u = user_from(req) if req.headers.get("Authorization") else None
+    if u:
+        ONLINE[u[0]] = time.time()
+        lucky_tick()
+        if lucky_active() and LUCKY["uid"] == u[0]:
+            out["lucky"] = {"id": LUCKY["id"], "left": int(LUCKY["until"] - time.time())}
+    resp = web.json_response(out)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+async def t_play(req):
+    if not teacher_ok(req):
+        return jerr("Нужен ключ учителя.", 403)
+    d = await body(req)
+    a = d.get("action")
+    if a == "announce":
+        RACE.announce()
+    elif a == "start":
+        RACE.tick()
+        if not RACE.start():
+            return jerr("Сначала нажми «Давайте поиграем».")
+    elif a == "stop":
+        RACE.stop()
+    elif a == "reset":
+        RACE.reset()
+    elif a == "lucky":
+        who = lucky_pick(nick=str(d.get("nick", "")).strip() or None)
+        if not who:
+            return jerr("Сейчас на сайте нет вошедших учеников.")
+        out = RACE.view(); out["lucky_nick"] = who
+        return web.json_response(out)
+    elif a == "kick":
+        if not RACE.kick(d.get("nick", "")):
+            return jerr("Такого игрока нет.")
+    else:
+        return jerr("Неизвестное действие.")
+    return web.json_response(RACE.view())
+
+
+async def race_join(req):
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти или зарегистрироваться.", 401)
+    RACE.tick()
+    e = RACE.join(u[0], u[1])
+    if e:
+        return jerr(e, 409)
+    return web.json_response(RACE.view(u[0]))
+
+
+async def race_state(req):
+    u = user_from(req)
+    resp = web.json_response(RACE.view(u[0] if u else None))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+async def race_submit(req):
+    global JUDGE_SEM
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    d = await body(req)
+    try:
+        i = int(d.get("i"))
+    except Exception:
+        return jerr("Неверная задача.")
+    code = d.get("code")
+    RACE.tick()
+    e = RACE.submit_precheck(u[0], i, code, d.get("meta"))
+    if e:
+        return web.json_response({"ok": True, "passed": False, "msg": e, **RACE.view(u[0])})
+    if JUDGE_SEM is None:
+        JUDGE_SEM = asyncio.Semaphore(3)
+    async with JUDGE_SEM:
+        ok, msg = await asyncio.get_running_loop().run_in_executor(None, R.judge, i, code)
+    # за время проверки игра могла закончиться или игрока могли исключить
+    if ok and RACE.phase == "run" and u[0] in RACE.players and RACE.players[u[0]]["done"] == i:
+        RACE.accepted(u[0])
+    elif ok:
+        ok, msg = False, "Игра уже закончилась."
+    return web.json_response({"ok": True, "passed": ok, "msg": msg, **RACE.view(u[0])})
+
+
 def teacher_ok_key(k):
     return bool(TEACHER_KEY) and hmac.compare_digest(str(k or "").encode(), TEACHER_KEY.encode())
 
@@ -596,6 +1052,8 @@ async def janitor(app):
                     ROOMS.pop(c, None)
             for k in [k for k, v in HITS.items() if not v or now - v[-1] > 3600]:
                 HITS.pop(k, None)
+            for k in [k for k, v in FAILS.items() if now - v[2] > FAIL_FORGET]:
+                FAILS.pop(k, None)
             db.execute("DELETE FROM sessions WHERE created<?", (int(now) - 90 * 86400,))
             db.commit()
     task = asyncio.create_task(run())
@@ -608,6 +1066,8 @@ def make_app():
     app = web.Application(middlewares=[cors], client_max_size=64 * 1024)
     app.add_routes([
         web.get("/api/ping", ping), web.post("/api/register", register), web.post("/api/login", login), web.post("/api/logout", logout),
+        web.post("/api/recover", recover), web.post("/api/recover/confirm", recover_confirm), web.get("/api/teacher/recov", t_recov), web.post("/api/submit", submit), web.get("/api/teacher/subs", t_subs), web.get("/api/teacher/sub", t_sub),
+        web.get("/api/play", play_state), web.post("/api/lucky/spin", lucky_spin), web.post("/api/lucky/finish", lucky_finish), web.get("/api/teacher/lucky", t_lucky), web.post("/api/teacher/play", t_play), web.post("/api/race/join", race_join), web.get("/api/race/state", race_state), web.post("/api/race/submit", race_submit),
         web.get("/api/me", me), web.put("/api/progress", put_progress),
         web.get("/api/teacher/check", t_check), web.get("/api/teacher/users", t_users), web.post("/api/teacher/reset", t_reset), web.delete("/api/teacher/user", t_delete),
         web.get("/ws", ws_handler),

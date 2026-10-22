@@ -9,12 +9,17 @@ function ST(){try{return {tk:getToken(),login:localStorage.getItem("teacher")||"
 function api(path,tk){return fetch("https://api.github.com"+path,{headers:{Accept:"application/vnd.github+json",Authorization:"Bearer "+tk}})}
 function logout(){try{sessionStorage.removeItem("tk");localStorage.removeItem("tk");localStorage.removeItem("tkAt");localStorage.removeItem("teacher")}catch(e){}location.href="index.html"}
 
+function srvKeyBox(msg){
+ return '<div class="box"><b>Вход по ключу учителя</b><p class="m">Ключ лежит на сервере (файл /etc/pycourse.env). Здесь сдачи учеников, игра для всех, восстановление паролей.</p><label for="sk" class="m">Ключ учителя</label><input type="password" id="sk" autocomplete="off" style="max-width:100%;margin:8px 0;width:100%;font:500 16px var(--mono);padding:10px;border:3px solid #000"><p style="margin:12px 0 0"><button class="btn go" id="sin">Войти</button></p><p id="sm" class="'+(msg?'bad':'m')+'" style="margin-top:10px">'+esc(msg||"")+'</p></div>'}
 function gate(msg){
- app.innerHTML='<div class="gate"><div class="crumbs">Только для учителя</div><h1>Вход в кабинет</h1>'+
+ app.innerHTML='<div class="gate"><div class="crumbs">Только для учителя</div><h1>Вход в кабинет</h1>'+(Net.on?srvKeyBox(msg):"")+
+ '<details style="margin-top:14px"><summary class="m">Старый вход через GitHub (только если нужны заявки с GitHub)</summary>'+
  '<p class="m">Только для владельца репозитория (аккаунт <b style="color:var(--text)">'+esc(OWNER)+'</b>).</p>'+
  '<div class="box"><label for="tk">Токен</label><input type="text" id="tk" placeholder="ghp_…" style="max-width:100%;margin:8px 0" autocomplete="off" spellcheck="false">'+
  '<label class="m" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rem"> запомнить на этом компьютере</label>'+
- '<p style="margin:12px 0 0"><button class="btn" id="in">Войти</button></p><p id="gm" class="'+(msg?'bad':'m')+'" style="margin-top:10px">'+esc(msg||"")+'</p></div></div>';
+ '<p style="margin:12px 0 0"><button class="btn" id="in">Войти</button></p><p id="gm" class="m" style="margin-top:10px"></p></div></details></div>';
+ var sin=document.getElementById("sin");if(sin)sin.onclick=function(){var k=document.getElementById("sk").value.trim(),m=document.getElementById("sm");if(!k)return;m.className="m";m.textContent="Проверяю…";
+  Net.req("GET","/api/teacher/check",null,{"X-Teacher-Key":k}).then(function(j){if(j.ok){Net.tkey(k);srvCabinet()}else{m.className="bad";m.textContent="Ключ не подошёл."}}).catch(function(e){m.className="bad";m.textContent=e.message})};
  document.getElementById("in").onclick=function(){
   var tk=document.getElementById("tk").value.trim(),b=this;if(!tk){return}
   b.disabled=true;document.getElementById("gm").className="m";document.getElementById("gm").textContent="Проверяю…";
@@ -67,10 +72,10 @@ function dl(name,text,type){var a=document.createElement("a");a.href=URL.createO
 function cabinet(st){
  app.innerHTML='<div class="crumbs">Кабинет учителя · вы вошли как '+esc(st.login)+' · <a href="#" id="out">выйти</a></div><h1>Кабинет</h1><div class="cab-tabs" id="tb"></div><div id="tab"><span class="m">Загружаю данные…</span></div>';
  document.getElementById("out").onclick=function(e){e.preventDefault();logout()};
- var tabs=[["sum","Сводка"],["sub","Заявки"],["off","Без GitHub"],["stu","Ученики"],["quiz","Тест"],["lnk","Управление"]],cur="sum";
+ var tabs=[["sum","Сводка"],["sub","Заявки"],["off","Без GitHub"],["stu","Ученики"],["game","Игра"],["quiz","Тест"],["lnk","Управление"]],cur="sum";
  function draw(){document.getElementById("tb").innerHTML=tabs.map(function(t){return '<button data-k="'+t[0]+'" class="'+(t[0]===cur?'on':'')+'">'+t[1]+'</button>'}).join("");
   Array.prototype.forEach.call(document.querySelectorAll("#tb button"),function(b){b.onclick=function(){cur=b.dataset.k;draw();show()}});}
- function show(){var el=document.getElementById("tab");if(!DATA&&cur!=="quiz"&&cur!=="lnk"&&cur!=="off"){el.innerHTML='<span class="m">Загружаю данные…</span>';return}({sum:tSum,sub:tSub,off:tOff,stu:tStu,quiz:tQuiz,lnk:tLnk})[cur](el)}
+ function show(){var el=document.getElementById("tab");if(!DATA&&cur!=="quiz"&&cur!=="lnk"&&cur!=="off"&&cur!=="game"){el.innerHTML='<span class="m">Загружаю данные…</span>';return}({sum:tSum,sub:tSub,off:tOff,stu:tStu,quiz:tQuiz,lnk:tLnk,game:tGame})[cur](el)}
  draw();
  fetchIssues("сдача",function(a){ISS=a;DATA=mergeOff(build(a));show()},function(e){document.getElementById("tab").innerHTML='<div class="box bad">Не загрузилось ('+esc(e.message)+'). '+(e.message==="401"?'Токен устарел — <a href="#" id="o2">войти заново</a>.':'Проверь связь с GitHub.')+'</div>';var o=document.getElementById("o2");if(o)o.onclick=function(ev){ev.preventDefault();logout()}});
 }
@@ -129,6 +134,61 @@ function tStu(el){
  document.getElementById("ex").onclick=function(){dl("ученики.json",JSON.stringify(jget("names",{}),null,1),"application/json")};
  document.getElementById("im").onchange=function(){var f=this.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var o=JSON.parse(String(r.result).replace(/^﻿/,""));localStorage.setItem("names",JSON.stringify(o));tStu(el)}catch(e){alert("Не получилось прочитать файл")}};r.readAsText(f)};
 }
+function tGame(el){
+ var tm=null,last=null;
+ el.innerHTML='<div class="box"><b>Гонка по Python для всех, кто сейчас на сайте</b>'+
+ '<p class="m">1) Нажми «Давайте поиграем». У всех на экране 5 секунд пляшут человечки под солнцем, потом открывается гонка.<br>2) Ученики входят по логину и паролю (новенькие регистрируются за 10 секунд).<br>3) Когда все зашли, нажми «Старт». 5 задач по первым двум темам, код проверяет сервер. Первые 3 финишировавших побеждают.</p>'+
+ '<label class="m" for="gk">Ключ учителя (с сервера)</label><input id="gk" type="password" autocomplete="off" style="width:100%;max-width:320px;font:500 16px var(--mono);padding:10px;border:3px solid #000;margin:4px 0 12px" value="'+esc(Net.tkey())+'">'+
+ '<div class="btns"><button class="btn go big" id="ga" type="button">Давайте поиграем!</button><button class="btn big" id="gs" type="button">Старт гонки</button><button class="btn" id="gx" type="button">Остановить</button><button class="btn ghost" id="gr" type="button">Сбросить</button><a class="btn ghost" href="race.html?board=1" target="_blank" rel="noopener">Табло для проектора</a></div>'+
+ '<hr><b>Рулетка «три черепа»</b><p class="m">Сервер сам выбирает одного случайного ученика из тех, кто сейчас на сайте, раз в 1–2 часа. Три черепа открывают игру: пройдёт с первого раза и получит красную пятёрку, иначе оценка сгорает. Можно запустить прямо сейчас.</p>'+
+ '<div class="btns"><button class="btn" id="gl" type="button">Запустить рулетку случайному</button><input id="gln" placeholder="или ник ученика" style="font:500 16px var(--mono);padding:10px;border:3px solid #000;min-height:48px"></div><div id="glo" class="m" style="margin-top:10px"></div>'+
+ '<div id="gmsg" class="m" role="status" style="margin-top:10px"></div><div id="gv"></div></div>';
+ function key(){var k=document.getElementById("gk").value.trim();Net.tkey(k);return k}
+ function call(a,extra){var m=document.getElementById("gmsg");if(!Net.on){m.className="bad";m.textContent="Сервер не подключён.";return}
+  Net.req("POST","/api/teacher/play",Object.assign({action:a},extra||{}),{"X-Teacher-Key":key()}).then(function(j){
+   if(!j.ok){m.className="bad";m.textContent=j.error||"Не получилось";return}m.className="ok";m.textContent={announce:"Запущено: у всех на сайте экран «Давайте поиграем».",start:"Гонка началась!",stop:"Гонка остановлена.",reset:"Сброшено.",kick:"Игрок исключён."}[a]||"Готово";render(j)
+  }).catch(function(e){m.className="bad";m.textContent=e.message})}
+ function render(j){last=j;var v=document.getElementById("gv");if(!v)return;
+  var ph={idle:"игры нет",intro:"заставка у всех",lobby:"ждём игроков",run:"гонка идёт",end:"гонка окончена"}[j.phase]||j.phase;
+  v.innerHTML='<p><b>Состояние:</b> '+ph+' · в игре: <b>'+j.n+'</b>'+(j.phase==="run"?' · время '+Math.floor(j.elapsed/60)+':'+("0"+Math.round(j.elapsed%60)).slice(-2):'')+'</p>'+
+   (j.winners.length?'<p><b>Финиш:</b> '+j.winners.map(function(w){return w.place+'. '+esc(w.nick)+' ('+w.sec+' с)'}).join(' · ')+'</p>':'')+
+   '<table><tr><th>Игрок</th><th>Задач</th><th></th></tr>'+j.players.map(function(p){return '<tr><td>'+esc(p.nick)+'</td><td>'+p.done+' из '+j.total+'</td><td><button class="btn ghost" data-k="'+esc(p.nick)+'" type="button">Исключить</button></td></tr>'}).join("")+'</table>';
+  Array.prototype.forEach.call(v.querySelectorAll("button[data-k]"),function(b){b.onclick=function(){if(confirm("Исключить "+b.dataset.k+"?"))call("kick",{nick:b.dataset.k})}})}
+ function refresh(){if(!document.getElementById("gv")){clearInterval(tm);return}
+  Net.req("GET","/api/race/state").then(function(j){if(j.ok)render(j)}).catch(function(){})}
+ document.getElementById("ga").onclick=function(){call("announce")};document.getElementById("gs").onclick=function(){call("start")};
+ document.getElementById("gx").onclick=function(){call("stop")};document.getElementById("gr").onclick=function(){if(confirm("Сбросить игру и убрать всех игроков?"))call("reset")};
+ document.getElementById("gl").onclick=function(){var m=document.getElementById("gmsg");Net.req("POST","/api/teacher/play",{action:"lucky",nick:document.getElementById("gln").value.trim()},{"X-Teacher-Key":key()}).then(function(j){m.className=j.ok?"ok":"bad";m.textContent=j.ok?"Рулетка запущена у ученика "+j.lucky_nick+" (появится в течение 4 секунд).":(j.error||"Не получилось");lk()})};
+ function lk(){Net.req("GET","/api/teacher/lucky",null,{"X-Teacher-Key":Net.tkey()}).then(function(j){var o=document.getElementById("glo");if(!o||!j.ok)return;
+  var K={five:"красная пятёрка",burned:"оценка сгорела","no-skulls":"черепа не выпали"};
+  o.innerHTML='На сайте сейчас: <b>'+j.online+'</b>'+(j.cur?' · рулетка у: <b>'+esc(j.cur)+'</b>':'')+(j.rows.length?'<table><tr><th>Когда</th><th>Ученик</th><th>Итог</th></tr>'+j.rows.slice(0,15).map(function(r){return '<tr><td>'+ago2(r.ts)+'</td><td>'+esc(r.fio&&r.fio!==r.nick?r.fio+" ("+r.nick+")":r.nick)+'</td><td class="'+(r.kind==="five"?"ok":"")+'">'+(K[r.kind]||r.kind)+(r.kind==="five"&&r.note?" ("+esc(r.note)+")":"")+'</td></tr>'}).join("")+'</table>':'')}).catch(function(){})}
+ lk();setInterval(lk,5000);
+ refresh();tm=setInterval(refresh,2000)}
+function srvCabinet(){
+ app.innerHTML='<div class="crumbs">Кабинет учителя · <a href="#" id="out">выйти</a></div><h1>Кабинет</h1><div class="cab-tabs" id="tb"></div><div id="tab"></div>';
+ document.getElementById("out").onclick=function(e){e.preventDefault();try{sessionStorage.removeItem("tkey")}catch(x){}location.href="index.html"};
+ var tabs=[["game","Игра"],["subs","Сдачи"],["rec","Пароли"],["stu2","Ученики"],["quiz","Тест"]],cur="game";
+ function draw(){document.getElementById("tb").innerHTML=tabs.map(function(t){return '<button data-k="'+t[0]+'" class="'+(t[0]===cur?'on':'')+'">'+t[1]+'</button>'}).join("");
+  Array.prototype.forEach.call(document.querySelectorAll("#tb button"),function(b){b.onclick=function(){cur=b.dataset.k;draw();show()}})}
+ function show(){var el=document.getElementById("tab");({game:tGame,subs:tSubs,rec:tRec,stu2:function(e){e.innerHTML='<div class="box"><p>Список учеников, прогресс и таблица: <a class="btn go" href="students.html">Ученики на сервере</a></p></div>'},quiz:tQuiz})[cur](el)}
+ draw();show()}
+function tkh(){return {"X-Teacher-Key":Net.tkey()}}
+function ago2(ts){var d=Math.round((Date.now()/1000-ts)/60);return d<2?"только что":d<60?d+" мин назад":d<1440?Math.round(d/60)+" ч назад":Math.round(d/1440)+" дн назад"}
+function tSubs(el){
+ el.innerHTML='<div class="box"><div class="btns"><button class="btn" id="rf" type="button">Обновить</button><button class="btn ghost" id="cv" type="button">Скачать CSV</button></div><div id="so" class="m" style="margin-top:10px">Загружаю…</div><pre id="sc" style="display:none;max-height:340px"></pre></div>';
+ var rows=[];
+ function load(){Net.req("GET","/api/teacher/subs",null,tkh()).then(function(j){var o=document.getElementById("so");if(!o)return;if(!j.ok){o.className="bad";o.textContent=j.error||"Нет доступа";return}rows=j.rows;
+  if(!rows.length){o.textContent="Пока никто ничего не сдал.";return}o.className="";
+  o.innerHTML='<table><tr><th>Когда</th><th>Ученик</th><th>Группа</th><th>Задание</th><th>Итог</th><th>Метки защиты</th><th></th></tr>'+rows.map(function(r,i){return '<tr><td>'+ago2(r.ts)+'</td><td>'+esc(r.fio&&r.fio!==r.nick?r.fio+" ("+r.nick+")":r.nick)+'</td><td>'+esc(r.group)+'</td><td>'+esc(r.task)+'</td><td class="'+(r.status==="ok"?"ok":"bad")+'">'+(r.status==="ok"?"решено":"ошибки")+'</td><td>'+(r.flags.length?'<span class="warn">'+esc(r.flags.join(", "))+'</span>':'чисто')+'</td><td><button class="btn ghost" data-i="'+i+'" type="button">Код</button></td></tr>'}).join("")+'</table>';
+  Array.prototype.forEach.call(o.querySelectorAll("button[data-i]"),function(b){b.onclick=function(){var r=rows[+b.dataset.i];Net.req("GET","/api/teacher/sub?id="+r.id,null,tkh()).then(function(c){var p=document.getElementById("sc");p.style.display="block";p.textContent=r.nick+" · "+r.task+"\n"+(r.msgs&&r.msgs.length?"Сообщения проверки: "+r.msgs.join(" | ")+"\n":"")+"----\n"+(c.code||"")})}})})}
+ document.getElementById("rf").onclick=load;
+ document.getElementById("cv").onclick=function(){dl("sdachi.csv",csv([["время","ник","фио","группа","задание","итог","метки"]].concat(rows.map(function(r){return [new Date(r.ts*1000).toISOString().slice(0,16).replace("T"," "),r.nick,r.fio,r.group,r.task,r.status,r.flags.join(", ")]}))))};
+ load()}
+function tRec(el){
+ el.innerHTML='<div class="box"><p class="m" id="rm">Загружаю…</p><div id="ro"></div></div>';
+ Net.req("GET","/api/teacher/recov",null,tkh()).then(function(j){var m=document.getElementById("rm");if(!m)return;if(!j.ok){m.className="bad";m.textContent=j.error||"Нет доступа";return}
+  m.textContent=j.mailer?"Почта сервера настроена: ученику уходит письмо с кодом, тебе уведомление.":"Почта сервера не настроена: код письмом не уходит. Продиктуй ученику код из таблицы (он действует 30 минут).";
+  document.getElementById("ro").innerHTML=j.rows.length?'<table><tr><th>Когда</th><th>Ученик</th><th>Почта</th><th>Код</th><th>Письмо</th></tr>'+j.rows.map(function(r){return '<tr><td>'+ago2(r.ts)+'</td><td>'+esc(r.fio&&r.fio!==r.nick?r.fio+" ("+r.nick+")":r.nick)+'</td><td>'+esc(r.email||"—")+'</td><td><b style="font-size:20px">'+(r.live?esc(r.code):"устарел")+'</b></td><td>'+(r.mailed?"отправлено":"нет")+'</td></tr>'}).join("")+'</table>':'<p>Запросов на восстановление пока нет.</p>'})}
 function tQuiz(el){
  el.innerHTML='<p class="m">Вставь коды результатов теста, по одному в строке.</p><textarea class="code" id="qi" style="min-height:120px;border-radius:10px;width:100%" placeholder="Код 1&#10;Код 2"></textarea><div class="btns"><button class="btn" id="qg">Разобрать</button><button class="btn ghost" id="qc">Скачать CSV</button></div><div id="qo"></div>';
  var rows=[];
@@ -147,7 +207,8 @@ function tLnk(el){
  el.innerHTML='<div class="linkgrid">'+L.map(function(x){return '<a href="'+ghUrl(x[0])+'" target="_blank" rel="noopener"><b>'+x[1]+'</b><span>'+x[2]+'</span></a>'}).join("")+'</div>';
 }
 var st=ST();
-if(st.tk&&st.login&&st.login.toLowerCase()===OWNER.toLowerCase()){
+if(Net.on&&Net.tkey()){Net.req("GET","/api/teacher/check",null,{"X-Teacher-Key":Net.tkey()}).then(function(j){if(j.ok)srvCabinet();else{try{sessionStorage.removeItem("tkey")}catch(e){}gate("Ключ не подошёл.")}}).catch(function(){gate()})}
+else if(st.tk&&st.login&&st.login.toLowerCase()===OWNER.toLowerCase()){
  api("/user",st.tk).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(u){if(String(u.login).toLowerCase()!==OWNER.toLowerCase())throw 0;cabinet(st)}).catch(function(){try{sessionStorage.removeItem("tk");localStorage.removeItem("tk");localStorage.removeItem("tkAt");localStorage.removeItem("teacher")}catch(e){}gate("Сессия закончилась. Войди снова.")});
 }else gate();
 </script></body></html>

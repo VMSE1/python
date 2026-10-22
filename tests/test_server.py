@@ -1,5 +1,5 @@
 """Проверка сервера: регистрация, вход, прогресс, живая викторина, облако слов. Запуск: python3 -m unittest tests.test_server"""
-import asyncio, json, os, sys, tempfile, unittest
+import asyncio, json, os, sys, tempfile, time, unittest
 
 try:
     from aiohttp import web
@@ -24,7 +24,7 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         await self.cl.close()
 
     async def reg(self, nick="anya", pw="secret1", fio="Иванова Аня", grp="9А"):
-        r = await self.cl.post("/api/register", json={"nick": nick, "password": pw, "fio": fio, "group": grp}); return r.status, await r.json()
+        r = await self.cl.post("/api/register", json={"nick": nick, "password": pw, "fio": fio, "group": grp, "email": "a@b.ru"}); return r.status, await r.json()
 
     async def test_register_login_progress(self):
         st, d = await self.reg(); self.assertEqual(st, 200); tok = d["token"]
@@ -92,6 +92,181 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
             await ws_.send_json({"t": "w", "words": list("abcdefg")})
         await h.send_json({"t": "lock"}); await asyncio.sleep(0.2); await b.send_json({"t": "w", "words": ["новое"]}); await asyncio.sleep(0.8)
         r = self.A.ROOMS[code]; self.assertNotIn("новое", r.words)
+
+    # ---------------- гонка
+    async def race_user(self, nick):
+        r = await self.cl.post("/api/register", json={"nick": nick, "password": "secret1", "quick": True}); d = await r.json(); self.assertEqual(r.status, 200, d)
+        return {"Authorization": "Bearer " + d["token"]}
+
+    def meta(self, code):
+        return "v1;t=%d;p=0;b=0;e=0;s=30;h=00000000" % len(code.strip())
+
+    async def test_quick_register(self):
+        r = await self.cl.post("/api/register", json={"nick": "vasya", "password": "secret1", "quick": True}); self.assertEqual(r.status, 200)
+        r = await self.cl.post("/api/register", json={"nick": "petya", "password": "secret1"}); self.assertEqual(r.status, 400)
+
+    async def test_race_flow(self):
+        A = self.A; A.RACE.reset(); T = {"X-Teacher-Key": "teacher-secret"}
+        A.R.MIN_GAP = 0; A.R.TYPE_RATE = 1e9
+        r = await self.cl.post("/api/teacher/play", json={"action": "announce"}); self.assertEqual(r.status, 403)
+        d = await (await self.cl.get("/api/play")).json(); self.assertEqual(d["phase"], "idle")
+        r = await self.cl.post("/api/teacher/play", json={"action": "announce"}, headers=T); d = await r.json(); self.assertEqual(d["phase"], "intro")
+        h1, h2, h3 = await self.race_user("anya"), await self.race_user("boris"), await self.race_user("vera")
+        r = await self.cl.post("/api/race/join", json={}); self.assertEqual(r.status, 401)
+        for h in (h1, h2, h3):
+            r = await self.cl.post("/api/race/join", json={}, headers=h); self.assertEqual(r.status, 200)
+        d = await (await self.cl.get("/api/play")).json(); self.assertEqual(d["n"], 3)
+        sub = lambda h, i, code: self.cl.post("/api/race/submit", json={"i": i, "code": code, "meta": self.meta(code)}, headers=h)
+        d = await (await sub(h1, 0, 'print("Привет, Аня!")')).json(); self.assertFalse(d["passed"])  # гонка ещё не идёт
+        r = await self.cl.post("/api/teacher/play", json={"action": "start"}, headers=T); d = await r.json(); self.assertEqual(d["phase"], "run")
+        st = await (await self.cl.get("/api/race/state", headers=h1)).json(); self.assertEqual(st["task"]["i"], 0); self.assertNotIn("cases", st["task"])
+        good = ['name = input()\nprint(f"Привет, {name}!")', 'a = int(input())\nb = int(input())\nprint(a + b)', 'x = int(input())\nprint(4 * x)',
+                'n = int(input())\nprint("Чётное" if n % 2 == 0 else "Нечётное")', 'b = int(input())\nprint(5 if b >= 85 else 4 if b >= 70 else 3 if b >= 50 else 2)']
+        d = await (await sub(h1, 0, 'print("Привет, Анна!")')).json(); self.assertFalse(d["passed"]); self.assertIn("ждали", d["msg"])  # зашитый ответ не проходит
+        d = await (await sub(h1, 1, good[1])).json(); self.assertFalse(d["passed"])  # нельзя перепрыгнуть задачу
+        for i, c in enumerate(good):
+            d = await (await sub(h1, i, c)).json(); self.assertTrue(d["passed"], d)
+        self.assertEqual(d["me"]["place"], 1)
+        d = await (await sub(h1, 0, good[0])).json(); self.assertFalse(d["passed"])  # уже финишировал
+        d = await (await sub(h2, 0, "while True: pass")).json(); self.assertFalse(d["passed"])  # бесконечный цикл не вешает сервер
+        d = await (await sub(h2, 0, 'import os\nos.system("echo hi")')).json(); self.assertFalse(d["passed"])  # запретные действия
+        for h in (h2, h3):
+            for i, c in enumerate(good):
+                d = await (await sub(h, i, c)).json(); self.assertTrue(d["passed"], d)
+        st = await (await self.cl.get("/api/race/state")).json(); self.assertEqual([w["nick"] for w in st["winners"]], ["anya", "boris", "vera"]); self.assertEqual(st["phase"], "run")
+        r = await self.cl.post("/api/teacher/play", json={"action": "kick", "nick": "vera"}, headers=T); d = await r.json(); self.assertEqual([w["nick"] for w in d["winners"]], ["anya", "boris"])
+        r = await self.cl.post("/api/teacher/play", json={"action": "stop"}, headers=T); d = await r.json(); self.assertEqual(d["phase"], "end")
+
+    async def test_race_antiscript(self):
+        A = self.A; A.RACE.reset(); T = {"X-Teacher-Key": "teacher-secret"}; A.R.MIN_GAP = 0; A.R.TYPE_RATE = 1e9
+        await self.cl.post("/api/teacher/play", json={"action": "announce"}, headers=T)
+        h = await self.race_user("hacker"); await self.cl.post("/api/race/join", json={}, headers=h)
+        await self.cl.post("/api/teacher/play", json={"action": "start"}, headers=T)
+        code = 'name = input()\nprint(f"Привет, {name}!")'
+        async def sub(meta):
+            return await (await self.cl.post("/api/race/submit", json={"i": 0, "code": code, "meta": meta}, headers=h)).json()
+        for bad in (None, "", "v2;t=99", "v1;t=%d;a=1" % len(code), "v1;t=%d;d=1" % len(code), "v1;t=%d;e=2" % len(code), "v1;t=3"):
+            d = await sub(bad); self.assertFalse(d["passed"], bad)
+        A.R.TYPE_RATE = 14.0; d = await sub(self.meta(code)); self.assertFalse(d["passed"]); self.assertIn("быстро", d["msg"])  # мгновенная отправка = не набирал руками
+        A.R.TYPE_RATE = 1e9; d = await sub(self.meta(code)); self.assertTrue(d["passed"], d)
+
+    async def test_race_late_and_idle(self):
+        A = self.A; A.RACE.reset(); h = await self.race_user("lena")
+        r = await self.cl.post("/api/race/join", json={}, headers=h); self.assertEqual(r.status, 409)  # игры нет
+        r = await self.cl.post("/api/teacher/play", json={"action": "start"}, headers={"X-Teacher-Key": "teacher-secret"}); self.assertEqual(r.status, 400)
+
+    async def test_email_required_and_recovery(self):
+        r = await self.cl.post("/api/register", json={"nick": "noemail", "password": "secret1", "fio": "Без Почты", "group": "9А"}); self.assertEqual(r.status, 400)
+        r = await self.cl.post("/api/register", json={"nick": "badmail", "password": "secret1", "fio": "Без Почты", "group": "9А", "email": "no-at"}); self.assertEqual(r.status, 400)
+        r = await self.cl.post("/api/register", json={"nick": "gater", "password": "secret1", "quick": True, "need_email": True}); self.assertEqual(r.status, 400)
+        r = await self.cl.post("/api/register", json={"nick": "gater", "password": "secret1", "quick": True, "need_email": True, "email": "Gater@Mail.ru"}); self.assertEqual(r.status, 200)
+        T = {"X-Teacher-Key": "teacher-secret"}
+        # запрос восстановления: ответ одинаковый для существующего и несуществующего логина
+        a = await (await self.cl.post("/api/recover", json={"login": "gater"})).json(); b = await (await self.cl.post("/api/recover", json={"login": "nobody"})).json(); self.assertEqual(a["msg"], b["msg"])
+        d = await (await self.cl.get("/api/teacher/recov", headers=T)).json(); self.assertEqual(len(d["rows"]), 1); code = d["rows"][0]["code"]; self.assertEqual(len(code), 6)
+        r = await self.cl.get("/api/teacher/recov"); self.assertEqual(r.status, 403)
+        r = await self.cl.post("/api/recover/confirm", json={"nick": "gater", "code": "000000" if code != "000000" else "111111", "password": "newpass1"}); self.assertEqual(r.status, 400)
+        r = await self.cl.post("/api/recover/confirm", json={"nick": "gater", "code": code, "password": "new"}); self.assertEqual(r.status, 400)
+        r = await self.cl.post("/api/recover/confirm", json={"nick": "gater", "code": code, "password": "newpass1"}); self.assertEqual(r.status, 200)
+        r = await self.cl.post("/api/login", json={"nick": "gater", "password": "newpass1"}); self.assertEqual(r.status, 200)
+        r = await self.cl.post("/api/login", json={"nick": "gater", "password": "secret1"}); self.assertEqual(r.status, 401)
+        r = await self.cl.post("/api/recover/confirm", json={"nick": "gater", "code": code, "password": "again123"}); self.assertEqual(r.status, 400)  # код одноразовый
+        # вход и по почте тоже находит ученика
+        await self.cl.post("/api/recover", json={"login": "gater@mail.ru"}); d = await (await self.cl.get("/api/teacher/recov", headers=T)).json(); self.assertEqual(len(d["rows"]), 1)
+
+    async def test_submit_checked_on_server(self):
+        st, d = await self.reg(); h = {"Authorization": "Bearer " + d["token"]}; T = {"X-Teacher-Key": "teacher-secret"}
+        r = await self.cl.post("/api/submit", json={"id": "1.1", "code": "x"}); self.assertEqual(r.status, 401)
+        r = await self.cl.post("/api/submit", json={"id": "9.9", "code": "print(1)"}, headers=h); self.assertEqual(r.status, 400)
+        bad = await (await self.cl.post("/api/submit", json={"id": "1.1", "code": 'print("привет")', "meta": "v1;t=15;p=0;e=0"}, headers=h)).json(); self.assertEqual(bad["verdict"], "fail")
+        good = await (await self.cl.post("/api/submit", json={"id": "1.1", "code": 'name = input()\ncity = input()\nprint(f"Меня зовут {name}, я из {city}")', "meta": "v1;t=70;p=0;e=0"}, headers=h)).json(); self.assertEqual(good["verdict"], "ok", good)
+        me = await (await self.cl.get("/api/me", headers=h)).json(); self.assertIn("1.1", me["progress"]["passed"]); self.assertIn("1.1", me["progress"]["done"])
+        rows = (await (await self.cl.get("/api/teacher/subs", headers=T)).json())["rows"]; self.assertEqual([x["status"] for x in rows], ["ok", "fail"]); self.assertEqual(rows[0]["nick"], "anya")
+        r = await self.cl.get("/api/teacher/subs"); self.assertEqual(r.status, 403)
+        c = await (await self.cl.get("/api/teacher/sub?id=%d" % rows[0]["id"], headers=T)).json(); self.assertIn("input()", c["code"])
+        d = await (await self.cl.post("/api/submit", json={"id": "1.2", "code": "while True: pass", "meta": ""}, headers=h)).json(); self.assertEqual(d["verdict"], "fail")
+
+    async def test_login_lockout_escalates(self):
+        await self.reg(nick="lock1", pw="secret1"); A = self.A
+        async def bad():
+            r = await self.cl.post("/api/login", json={"nick": "lock1", "password": "wrong"}); return r.status, await r.json()
+        for i in range(2):
+            st, d = await bad(); self.assertEqual(st, 401); self.assertEqual(d["wait"], 0)
+        st, d = await bad(); self.assertEqual(st, 401); self.assertEqual(d["wait"], 30)     # третья неудача: 30 секунд
+        st, d = await bad(); self.assertEqual(st, 429); self.assertGreater(d["wait"], 0)    # во время блока даже верный пароль не пробуют
+        r = await self.cl.post("/api/login", json={"nick": "lock1", "password": "secret1"}); self.assertEqual(r.status, 429)
+        for k in list(A.FAILS):
+            A.FAILS[k][1] = 0                                                                # блок прошёл
+        waits = []
+        for _ in range(5):                                                                   # 4-я, 5-я, 6-я, 7-я, 8-я неудачи
+            for k in list(A.FAILS):
+                A.FAILS[k][1] = 0                                                            # прошлый блок закончился
+            st, d = await bad(); waits.append(d["wait"])
+        self.assertEqual(waits, [30, 120, 120, 300, 300])                                    # 30 с, затем 2 минуты, затем потолок 5 минут
+        for k in list(A.FAILS):
+            A.FAILS[k][1] = 0
+        r = await self.cl.post("/api/login", json={"nick": "lock1", "password": "secret1"}); self.assertEqual(r.status, 200)  # верный пароль сбрасывает счётчик
+        st, d = await bad(); self.assertEqual(d["wait"], 0)
+
+    async def test_lockout_does_not_hit_other_users(self):
+        await self.reg(nick="victim", pw="secret1"); await self.reg(nick="friend", pw="secret1")
+        for _ in range(5):
+            await self.cl.post("/api/login", json={"nick": "victim", "password": "x"})
+        r = await self.cl.post("/api/login", json={"nick": "friend", "password": "secret1"}); self.assertEqual(r.status, 200)  # другой ученик с того же Wi-Fi входит свободно
+
+    async def test_class_can_register_from_one_ip(self):
+        for i in range(30):
+            r = await self.cl.post("/api/register", json={"nick": "kid%02d" % i, "password": "secret1", "quick": True, "email": "k%d@mail.ru" % i}); self.assertEqual(r.status, 200, i)
+
+    async def test_mail_is_throttled(self):
+        A = self.A; sent = []
+        A.SMTP_HOST, A.SMTP_USER, A.SMTP_PASS, A.TEACHER_EMAIL = "smtp.test", "u", "p", "teacher@test.ru"; A.SMTP_FROM = "u"
+        A._send_sync = lambda to, subj, text: sent.append((to, subj)); A.MAIL_LOG.clear(); A._teacher.update(last=0.0, pending=[], task=None)
+        for i in range(12):
+            await self.reg(nick="mm%02d" % i, pw="secret1", fio="Ученик %d" % i)
+            await self.cl.post("/api/recover", json={"login": "mm%02d" % i}); await asyncio.sleep(0.05)
+        await asyncio.sleep(0.3)
+        self.assertLessEqual(len(sent), A.MAIL_PER_10MIN)                                    # за 10 минут не больше шести писем всего
+        self.assertEqual(sum(1 for t, _ in sent if t == "teacher@test.ru"), 1)               # учителю одно письмо, остальное копится
+        self.assertGreaterEqual(len(A._teacher["pending"]), 5)
+        d = await (await self.cl.get("/api/teacher/recov", headers={"X-Teacher-Key": "teacher-secret"})).json(); self.assertEqual(len(d["rows"]), 12)  # коды всё равно видны учителю
+        # один и тот же адрес не засыпаем письмами
+        A.MAIL_LOG.clear(); self.assertTrue(A.mail_allowed("x@y.ru")); A.MAIL_LOG.extend([(time.time(), "x@y.ru")] * 2); self.assertFalse(A.mail_allowed("x@y.ru")); self.assertTrue(A.mail_allowed("z@y.ru"))
+
+    async def test_lucky_roulette(self):
+        A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.LUCKY.update(next=time.time() + 99999, uid=0, token="", spun=False); A.ONLINE.clear()
+        h1, h2 = await self.race_user("счастливчик"), await self.race_user("другой")
+        for h in (h1, h2):
+            d = await (await self.cl.get("/api/play", headers=h)).json(); self.assertNotIn("lucky", d)
+        d = await (await self.cl.get("/api/play")).json(); self.assertNotIn("lucky", d)                    # без входа ничего не показываем
+        r = await self.cl.post("/api/teacher/play", json={"action": "lucky", "nick": "счастливчик"}, headers=T); self.assertEqual((await r.json())["lucky_nick"], "счастливчик")
+        d1 = await (await self.cl.get("/api/play", headers=h1)).json(); d2 = await (await self.cl.get("/api/play", headers=h2)).json()
+        self.assertIn("lucky", d1); self.assertNotIn("lucky", d2)                                          # рулетка только у одного
+        r = await self.cl.post("/api/lucky/spin", json={}, headers=h2); self.assertEqual(r.status, 403)
+        A.LUCKY_ODDS = 1.0
+        d = await (await self.cl.post("/api/lucky/spin", json={}, headers=h1)).json(); self.assertTrue(d["win"]); self.assertEqual(d["reels"], ["skull"] * 3); tok = d["token"]
+        r = await self.cl.post("/api/lucky/spin", json={}, headers=h1); self.assertEqual(r.status, 403)    # крутить можно один раз
+        d = await (await self.cl.get("/api/play", headers=h1)).json(); self.assertNotIn("lucky", d)
+        r = await self.cl.post("/api/lucky/finish", json={"win": True, "token": "bad"}, headers=h1); self.assertEqual(r.status, 403)
+        d = await (await self.cl.post("/api/lucky/finish", json={"win": True, "token": tok}, headers=h1)).json(); self.assertFalse(d["five"])    # слишком быстро: подделка
+        r = await self.cl.post("/api/lucky/finish", json={"win": True, "token": tok}, headers=h1); self.assertEqual(r.status, 403)                 # попытка одна
+        # победа за нормальное время
+        A.lucky_pick(nick="счастливчик"); d = await (await self.cl.post("/api/lucky/spin", json={}, headers=h1)).json(); A.LUCKY["t0"] -= 30
+        d = await (await self.cl.post("/api/lucky/finish", json={"win": True, "token": d["token"]}, headers=h1)).json(); self.assertTrue(d["five"]); self.assertEqual(d["nick"], "счастливчик")
+        # проигрыш сжигает оценку
+        A.lucky_pick(nick="другой"); A.LUCKY_ODDS = 1.0; d = await (await self.cl.post("/api/lucky/spin", json={}, headers=h2)).json(); A.LUCKY["t0"] -= 30
+        d = await (await self.cl.post("/api/lucky/finish", json={"win": False, "token": d["token"]}, headers=h2)).json(); self.assertFalse(d["five"])
+        # без черепов: игры не будет
+        A.LUCKY_ODDS = 0.0; A.lucky_pick(nick="другой"); d = await (await self.cl.post("/api/lucky/spin", json={}, headers=h2)).json(); self.assertFalse(d["win"]); self.assertNotEqual(d["reels"], ["skull"] * 3); self.assertEqual(d["token"], "")
+        rows = (await (await self.cl.get("/api/teacher/lucky", headers=T)).json())["rows"]
+        self.assertEqual(sorted(r["kind"] for r in rows), ["burned", "burned", "five", "no-skulls"])
+        r = await self.cl.get("/api/teacher/lucky"); self.assertEqual(r.status, 403)
+
+    async def test_lucky_schedule(self):
+        A = self.A; A.ONLINE.clear(); A.LUCKY.update(next=0, uid=0, spun=False, token="", until=0)
+        h = await self.race_user("online1"); d = await (await self.cl.get("/api/play", headers=h)).json()
+        self.assertIn("lucky", d); self.assertGreater(A.LUCKY["next"], time.time() + 3000)                   # следующий раз через 1–2 часа
+        A.LUCKY.update(next=0, uid=0, until=0); A.ONLINE.clear(); A.lucky_tick(); self.assertLess(A.LUCKY["next"], time.time() + 200)   # некого выбирать: повтор через пару минут
 
 if __name__ == "__main__":
     unittest.main()

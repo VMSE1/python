@@ -1,0 +1,123 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com https://course.2-27-53-182.sslip.io wss://course.2-27-53-182.sslip.io; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Гонка по Python</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="live.css"><link rel="stylesheet" href="race.css"></head><body>
+<main class="wrap lvwrap">
+<div class="crumbs">Гонка по Python</div>
+<div id="app" class="lv rc" aria-live="polite"></div>
+</main>
+<script src="site.js"></script><script src="config.js"></script><script src="net.js"></script><script src="honest.js"></script>
+<script>
+layout("race.html","Гонка по Python");
+(function(){
+var app=document.getElementById("app"),BOARD=/[?&]board=1/.test(location.search),S={st:null,joined:false,joining:false,mode:"in",curTask:-1,busy:false,tm:null,sending:false,locked:""};
+function $(i){return document.getElementById(i)}
+function api(m,p,b){return Net.req(m,p,b)}
+var BACK="";try{BACK=sessionStorage.getItem("playBack")||""}catch(e){}
+var MAN=["..HHHHH..",".HHHHHHH.",".HSSSSSH.",".SSESSES.",".SSSSSSS.","...SSS...",".RRRRRRR.","SRRRRRRRS","SRRRRRRRS",".RRRRRRR.",".BB...BB.",".BB...BB.","LLL...LLL"];
+var COLS=["#d62839","#2a7fd6","#2a9d4a","#d98a00","#8a3fd6","#d6397a","#0f8f8f"];
+function hue(n){var h=0;for(var i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))>>>0;return COLS[h%COLS.length]}
+function runner(color,me){
+ var u=3,s='<svg class="rn'+(me?' me':'')+'" width="'+(9*u)+'" height="'+(13*u)+'" viewBox="0 0 9 13" shape-rendering="crispEdges" aria-hidden="true">';
+ var map={H:"#3a1a0a",S:"#f2c9a0",E:"#16060a",R:color,B:"#2a2f7a",L:"#111"};
+ MAN.forEach(function(r,y){for(var x=0;x<9;x++){var k=r[x];if(k&&k!=="."){s+='<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="'+map[k]+'"/>'}}});
+ return s+"</svg>"}
+function medal(n){return n===1?"🥇":n===2?"🥈":n===3?"🥉":n+"."}
+function fmt(sec){if(sec==null)return"";var m=Math.floor(sec/60),s=Math.round(sec%60);return m+":"+("0"+s).slice(-2)}
+
+/* ---------- вход ---------- */
+function authView(){
+ stop();
+ var up=S.mode==="up";
+ app.innerHTML='<div class="rhd">Гонка по Python</div><div class="box acf" style="max-width:520px"><p>'+(up?'Придумай логин и пароль. Больше ничего не нужно.':'Войди со своим логином и паролем.')+'</p>'+
+ '<div class="seg"><button type="button" id="tIn" class="'+(!up?"on":"")+'">Я уже есть</button><button type="button" id="tUp" class="'+(up?"on":"")+'">Я новенький</button></div>'+
+ '<form id="f" class="acf" novalidate><div class="fld"><label for="nk">Логин (3–20 символов)</label><input id="nk" autocomplete="username" autocapitalize="off" spellcheck="false"></div>'+
+ '<div class="fld"><label for="pw">Пароль (от 6 символов)</label><input id="pw" type="password" autocomplete="'+(up?"new-password":"current-password")+'"></div>'+
+ '<label class="chk"><input type="checkbox" id="sh"> Показать пароль</label><div class="bad" id="er" role="alert"></div><button class="btn big go" type="submit" id="go">'+(up?"Создать и играть":"Войти и играть")+'</button></form></div>';
+ $("tIn").onclick=function(){S.mode="in";authView()};$("tUp").onclick=function(){S.mode="up";authView()};
+ $("sh").onchange=function(){$("pw").type=$("sh").checked?"text":"password"};
+ $("f").onsubmit=function(e){e.preventDefault();var n=$("nk").value.trim(),p=$("pw").value,er=$("er");er.textContent="";
+  if(!n||!p){er.textContent="Впиши логин и пароль.";return}
+  var b=$("go");b.disabled=true;b.textContent="Подожди…";
+  Net[up?"register":"login"](up?{nick:n,password:p,quick:true}:{nick:n,password:p}).then(function(j){
+   if(j.ok){start();return}er.textContent=j.error||"Не получилось. Попробуй ещё раз.";b.disabled=false;b.textContent=up?"Создать и играть":"Войти и играть"
+  }).catch(function(e){er.textContent=e.message;b.disabled=false;b.textContent=up?"Создать и играть":"Войти и играть"})}}
+
+/* ---------- опрос сервера ---------- */
+function stop(){clearTimeout(S.tm);S.tm=null}
+function schedule(){stop();var ph=S.st&&S.st.phase;S.tm=setTimeout(poll,ph==="run"?1500:ph==="idle"?4000:2500)}
+function poll(){
+ if(S.busy)return;S.busy=true;
+ api("GET","/api/race/state").then(function(j){S.busy=false;
+  if(j.status===401){Net.logout().then(authView);return}
+  if(!j.ok){draw(null,j.error);schedule();return}
+  S.st=j;
+  if(!BOARD&&!j.me.joined&&!S.joining&&(j.phase==="intro"||j.phase==="lobby"||j.phase==="run")){S.joining=true;api("POST","/api/race/join",{}).then(function(r){S.joining=false;if(r.ok){S.st=r}else S.locked=r.error||"";draw(S.st)}).catch(function(){S.joining=false})}
+  draw(S.st);schedule()
+ }).catch(function(e){S.busy=false;draw(null,e.message);schedule()})}
+
+/* ---------- отрисовка ---------- */
+function trackHtml(st,big){
+ var rows=st.players.slice(),T=st.total,my=rows.filter(function(p){return p.me})[0],show=rows.slice(0,big?14:8);
+ if(my&&show.indexOf(my)<0)show.push(my);
+ if(!show.length)return'<div class="m">Пока никого. Заходи в игру!</div>';
+ var h='<div class="trk'+(big?" big":"")+'" role="list" aria-label="Забег">';
+ h+='<div class="ticks" aria-hidden="true">'+Array.apply(null,Array(T+1)).map(function(_,i){return'<span style="left:'+(i/T*100)+'%">'+(i===T?"🏁":i)+'</span>'}).join("")+'</div>';
+ show.forEach(function(p){var pc=Math.min(100,p.done/T*100);
+  h+='<div class="lane'+(p.me?" mine":"")+'" role="listitem" aria-label="'+esc(p.nick)+': '+p.done+' из '+T+'"><span class="nm">'+esc(p.nick)+(p.me?" (ты)":"")+'</span><div class="road"><div class="rw" style="left:calc('+pc+'% - '+(pc/100*27)+'px)">'+runner(hue(p.nick),p.me)+'</div><b class="fl" aria-hidden="true">🏁</b></div></div>'});
+ return h+'</div>'}
+function podium(st,big){
+ var w=st.winners.slice(0,5);if(!w.length)return"";
+ return'<div class="pod'+(big?" big":"")+'"><div class="rhd2">Финишировали</div>'+w.map(function(x){return'<div class="pw p'+x.place+'"><span class="md">'+medal(x.place)+'</span><b>'+esc(x.nick)+'</b><span class="tm">'+fmt(x.sec)+'</span></div>'}).join("")+'</div>'}
+function head(st){
+ var p=st.phase;
+ if(p==="idle")return'<div class="rhd">Игры сейчас нет</div><p class="m">Когда учитель нажмёт «Давайте поиграем», эта страница откроется сама.</p>';
+ if(p==="intro"||p==="lobby")return'<div class="rhd">Ждём старта</div><p class="m">В игре: <b>'+st.n+'</b>. Как только учитель скажет «Старт», появится первое задание. Решай 5 задач быстрее всех.</p>';
+ if(p==="run")return'<div class="rhd">Гонка идёт · '+fmt(st.elapsed)+'</div>';
+ return'<div class="rhd">Гонка окончена</div>'}
+function draw(st,err){
+ if(!st){if(!$("rc_err")){app.innerHTML='<div class="bad" id="rc_err" role="alert"></div>'}$("rc_err").textContent=err||"Нет связи. Пробую снова…";return}
+ var big=BOARD,ph=st.phase;
+ var cur=$("rc_main");
+ if(!cur){app.innerHTML='<div id="rc_main"><div id="rc_head"></div><div id="rc_trk"></div><div id="rc_task"></div><div id="rc_pod"></div></div>'+(BACK&&!BOARD?'<p class="m"><a href="'+esc(BACK)+'">Вернуться к тому, что делал(а)</a></p>':"")}
+ $("rc_head").innerHTML=head(st)+(S.locked&&!st.me.joined?'<div class="bad" role="alert">'+esc(S.locked)+'</div>':"");
+ $("rc_trk").innerHTML=ph==="idle"?"":trackHtml(st,big);
+ $("rc_pod").innerHTML=podium(st,big);
+ var tk=$("rc_task");
+ if(BOARD){tk.innerHTML="";return}
+ if(ph==="run"&&st.task){if(S.curTask!==st.task.i||!tk.firstChild)taskView(st.task)}
+ else{S.curTask=-1;
+  if(ph==="run"&&st.me.joined&&st.me.done>=st.total)tk.innerHTML='<div class="box fin"><div class="rhd">Финиш!</div><p>Ты решил(а) все '+st.total+' задач. Твоё место: <b>'+(st.me.place||"…")+'</b>.'+(st.me.place&&st.me.place<=3?' Ты в призёрах! Подойди к учителю.':' Ещё можно успеть в пятёрку лучших.')+'</p></div>';
+  else if(ph==="end")tk.innerHTML='<div class="box fin"><p>'+(st.me.place&&st.me.place<=3?'<b>Ты призёр, место '+st.me.place+'!</b> Подойди к учителю.':st.me.place?'Ты финишировал(а), место '+st.me.place+'.':'Игра окончена. Спасибо за участие!')+'</p></div>';
+  else tk.innerHTML=""}
+}
+function taskView(t){
+ S.curTask=t.i;var tk=$("rc_task");
+ tk.innerHTML='<div class="box tk"><div class="rhd2">Задача '+(t.i+1)+' из '+t.n+': '+esc(t.title)+'</div><p>'+esc(t.text)+'</p>'+
+ '<div class="ex"><div><span class="m">Пример. Ввод:</span><pre>'+esc(t.ex_in)+'</pre></div><div><span class="m">Вывод:</span><pre>'+esc(t.ex_out)+'</pre></div></div>'+
+ '<div class="editor"><div class="bar2"><i></i><i></i><i></i><span>solution.py</span></div><textarea id="rcode" autocomplete="off" spellcheck="false" aria-label="Код решения" style="min-height:170px"></textarea></div>'+
+ '<div class="m" id="rhn" role="status"></div><div class="btns"><button class="btn go big" id="rsend" type="button">Проверить</button></div><div id="rmsg" role="status" class="m" style="margin-top:8px"></div></div>';
+ var ta=$("rcode");
+ Honest.attach(ta,{id:"race"+t.i+"_"+(S.st?S.st.id:0),starter:"",onBlock:function(k){var h=$("rhn");if(!h)return;h.className="bad";
+  if(k==="devtools"||k==="devkey"){h.textContent="Ай-ай-ай! F12 тут не нужен. Закрой инструменты разработчика, и редактор снова заработает.";return}
+  if(k==="devtools-off"){h.className="m";h.textContent="Редактор снова доступен.";return}
+  if(k==="bot"){h.textContent="Ай-ай-ай! Похоже, код вводит бот. Редактор заблокирован.";return}
+  if(k==="size"){h.textContent="Слишком длинно для такой задачи.";return}
+  h.textContent=k==="bulk"?"Код нужно набирать руками, а не вставлять кусками.":k==="script"?"Редактор изменён из консоли. Так нельзя.":"Вставка отключена. Набери код сам."}});
+ $("rsend").onclick=function(){send(t.i,ta)}}
+function send(i,ta){
+ if(S.sending)return;var msg=$("rmsg"),code=Honest.code(ta);
+ if(!code.trim()){msg.className="warn";msg.textContent="Сначала напиши код.";return}
+ if(Honest.locked(ta)){msg.className="bad";msg.textContent="Редактор заблокирован защитой.";return}
+ S.sending=true;var b=$("rsend");b.disabled=true;msg.className="m";msg.textContent="Сервер проверяет…";
+ api("POST","/api/race/submit",{i:i,code:code,meta:Honest.meta(ta)}).then(function(j){
+  S.sending=false;
+  if(j.status===401){Net.logout().then(authView);return}
+  if(!j.ok){msg.className="bad";msg.textContent=j.error||"Ошибка";if(b)b.disabled=false;return}
+  if(j.passed){S.st=j;S.curTask=-1;draw(j);return}
+  msg.className="bad";msg.textContent=j.msg||"Пока не так.";if(b)b.disabled=false;
+ }).catch(function(e){S.sending=false;msg.className="bad";msg.textContent=e.message;if(b)b.disabled=false})}
+
+function start(){if(!Net.on){app.innerHTML='<div class="box"><p>Сервер пока не подключён.</p></div>';return}
+ if(!BOARD&&!Net.user()){authView();return}
+ S.st=null;poll()}
+start();
+})();
+</script></body></html>
