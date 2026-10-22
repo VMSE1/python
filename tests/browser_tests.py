@@ -1081,7 +1081,7 @@ def gate(b, base):
 
 def boss(b, base):
     print("\n== БОСС-АРЕНА (настоящий сервер) ==")
-    api = start_api(base.rstrip("/")); bag = []; A = sys.modules["app"]; BM = sys.modules["boss"]; BM.MIN_THINK = 0.2; BM.ANSWER_GAP = 0.1
+    api = start_api(base.rstrip("/")); bag = []; A = sys.modules["app"]; BM = sys.modules["boss"]; A.BOSS.set_cfg({"min_think": 0.2, "answer_gap": 0.1, "hp_min": 40000})
     A.LUCKY.update(next=time.time() + 99999)
     def student(nick, w=1280, h=800, mobile=False):
         ctx = api_ctx(b, api, w, h, mobile=mobile); pg = ctx.new_page(); attach_errors(pg, bag); pg.goto(base + "index.html"); pg.wait_for_selector("#gate")
@@ -1122,6 +1122,50 @@ def boss(b, base):
     for c in (c1, c2, ct): c.close()
 
 
+def admin(b, base):
+    print("\n== КАБИНЕТ: рулетка без лимита, сброс, настройки босса, скример ==")
+    api = start_api(base.rstrip("/")); bag = []; A = sys.modules["app"]; A.LUCKY.update(next=time.time() + 99999); A.LCFG["odds"] = 0.0
+    def student(nick, w=1280, h=800, mobile=False):
+        ctx = api_ctx(b, api, w, h, mobile=mobile); pg = ctx.new_page(); attach_errors(pg, bag); pg.goto(base + "index.html"); pg.wait_for_selector("#gate")
+        pg.fill("#gn", nick); pg.fill("#gp", "secret1"); pg.fill("#ge", nick + "@mail.ru"); pg.click("#ggo"); pg.wait_for_selector("#gate", state="detached", timeout=8000); pg.wait_for_timeout(500); return ctx, pg
+    c1, s1 = student("adm_one"); c2, s2 = student("adm_two", 390, 780, True)
+    ct = api_ctx(b, api, gate=False); t = ct.new_page(); attach_errors(t, bag); t.goto(base + "teacher.html"); t.wait_for_selector("#sk")
+    t.fill("#sk", "teacher-secret"); t.click("#sin"); t.wait_for_selector("#tb", timeout=8000); t.click('#tb button[data-k="game"]'); t.wait_for_selector("#gla")
+    t.click("#gla"); t.wait_for_selector("#gmsg.ok", timeout=6000)
+    for pg in (s1, s2): pg.wait_for_selector("#lk", timeout=9000)
+    check("рулетка: «Всем онлайн» открывает её у всех сразу", s1.locator("#lk").count() == 1 and s2.locator("#lk").count() == 1)
+    t.click("#glr"); t.wait_for_selector("#gmsg.ok:has-text('сброшена')", timeout=6000)
+    check("рулетка: «Сбросить» отменяет все активные", len(A.LK) == 0)
+    s1.click("#lks"); s1.wait_for_timeout(1500); check("рулетка: после сброса крутить уже нельзя", "не для тебя" in s1.inner_text("#lk") or s1.locator("#lc").count() == 0)
+    for pg in (s1, s2): pg.reload(); pg.wait_for_timeout(800)
+    for k in range(3): t.fill("#gln", "adm_one"); t.click("#glw"); t.wait_for_selector("#gmsg.ok", timeout=6000); t.wait_for_timeout(200)
+    check("рулетка: одному и тому же ученику можно запускать сколько угодно раз", "adm_one" in [e["nick"] for e in A.LK.values()])
+    t.click("#glh"); t.wait_for_timeout(300)
+    # настройки рулетки
+    t.evaluate("document.querySelector('#lform').closest('details').open=true"); t.fill("#lf_odds", "100"); t.click("#lcs"); t.wait_for_selector("#gmsg.ok:has-text('сохранены')", timeout=6000)
+    check("рулетка: шанс меняется из кабинета", A.LCFG["odds"] == 1.0, A.LCFG)
+    # скример
+    t.select_option("#scs", "bear"); t.fill("#scn", "adm_two"); t.click("#scg"); t.wait_for_selector("#gmsg.ok:has-text('Скример')", timeout=6000)
+    s2.wait_for_selector("#scare", timeout=9000); check("скример: у выбранного ученика выскочил зверёк", "Мишка" in s2.inner_text("#scare"))
+    check("скример: у другого ученика его нет", s1.locator("#scare").count() == 0)
+    s2.click("#scare"); check("скример: закрывается касанием", s2.locator("#scare").count() == 0)
+    t.select_option("#scs", "random"); t.click("#scr"); t.wait_for_selector("#gmsg.ok:has-text('Скример')", timeout=6000)
+    A.LK.clear(); A.SCARES.clear()
+    for pg in (s1, s2): pg.reload(); pg.wait_for_timeout(900)
+    # настройки босса: точное HP без минимума
+    t.evaluate("document.querySelector('#bform').closest('details').open=true"); t.click("#ba"); t.wait_for_selector("#bmsg.ok", timeout=6000)
+    for pg in (s1, s2): pg.wait_for_url("**/boss.html", timeout=14000)
+    t.fill("#bf_hp", "500"); t.fill("#bf_dmg_easy", "250"); t.click("#bs"); t.wait_for_selector("#bmsg.ok:has-text('Бой начался')", timeout=6000)
+    check("босс: точное здоровье из кабинета (500, без минимума)", (A.BOSS.hp_max, A.BOSS.cfg["dmg_easy"]) == (500, 250), (A.BOSS.hp_max, A.BOSS.cfg))
+    t.fill("#bnow", "123"); t.click("#bset"); t.wait_for_selector("#bmsg.ok:has-text('применены')", timeout=6000)
+    check("босс: «Поставить HP» меняет здоровье прямо в бою", int(A.BOSS.hp) in (123, 124, 125), A.BOSS.hp)
+    t.click("#bfull"); t.wait_for_timeout(500); check("босс: «Вылечить полностью»", int(A.BOSS.hp) == 500, A.BOSS.hp)
+    t.fill("#bf_stun", "0"); t.fill("#bf_dmg_hard", "777"); t.click("#bap"); t.wait_for_timeout(600)
+    check("босс: настройки применяются прямо в бою", (A.BOSS.cfg["stun"], A.BOSS.cfg["dmg_hard"]) == (0, 777), A.BOSS.cfg)
+    check("кабинет: нет ошибок в консоли", not [x for x in bag if "Failed to load resource" not in x], bag[:3])
+    for c in (c1, c2, ct): c.close()
+
+
 def lucky(b, base):
     print("\n== РУЛЕТКА «ТРИ ЧЕРЕПА», ИГРА С БОЧКАМИ, СЕКРЕТЫ ==")
     import urllib.request, json as _j
@@ -1134,7 +1178,7 @@ def lucky(b, base):
         pg.fill("#gn", nick); pg.fill("#gp", "secret1"); pg.fill("#ge", nick + "@mail.ru"); pg.click("#ggo"); pg.wait_for_selector("#gate", state="detached", timeout=8000); pg.wait_for_timeout(600); return ctx, pg
     c0, p0 = student("nolucky_1"); check("главный экран: значка «Убеги от скелета / получи 5» нет", "получи 5" not in p0.inner_text("body") and "Убеги" not in p0.inner_text("#smenu") if p0.locator("#smenu").count() else "получи 5" not in p0.inner_text("body"))
     # 1) черепа не выпали: смеющийся скелет
-    c1, s1 = student("unlucky_1"); A.LUCKY_ODDS = 0.0
+    c1, s1 = student("unlucky_1"); A.LCFG["odds"] = 0.0
     tpost("/api/teacher/play", {"action": "lucky", "nick": "unlucky_1"}); s1.wait_for_selector("#lk", timeout=9000)
     check("рулетка: у выбранного ученика появилось окно, у остальных нет", "Тебе выпал шанс" in s1.inner_text("#lk") and p0.locator("#lk").count() == 0)
     s1.screenshot(path="/tmp/lucky_roulette.png")
@@ -1145,7 +1189,7 @@ def lucky(b, base):
     check("скелет смеётся: рот открывается и закрывается", max(sums) - min(sums) > 200, sums)
     s1.screenshot(path="/tmp/lucky_laugh.png"); s1.click("#lkx"); check("рулетка: окно закрывается кнопкой", s1.locator("#lk").count() == 0)
     # 2) три черепа: игра проходится и даёт красную пятёрку
-    c2, s2 = student("lucky_win"); A.LUCKY_ODDS = 1.0
+    c2, s2 = student("lucky_win"); A.LCFG["odds"] = 1.0
     tpost("/api/teacher/play", {"action": "lucky", "nick": "lucky_win"}); s2.wait_for_selector("#lk", timeout=9000); s2.click("#lks"); s2.wait_for_selector("#lkg", timeout=9000)
     check("рулетка: три черепа открывают игру", "Три черепа" in s2.inner_text("#lk"))
     s2.click("#lkg"); s2.wait_for_selector("#gc"); s2.evaluate("Lucky._t.nob(true)"); s2.screenshot(path="/tmp/lucky_game.png")
@@ -1170,7 +1214,7 @@ def lucky(b, base):
     check("игра: бочка попала — одна попытка, «Ха-ха-ха», оценка сгорела", "Ха-ха-ха" in s3.inner_text("#lk") and "оценки нет" in s3.inner_text("#lk"))
     rows = tget("/api/teacher/lucky")["rows"]; check("кабинет: проигрыш записан", any(r["nick"] == "lucky_lose" and r["kind"] == "burned" for r in rows))
     # 3б) медленная сеть на телефоне: барабан не должен зависать (раньше падала анимация и оставалось «Крутим…»)
-    c5, s5 = student("slow_1"); A.LUCKY_ODDS = 0.0; s5.route("**/api/lucky/spin", lambda r: (time.sleep(2.5), r.continue_()))
+    c5, s5 = student("slow_1"); A.LCFG["odds"] = 0.0; s5.route("**/api/lucky/spin", lambda r: (time.sleep(2.5), r.continue_()))
     tpost("/api/teacher/play", {"action": "lucky", "nick": "slow_1"}); s5.wait_for_selector("#lk", timeout=9000); s5.click("#lks"); s5.wait_for_selector("#lc", timeout=15000)
     check("рулетка: при медленном ответе сервера барабан доходит до результата", "Ха-ха-ха" in s5.inner_text("#lk")); c5.close()
     # 4) секреты
@@ -1193,7 +1237,7 @@ def lucky(b, base):
 
 
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "lucky", "botguard", "unlock", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "admin", "lucky", "botguard", "unlock", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox", "--disable-features=LocalNetworkAccessChecks,LocalNetworkAccess,PrivateNetworkAccessRespectPreflightResults"])

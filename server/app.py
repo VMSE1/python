@@ -859,42 +859,68 @@ async def t_sub(req):
 
 # ---------------------------------------------------------------- рулетка «три черепа»
 import random as _rnd
-LUCKY_ODDS = float(os.environ.get("LUCKY_ODDS", "0.25"))      # шанс трёх черепов при одном вращении
-LUCKY_EVERY = (3600, 7200)                                      # раз в 1–2 часа сервер выбирает одного случайного ученика
-LUCKY_WINDOW = 600                                              # на рулетку у выбранного 10 минут
+# Все настройки рулетки учитель меняет из кабинета (действие lucky_cfg); здесь только значения по умолчанию.
+LCFG = {"odds": float(os.environ.get("LUCKY_ODDS", "0.25")),   # шанс трёх черепов при одном вращении
+        "auto": True,                                           # сам выбирать случайного ученика
+        "every_min": 3600, "every_max": 7200,                   # раз в 1–2 часа
+        "window": 600}                                          # на рулетку 10 минут
 ONLINE = {}                                                     # uid -> время последнего опроса (кто сейчас на сайте)
 SYMS = ["skull", "bone", "coin", "heart", "star"]
-LUCKY = {"next": time.time() + _rnd.uniform(*LUCKY_EVERY), "id": 0, "uid": 0, "nick": "", "until": 0.0, "spun": False, "token": "", "t0": 0.0}
+LUCKY = {"next": time.time() + _rnd.uniform(3600, 7200)}        # когда сервер выберет следующего сам
+LK = {}                                                         # uid -> {id, nick, until, spun, token, t0}: у скольких угодно учеников сразу
+SCARES = {}                                                     # uid -> {id, kind}: скример, ждёт, когда ученик опросит сервер
 
 
-def lucky_active(now=None):
+def lucky_active(uid, now=None):
     now = now or time.time()
-    return bool(LUCKY["uid"]) and not LUCKY["spun"] and now < LUCKY["until"]
+    e = LK.get(uid)
+    return bool(e) and not e["spun"] and now < e["until"]
 
 
-def lucky_pick(now=None, nick=None):
-    """Выбирает ученика: из тех, кто на сайте последние 30 секунд. Возвращает ник или ''."""
+def lucky_grant(uid, nick, now=None):
+    """Даёт ученику новую попытку рулетки. Ограничений на число попыток нет: учитель может повторять сколько угодно."""
+    now = now or time.time()
+    LK[uid] = {"id": int(now * 1000) + len(LK), "nick": nick, "until": now + LCFG["window"], "spun": False, "token": "", "t0": 0.0}
+
+
+def online_uids(now=None):
     now = now or time.time()
     for u in [u for u, t in ONLINE.items() if now - t > 30]:
         ONLINE.pop(u, None)
-    cand = list(ONLINE)
+    return list(ONLINE)
+
+
+def lucky_pick(now=None, nick=None, count=1, everyone=False):
+    """Выбирает учеников: по нику, случайных из тех, кто на сайте последние 30 секунд, или всех онлайн. Возвращает список ников."""
+    now = now or time.time()
     if nick:
-        row = db.execute("SELECT id FROM users WHERE nick=?", (nick,)).fetchone()
+        row = db.execute("SELECT id FROM users WHERE nick=? COLLATE NOCASE", (nick,)).fetchone()
         cand = [row[0]] if row else []
-    if not cand:
-        return ""
-    uid = _rnd.choice(cand)
-    row = db.execute("SELECT nick FROM users WHERE id=?", (uid,)).fetchone()
-    if not row:
-        return ""
-    LUCKY.update(id=int(now * 1000), uid=uid, nick=row[0], until=now + LUCKY_WINDOW, spun=False, token="", t0=0.0, next=now + _rnd.uniform(*LUCKY_EVERY))
-    return row[0]
+    else:
+        cand = online_uids(now)
+        if not everyone:
+            cand = _rnd.sample(cand, min(max(1, int(count)), len(cand)))
+    out = []
+    for uid in cand:
+        row = db.execute("SELECT nick FROM users WHERE id=?", (uid,)).fetchone()
+        if row:
+            lucky_grant(uid, row[0], now)
+            out.append(row[0])
+    return out
+
+
+def lucky_schedule(now=None):
+    now = now or time.time()
+    lo, hi = sorted((max(60, int(LCFG["every_min"])), max(60, int(LCFG["every_max"]))))
+    LUCKY["next"] = now + _rnd.uniform(lo, hi)
 
 
 def lucky_tick(now=None):
     now = now or time.time()
-    if now >= LUCKY["next"] and not lucky_active(now):
-        if not lucky_pick(now):
+    if LCFG["auto"] and now >= LUCKY["next"]:
+        if lucky_pick(now):
+            lucky_schedule(now)
+        else:
             LUCKY["next"] = now + 120          # никого нет на сайте: попробуем через две минуты
 
 
@@ -903,20 +929,21 @@ async def lucky_spin(req):
     if not u:
         return jerr("Нужно войти.", 401)
     now = time.time()
-    if not lucky_active(now) or LUCKY["uid"] != u[0]:
+    if not lucky_active(u[0], now):
         return jerr("Рулетка сейчас не для тебя.", 403)
-    LUCKY["spun"] = True
-    win = _rnd.random() < LUCKY_ODDS
+    e = LK[u[0]]
+    e["spun"] = True
+    win = _rnd.random() < LCFG["odds"]
     if win:
         reels = ["skull"] * 3
-        LUCKY["token"], LUCKY["t0"] = secrets.token_urlsafe(16), now
+        e["token"], e["t0"] = secrets.token_urlsafe(16), now
     else:
         reels = [_rnd.choice(SYMS) for _ in range(3)]
         while reels == ["skull"] * 3 or (reels[0] == reels[1] == reels[2]):
             reels = [_rnd.choice(SYMS) for _ in range(3)]
         db.execute("INSERT INTO lucky(uid,ts,kind,note) VALUES(?,?,?,?)", (u[0], int(now), "no-skulls", ""))
         db.commit()
-    return web.json_response({"ok": True, "reels": reels, "win": win, "token": LUCKY["token"]})
+    return web.json_response({"ok": True, "reels": reels, "win": win, "token": e["token"]})
 
 
 async def lucky_finish(req):
@@ -926,10 +953,11 @@ async def lucky_finish(req):
         return jerr("Нужно войти.", 401)
     d = await body(req)
     now = time.time()
-    if LUCKY["uid"] != u[0] or not LUCKY["token"] or not hmac.compare_digest(str(d.get("token", "")), LUCKY["token"]):
+    e = LK.get(u[0])
+    if not e or not e["token"] or not hmac.compare_digest(str(d.get("token", "")), e["token"]):
         return jerr("Попытки нет.", 403)
-    LUCKY["token"] = ""
-    took = now - LUCKY["t0"]
+    e["token"] = ""
+    took = now - e["t0"]
     won = bool(d.get("win")) and took >= 12          # быстрее 12 секунд дойти до верха нельзя: значит, подделка
     db.execute("INSERT INTO lucky(uid,ts,kind,note) VALUES(?,?,?,?)", (u[0], int(now), "five" if won else "burned", "%ds" % took))
     db.commit()
@@ -941,8 +969,53 @@ async def lucky_finish(req):
 async def t_lucky(req):
     if not teacher_ok(req):
         return jerr("Нет доступа.", 403)
+    now = time.time()
     rows = db.execute("SELECT u.nick,u.fio,l.ts,l.kind,l.note FROM lucky l JOIN users u ON u.id=l.uid ORDER BY l.id DESC LIMIT 100").fetchall()
-    return web.json_response({"ok": True, "online": len(ONLINE), "cur": LUCKY["nick"] if lucky_active() else "", "rows": [{"nick": a, "fio": b, "ts": c, "kind": k, "note": n} for a, b, c, k, n in rows]})
+    cur = [e["nick"] for u, e in LK.items() if lucky_active(u, now)]
+    return web.json_response({"ok": True, "online": len(online_uids(now)), "cur": ", ".join(cur), "active": cur, "cfg": LCFG, "next_in": max(0, int(LUCKY["next"] - now)),
+                              "rows": [{"nick": a, "fio": b, "ts": c, "kind": k, "note": n} for a, b, c, k, n in rows]})
+
+
+def _num(v, lo, hi, default):
+    try:
+        x = float(v)
+    except Exception:
+        return default
+    return max(lo, min(hi, x))
+
+
+def lucky_set_cfg(d):
+    """Меняет настройки рулетки из кабинета. Всё, что не прислано, остаётся как было."""
+    if "odds" in d:
+        LCFG["odds"] = _num(d["odds"], 0.0, 1.0, LCFG["odds"])
+    if "auto" in d:
+        LCFG["auto"] = bool(d["auto"])
+    if "every_min" in d:
+        LCFG["every_min"] = int(_num(d["every_min"], 60, 86400, LCFG["every_min"]))
+    if "every_max" in d:
+        LCFG["every_max"] = int(_num(d["every_max"], 60, 86400, LCFG["every_max"]))
+    if "window" in d:
+        LCFG["window"] = int(_num(d["window"], 30, 7200, LCFG["window"]))
+    lucky_schedule()
+
+
+# ---------------------------------------------------------------- скример (шутка учителя)
+SCARE_KINDS = ("bear", "chick", "bunny")
+
+
+def scare_send(nick=None, kind="random", now=None):
+    """Ставит скример одному ученику: по нику или случайному из онлайн. Возвращает ник или ''."""
+    now = now or time.time()
+    if nick:
+        row = db.execute("SELECT id,nick FROM users WHERE nick=? COLLATE NOCASE", (nick,)).fetchone()
+    else:
+        c = online_uids(now)
+        row = db.execute("SELECT id,nick FROM users WHERE id=?", (_rnd.choice(c),)).fetchone() if c else None
+    if not row:
+        return ""
+    k = kind if kind in SCARE_KINDS else _rnd.choice(SCARE_KINDS)
+    SCARES[row[0]] = {"id": int(now * 1000), "kind": k}
+    return row[1]
 
 
 # ---------------------------------------------------------------- гонка
@@ -963,8 +1036,12 @@ async def play_state(req):
     if u:
         ONLINE[u[0]] = time.time()
         lucky_tick()
-        if lucky_active() and LUCKY["uid"] == u[0]:
-            out["lucky"] = {"id": LUCKY["id"], "left": int(LUCKY["until"] - time.time())}
+        if lucky_active(u[0]):
+            e = LK[u[0]]
+            out["lucky"] = {"id": e["id"], "left": int(e["until"] - time.time())}
+        sc = SCARES.pop(u[0], None)
+        if sc:
+            out["scare"] = sc
     resp = web.json_response(out)
     resp.headers["Cache-Control"] = "no-store"
     return resp
@@ -980,8 +1057,11 @@ async def t_play(req):
         BOSS.announce()
         return web.json_response(BOSS.view())
     elif a == "boss_start":
-        if not BOSS.start(d.get("hp_per")):
+        if not BOSS.start(d):
             return jerr("Сначала нажми «Запустить арену».")
+        return web.json_response(BOSS.view())
+    elif a == "boss_cfg":
+        BOSS.edit(d)
         return web.json_response(BOSS.view())
     elif a == "boss_stop":
         BOSS.stop()
@@ -1007,11 +1087,27 @@ async def t_play(req):
     elif a == "reset":
         RACE.reset()
     elif a == "lucky":
-        who = lucky_pick(nick=str(d.get("nick", "")).strip() or None)
+        nick = str(d.get("nick", "")).strip() or None
+        who = lucky_pick(nick=nick, count=int(_num(d.get("count", 1), 1, 150, 1)), everyone=bool(d.get("everyone")))
         if not who:
-            return jerr("Сейчас на сайте нет вошедших учеников.")
-        out = RACE.view(); out["lucky_nick"] = who
+            return jerr("Такого ученика нет." if nick else "Сейчас на сайте нет вошедших учеников.")
+        out = RACE.view(); out["lucky_nick"] = ", ".join(who); out["lucky_nicks"] = who
         return web.json_response(out)
+    elif a == "lucky_reset":
+        LK.clear()
+        if d.get("history"):
+            db.execute("DELETE FROM lucky")
+            db.commit()
+        lucky_schedule()
+        return web.json_response({"ok": True})
+    elif a == "lucky_cfg":
+        lucky_set_cfg(d)
+        return web.json_response({"ok": True, "cfg": LCFG})
+    elif a == "scare":
+        who = scare_send(str(d.get("nick", "")).strip() or None, str(d.get("kind", "random")))
+        if not who:
+            return jerr("Такого ученика нет." if d.get("nick") else "Сейчас на сайте нет вошедших учеников.")
+        return web.json_response({"ok": True, "scare_nick": who})
     elif a == "kick":
         if not RACE.kick(d.get("nick", "")):
             return jerr("Такого игрока нет.")

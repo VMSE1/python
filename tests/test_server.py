@@ -139,7 +139,7 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
 
     async def test_boss_arena(self):
         A = self.A; A.BOSS.reset(); T = {"X-Teacher-Key": "teacher-secret"}
-        A.B.MIN_THINK = 0; A.B.ANSWER_GAP = 0
+        A.BOSS.set_cfg({"min_think": 0, "answer_gap": 0})
         r = await self.cl.post("/api/teacher/play", json={"action": "boss_announce"}); self.assertEqual(r.status, 403)
         d = await (await self.cl.get("/api/play")).json(); self.assertEqual(d["game"], "race")
         d = await (await self.cl.post("/api/teacher/play", json={"action": "boss_announce"}, headers=T)).json(); self.assertEqual(d["phase"], "intro")
@@ -149,11 +149,11 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         for h in (h1, h2):
             self.assertEqual((await self.cl.post("/api/boss/join", json={}, headers=h)).status, 200)
         r = await self.cl.post("/api/boss/ask", json={"lvl": "easy"}, headers=h1); self.assertEqual(r.status, 400)  # бой ещё не идёт
-        d = await (await self.cl.post("/api/teacher/play", json={"action": "boss_start", "hp_per": 10000}, headers=T)).json()
+        d = await (await self.cl.post("/api/teacher/play", json={"action": "boss_start", "hp_per": 10000, "hp_min": 40000}, headers=T)).json()
         self.assertEqual((d["phase"], d["hpmax"], d["hp"]), ("run", 40000, 40000))   # минимум 40 000
         r = await self.cl.post("/api/boss/ask", json={"lvl": "nope"}, headers=h1); self.assertEqual(r.status, 400)
         d = await (await self.cl.post("/api/boss/ask", json={"lvl": "easy"}, headers=h1)).json()
-        self.assertEqual(len(d["q"]["opts"]), 4); self.assertNotIn("ok", d["q"]); self.assertNotIn("answer", json.dumps(d))
+        self.assertEqual(len(d["q"]["opts"]), 4); self.assertNotIn("ok", d["q"]); self.assertNotIn("right_i", json.dumps(d))
         uid1 = [u for u, p in A.BOSS.players.items() if p["nick"] == "anya"][0]
         right = A.BOSS.players[uid1]["q"]["ok"]
         d = await (await self.cl.post("/api/boss/answer", json={"a": right}, headers=h1)).json()
@@ -284,7 +284,7 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         A.MAIL_LOG.clear(); self.assertTrue(A.mail_allowed("x@y.ru")); A.MAIL_LOG.extend([(time.time(), "x@y.ru")] * 2); self.assertFalse(A.mail_allowed("x@y.ru")); self.assertTrue(A.mail_allowed("z@y.ru"))
 
     async def test_lucky_roulette(self):
-        A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.LUCKY.update(next=time.time() + 99999, uid=0, token="", spun=False); A.ONLINE.clear()
+        A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.LUCKY.update(next=time.time() + 99999); A.LK.clear(); A.ONLINE.clear()
         h1, h2 = await self.race_user("счастливчик"), await self.race_user("другой")
         for h in (h1, h2):
             d = await (await self.cl.get("/api/play", headers=h)).json(); self.assertNotIn("lucky", d)
@@ -293,7 +293,7 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         d1 = await (await self.cl.get("/api/play", headers=h1)).json(); d2 = await (await self.cl.get("/api/play", headers=h2)).json()
         self.assertIn("lucky", d1); self.assertNotIn("lucky", d2)                                          # рулетка только у одного
         r = await self.cl.post("/api/lucky/spin", json={}, headers=h2); self.assertEqual(r.status, 403)
-        A.LUCKY_ODDS = 1.0
+        A.LCFG["odds"] = 1.0
         d = await (await self.cl.post("/api/lucky/spin", json={}, headers=h1)).json(); self.assertTrue(d["win"]); self.assertEqual(d["reels"], ["skull"] * 3); tok = d["token"]
         r = await self.cl.post("/api/lucky/spin", json={}, headers=h1); self.assertEqual(r.status, 403)    # крутить можно один раз
         d = await (await self.cl.get("/api/play", headers=h1)).json(); self.assertNotIn("lucky", d)
@@ -301,22 +301,85 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         d = await (await self.cl.post("/api/lucky/finish", json={"win": True, "token": tok}, headers=h1)).json(); self.assertFalse(d["five"])    # слишком быстро: подделка
         r = await self.cl.post("/api/lucky/finish", json={"win": True, "token": tok}, headers=h1); self.assertEqual(r.status, 403)                 # попытка одна
         # победа за нормальное время
-        A.lucky_pick(nick="счастливчик"); d = await (await self.cl.post("/api/lucky/spin", json={}, headers=h1)).json(); A.LUCKY["t0"] -= 30
+        A.lucky_pick(nick="счастливчик"); d = await (await self.cl.post("/api/lucky/spin", json={}, headers=h1)).json(); [e.update(t0=e["t0"] - 30) for e in A.LK.values()]
         d = await (await self.cl.post("/api/lucky/finish", json={"win": True, "token": d["token"]}, headers=h1)).json(); self.assertTrue(d["five"]); self.assertEqual(d["nick"], "счастливчик")
         # проигрыш сжигает оценку
-        A.lucky_pick(nick="другой"); A.LUCKY_ODDS = 1.0; d = await (await self.cl.post("/api/lucky/spin", json={}, headers=h2)).json(); A.LUCKY["t0"] -= 30
+        A.lucky_pick(nick="другой"); A.LCFG["odds"] = 1.0; d = await (await self.cl.post("/api/lucky/spin", json={}, headers=h2)).json(); [e.update(t0=e["t0"] - 30) for e in A.LK.values()]
         d = await (await self.cl.post("/api/lucky/finish", json={"win": False, "token": d["token"]}, headers=h2)).json(); self.assertFalse(d["five"])
         # без черепов: игры не будет
-        A.LUCKY_ODDS = 0.0; A.lucky_pick(nick="другой"); d = await (await self.cl.post("/api/lucky/spin", json={}, headers=h2)).json(); self.assertFalse(d["win"]); self.assertNotEqual(d["reels"], ["skull"] * 3); self.assertEqual(d["token"], "")
+        A.LCFG["odds"] = 0.0; A.lucky_pick(nick="другой"); d = await (await self.cl.post("/api/lucky/spin", json={}, headers=h2)).json(); self.assertFalse(d["win"]); self.assertNotEqual(d["reels"], ["skull"] * 3); self.assertEqual(d["token"], "")
         rows = (await (await self.cl.get("/api/teacher/lucky", headers=T)).json())["rows"]
         self.assertEqual(sorted(r["kind"] for r in rows), ["burned", "burned", "five", "no-skulls"])
         r = await self.cl.get("/api/teacher/lucky"); self.assertEqual(r.status, 403)
 
+    async def test_lucky_no_limits_reset_cfg(self):
+        A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.LUCKY.update(next=time.time() + 99999); A.LK.clear(); A.ONLINE.clear()
+        h1, h2, h3 = await self.race_user("pl_1"), await self.race_user("pl_2"), await self.race_user("pl_3")
+        for h in (h1, h2, h3): await self.cl.get("/api/play", headers=h)
+        play = lambda body: self.cl.post("/api/teacher/play", json=body, headers=T)
+        # сразу у нескольких: всем онлайн
+        d = await (await play({"action": "lucky", "everyone": True})).json(); self.assertEqual(sorted(d["lucky_nicks"]), ["pl_1", "pl_2", "pl_3"])
+        for h in (h1, h2, h3):
+            self.assertIn("lucky", await (await self.cl.get("/api/play", headers=h)).json())
+        # случайные двое
+        A.LK.clear(); d = await (await play({"action": "lucky", "count": 2})).json(); self.assertEqual(len(d["lucky_nicks"]), 2)
+        # неограниченные повторы одному и тому же ученику
+        A.LCFG["odds"] = 0.0
+        for _ in range(4):
+            await play({"action": "lucky", "nick": "pl_1"}); d = await (await self.cl.post("/api/lucky/spin", json={}, headers=h1)).json(); self.assertTrue(d["ok"])
+        # сброс отменяет активные рулетки
+        await play({"action": "lucky", "everyone": True})
+        for h in (h1, h2, h3): self.assertIn("lucky", await (await self.cl.get("/api/play", headers=h)).json())
+        await play({"action": "lucky_reset"})
+        for h in (h1, h2, h3): self.assertNotIn("lucky", await (await self.cl.get("/api/play", headers=h)).json())
+        # сброс вместе с историей
+        self.assertGreater(len((await (await self.cl.get("/api/teacher/lucky", headers=T)).json())["rows"]), 0)
+        await play({"action": "lucky_reset", "history": True}); self.assertEqual((await (await self.cl.get("/api/teacher/lucky", headers=T)).json())["rows"], [])
+        # настройки: шанс, окно, автовыбор (с зажатием в границы)
+        d = await (await play({"action": "lucky_cfg", "odds": 5, "window": 5, "auto": False, "every_min": 120, "every_max": 240})).json()
+        self.assertEqual((d["cfg"]["odds"], d["cfg"]["window"], d["cfg"]["auto"]), (1.0, 30, False))
+        A.LUCKY.update(next=0); A.lucky_tick(); self.assertEqual(len(A.LK), 0)                    # автовыбор выключен
+        r = await self.cl.post("/api/teacher/play", json={"action": "lucky_cfg", "odds": 0.1}); self.assertEqual(r.status, 403)
+        d = await (await play({"action": "lucky", "nick": "нет такого"})).json(); self.assertFalse(d["ok"])
+
+    async def test_scare(self):
+        A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.ONLINE.clear(); A.LUCKY.update(next=time.time() + 99999)
+        h1, h2 = await self.race_user("sc_1"), await self.race_user("sc_2")
+        await self.cl.get("/api/play", headers=h1); await self.cl.get("/api/play", headers=h2)
+        r = await self.cl.post("/api/teacher/play", json={"action": "scare", "nick": "sc_1"}); self.assertEqual(r.status, 403)
+        d = await (await self.cl.post("/api/teacher/play", json={"action": "scare", "nick": "sc_1", "kind": "bunny"}, headers=T)).json(); self.assertEqual(d["scare_nick"], "sc_1")
+        d1 = await (await self.cl.get("/api/play", headers=h1)).json(); d2 = await (await self.cl.get("/api/play", headers=h2)).json()
+        self.assertEqual(d1["scare"]["kind"], "bunny"); self.assertNotIn("scare", d2)
+        d1 = await (await self.cl.get("/api/play", headers=h1)).json(); self.assertNotIn("scare", d1)       # показывается один раз
+        d = await (await self.cl.post("/api/teacher/play", json={"action": "scare", "kind": "что-то"}, headers=T)).json(); self.assertIn(d["scare_nick"], ("sc_1", "sc_2"))
+        got = [await (await self.cl.get("/api/play", headers=h)).json() for h in (h1, h2)]
+        self.assertEqual(sum("scare" in g for g in got), 1); self.assertIn([g for g in got if "scare" in g][0]["scare"]["kind"], A.SCARE_KINDS)
+        d = await (await self.cl.post("/api/teacher/play", json={"action": "scare", "nick": "нет"}, headers=T)).json(); self.assertFalse(d["ok"])
+
+    async def test_boss_settings(self):
+        A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.BOSS.reset(); A.BOSS.cfg.update(A.B.DEFAULT_CFG)
+        play = lambda body: self.cl.post("/api/teacher/play", json=body, headers=T)
+        await play({"action": "boss_announce"}); h1 = await self.race_user("bos_1"); await self.cl.post("/api/boss/join", json={}, headers=h1)
+        d = await (await play({"action": "boss_start"})).json(); self.assertEqual(d["hpmax"], 8000)           # 1 игрок × 8000, минимума 40 000 больше нет
+        await play({"action": "boss_stop"}); await play({"action": "boss_announce"}); await self.cl.post("/api/boss/join", json={}, headers=h1)
+        d = await (await play({"action": "boss_start", "hp": 500, "dmg_easy": 250, "heal_easy": 5, "stun": 0, "min_think": 0, "answer_gap": 0, "big_heal": 0})).json()
+        self.assertEqual((d["hpmax"], d["hp"], d["cfg"]["dmg_easy"], d["cfg"]["stun"]), (500, 500, 250, 0))
+        uid = list(A.BOSS.players)[0]
+        d = await (await self.cl.post("/api/boss/ask", json={"lvl": "easy"}, headers=h1)).json()
+        d = await (await self.cl.post("/api/boss/answer", json={"a": A.BOSS.players[uid]["q"]["ok"]}, headers=h1)).json(); self.assertEqual(d["dmg"], 250)
+        # правка на ходу: здоровье, полное лечение, настройки
+        d = await (await play({"action": "boss_cfg", "hpmax": 2000, "hp_now": 1500, "dmg_easy": 10})).json(); self.assertEqual((d["hpmax"], d["hp"], d["cfg"]["dmg_easy"]), (2000, 1500, 10))
+        d = await (await play({"action": "boss_cfg", "heal_full": True})).json(); self.assertEqual(d["hp"], 2000)
+        d = await (await play({"action": "boss_cfg", "dmg_easy": -5, "stun": 9999, "hp_per": "мусор"})).json(); self.assertEqual((d["cfg"]["dmg_easy"], d["cfg"]["stun"], d["cfg"]["hp_per"]), (1, 60, 8000))  # границы
+        d = await (await play({"action": "boss_cfg", "hp_now": 0})).json(); self.assertEqual((d["phase"], d["won"]), ("end", True))               # HP 0 = босс повержен
+        # настройки переживают «Выключить игру»
+        await play({"action": "boss_reset"}); self.assertEqual(A.BOSS.cfg["dmg_easy"], 1)
+
     async def test_lucky_schedule(self):
-        A = self.A; A.ONLINE.clear(); A.LUCKY.update(next=0, uid=0, spun=False, token="", until=0)
+        A = self.A; A.ONLINE.clear(); A.LUCKY.update(next=0); A.LK.clear()
         h = await self.race_user("online1"); d = await (await self.cl.get("/api/play", headers=h)).json()
         self.assertIn("lucky", d); self.assertGreater(A.LUCKY["next"], time.time() + 3000)                   # следующий раз через 1–2 часа
-        A.LUCKY.update(next=0, uid=0, until=0); A.ONLINE.clear(); A.lucky_tick(); self.assertLess(A.LUCKY["next"], time.time() + 200)   # некого выбирать: повтор через пару минут
+        A.LK.clear(); A.LUCKY.update(next=0); A.ONLINE.clear(); A.lucky_tick(); self.assertLess(A.LUCKY["next"], time.time() + 200)   # некого выбирать: повтор через пару минут
 
 if __name__ == "__main__":
     unittest.main()

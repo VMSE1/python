@@ -240,7 +240,14 @@ function fetchIssues(label, cb, fail) {
     if (window.Egg) run(); else { var e = document.createElement("script"); e.src = "egg.js"; e.onload = run; e.onerror = function () { luckyOpen = false; }; document.head.appendChild(e); }
     var wt = setInterval(function () { if (!document.getElementById("lk") && window.Lucky) { clearInterval(wt); setTimeout(function () { luckyOpen = false; }, 60000); } }, 2000);
   }
+  function scare(sc) {
+    var seen = ""; try { seen = sessionStorage.getItem("scareSeen") || ""; } catch (e) {}
+    if (!sc || seen === String(sc.id)) return; try { sessionStorage.setItem("scareSeen", String(sc.id)); } catch (e) {}
+    var go = function () { window.Scare.show(sc.kind); };
+    if (window.Scare) go(); else { var s2 = document.createElement("script"); s2.src = "scare.js"; s2.onload = go; document.head.appendChild(s2); }
+  }
   function react(j) {
+    if (j && j.ok && j.scare) scare(j.scare);
     if (j && j.ok) lucky(j);
     if (!j || !j.ok || !j.id || j.phase === "idle" || j.phase === "end" || document.getElementById("notice")) return;
     var seen = ""; try { seen = sessionStorage.getItem("playSeen") || ""; } catch (e) {}

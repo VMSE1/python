@@ -13,18 +13,27 @@ import time
 
 INTRO_SEC = 6
 MAX_PLAYERS = 150
-HP_PER_PLAYER = 8000        # здоровье босса = число игроков на старте * это значение
-HP_MIN = 40000
-DMG = {"easy": 100, "hard": 300}
-HEAL_WRONG = {"easy": 60, "hard": 200}
-STUN = 3.0                  # секунд после неверного ответа
-LIMIT = {"easy": 25.0, "hard": 45.0}   # время на вопрос
-ANSWER_GAP = 0.5            # между ответами одного игрока
-MIN_THINK = 1.2             # быстрее человек не читает и не отвечает
-REGEN_PER_SEC = 0.0006      # доля максимума в секунду: ~3,6% в минуту
-BIG_HEAL = 0.04             # большое залечивание: доля максимума
-BIG_EVERY = (45, 75)
-COMBO_STEP, COMBO_MAX = 0.1, 2.0
+# Все числа ниже учитель меняет из кабинета (бой «Применить» и «Начать бой»). Здесь значения по умолчанию.
+DEFAULT_CFG = {
+    "hp": 0,             # точное здоровье босса; 0 = считать как «игроков × hp_per»
+    "hp_per": 8000,      # здоровье на каждого игрока на старте
+    "hp_min": 1000,      # нижняя граница при расчёте по игрокам
+    "dmg_easy": 100, "dmg_hard": 300,        # удар за верный ответ
+    "heal_easy": 60, "heal_hard": 200,       # лечение босса за неверный ответ
+    "stun": 3.0,         # на сколько секунд оглушается ошибившийся
+    "limit_easy": 25.0, "limit_hard": 45.0,  # секунд на вопрос
+    "regen_min": 3.6,    # самолечение босса, процентов максимума в минуту
+    "big_heal": 4.0,     # большое залечивание, процентов максимума
+    "big_min": 45, "big_max": 75,            # раз в сколько секунд (0 и 0 = выключить)
+    "combo_step": 0.1, "combo_max": 2.0,     # рост удара за серию и потолок множителя
+    "min_think": 1.2,    # быстрее ответить нельзя (секунд)
+    "answer_gap": 0.5,   # пауза между ответами
+}
+# допустимые границы (нижняя, верхняя): защита от опечаток
+CFG_LIMITS = {"hp": (0, 100000000), "hp_per": (1, 10000000), "hp_min": (1, 100000000), "dmg_easy": (1, 1000000), "dmg_hard": (1, 1000000),
+              "heal_easy": (0, 1000000), "heal_hard": (0, 1000000), "stun": (0, 60), "limit_easy": (5, 300), "limit_hard": (5, 600),
+              "regen_min": (0, 100), "big_heal": (0, 100), "big_min": (0, 3600), "big_max": (0, 3600), "combo_step": (0, 5), "combo_max": (1, 20),
+              "min_think": (0, 10), "answer_gap": (0, 10)}
 EVENTS_KEEP = 60
 
 # (вопрос, [варианты], номер верного). Простые: основы первых уроков.
@@ -102,7 +111,21 @@ _check_bank()
 
 class Boss:
     def __init__(self):
+        self.cfg = dict(DEFAULT_CFG)
         self.reset()
+
+    def set_cfg(self, d):
+        """Принимает настройки из кабинета. Лишние и неверные поля игнорируются, числа зажимаются в границы."""
+        for k, (lo, hi) in CFG_LIMITS.items():
+            if k in d and d[k] not in (None, ""):
+                try:
+                    v = float(d[k])
+                except Exception:
+                    continue
+                v = max(lo, min(hi, v))
+                self.cfg[k] = v if isinstance(DEFAULT_CFG[k], float) else int(v)
+        if self.cfg["big_max"] < self.cfg["big_min"]:
+            self.cfg["big_max"] = self.cfg["big_min"]
 
     def reset(self):
         self.id = 0
@@ -110,8 +133,8 @@ class Boss:
         self.intro_end = 0.0
         self.t0 = 0.0
         self.t_end = 0.0
-        self.hp_max = HP_MIN
-        self.hp = HP_MIN
+        self.hp_max = self.cfg["hp_min"]
+        self.hp = self.hp_max
         self.players = {}          # uid -> dict
         self.banned = set()
         self.events = []           # {"n": номер, "k": тип, "nick":.., "v":..}
@@ -119,7 +142,6 @@ class Boss:
         self.last_tick = 0.0
         self.next_big = 0.0
         self.won = False
-        self.hp_per = HP_PER_PLAYER
 
     # --- события
     def ev(self, kind, nick="", v=0):
@@ -135,19 +157,50 @@ class Boss:
         self.reset()
         self.id, self.phase, self.intro_end = nid, "intro", now + INTRO_SEC
 
-    def start(self, hp_per=None, now=None):
+    def start(self, cfg=None, now=None):
         now = now or time.time()
         self.tick(now)
         if self.phase not in ("intro", "lobby"):
             return False
-        if hp_per:
-            self.hp_per = max(500, min(50000, int(hp_per)))
-        self.hp_max = max(HP_MIN, len(self.players) * self.hp_per)
+        if cfg:
+            self.set_cfg(cfg)
+        c = self.cfg
+        self.hp_max = int(c["hp"]) if c["hp"] > 0 else max(int(c["hp_min"]), len(self.players) * int(c["hp_per"]))
         self.hp = self.hp_max
         self.phase, self.t0, self.last_tick = "run", now, now
-        self.next_big = now + random.uniform(*BIG_EVERY)
+        self.next_big = self.big_time(now)
         self.ev("start", "", self.hp_max)
         return True
+
+    def big_time(self, now):
+        c = self.cfg
+        if c["big_heal"] <= 0 or c["big_max"] <= 0:
+            return float("inf")
+        return now + random.uniform(c["big_min"], max(c["big_min"], c["big_max"]))
+
+    def edit(self, d, now=None):
+        """Правка на ходу: настройки, здоровье босса, полное лечение. Работает и в бою, и до него."""
+        now = now or time.time()
+        self.set_cfg(d)
+        if d.get("heal_full"):
+            self.hp = float(self.hp_max)
+        if d.get("hpmax") not in (None, ""):
+            try:
+                self.hp_max = max(1, min(100000000, int(float(d["hpmax"]))))
+                self.hp = min(self.hp, float(self.hp_max))
+            except Exception:
+                pass
+        if d.get("hp_now") not in (None, ""):
+            try:
+                self.hp_max = max(self.hp_max, 1)
+                self.hp = float(max(0, min(self.hp_max, int(float(d["hp_now"])))))
+            except Exception:
+                pass
+        if self.phase == "run":
+            self.next_big = self.big_time(now)
+            if self.hp <= 0:
+                self.hp, self.phase, self.t_end, self.won = 0.0, "end", now, True
+                self.ev("dead", "учитель", 0)
 
     def stop(self, now=None):
         now = now or time.time()
@@ -163,12 +216,12 @@ class Boss:
             dt = max(0.0, min(5.0, now - self.last_tick))
             self.last_tick = now
             if self.hp > 0:
-                heal = self.hp_max * REGEN_PER_SEC * dt
+                heal = self.hp_max * self.cfg["regen_min"] / 100.0 / 60.0 * dt
                 self.hp = min(self.hp_max, self.hp + heal)
                 if now >= self.next_big:
-                    add = int(self.hp_max * BIG_HEAL)
+                    add = int(self.hp_max * self.cfg["big_heal"] / 100.0)
                     self.hp = min(self.hp_max, self.hp + add)
-                    self.next_big = now + random.uniform(*BIG_EVERY)
+                    self.next_big = self.big_time(now)
                     self.ev("bigheal", "", add)
         return self.phase
 
@@ -205,7 +258,7 @@ class Boss:
             return None, "Сначала войди в игру."
         if lvl not in BANK:
             return None, "Выбери простой или сложный вопрос."
-        if p["q"] and now - p["q"]["t0"] <= LIMIT[p["q"]["lvl"]]:
+        if p["q"] and now - p["q"]["t0"] <= self.limit(p["q"]["lvl"]):
             return self.q_view(p), ""      # тот же вопрос, если страницу обновили
         if p["q"]:                          # время вышло: считаем промахом без лечения
             p["streak"] = 0
@@ -226,10 +279,13 @@ class Boss:
         p["q"] = {"lvl": lvl, "i": i, "t0": now, "order": order, "ok": order.index(ok)}
         return self.q_view(p), ""
 
+    def limit(self, lvl):
+        return float(self.cfg["limit_" + lvl])
+
     def q_view(self, p):
         q = p["q"]
         text, opts, _ = BANK[q["lvl"]][q["i"]]
-        return {"lvl": q["lvl"], "text": text, "opts": [opts[k] for k in q["order"]], "limit": LIMIT[q["lvl"]], "left": max(0.0, LIMIT[q["lvl"]] - (time.time() - q["t0"])), "dmg": DMG[q["lvl"]]}
+        return {"lvl": q["lvl"], "text": text, "opts": [opts[k] for k in q["order"]], "limit": self.limit(q["lvl"]), "left": max(0.0, self.limit(q["lvl"]) - (time.time() - q["t0"])), "dmg": int(self.cfg["dmg_" + q["lvl"]])}
 
     def answer(self, uid, choice, now=None):
         """Ответ ученика. Возвращает словарь результата."""
@@ -241,14 +297,14 @@ class Boss:
         if not p or not p["q"]:
             return {"ok": False, "error": "Сначала возьми вопрос."}
         q = p["q"]
-        if now - q["t0"] < MIN_THINK:
+        if now - q["t0"] < self.cfg["min_think"]:
             return {"ok": False, "error": "Слишком быстро. Прочитай вопрос."}
-        if now - p["last"] < ANSWER_GAP:
+        if now - p["last"] < self.cfg["answer_gap"]:
             return {"ok": False, "error": "Не так быстро."}
         p["last"] = now
         p["q"] = None
         lvl = q["lvl"]
-        if now - q["t0"] > LIMIT[lvl]:
+        if now - q["t0"] > self.limit(lvl):
             p["streak"] = 0
             return {"ok": True, "right": False, "late": True, "dmg": 0, "msg": "Время вышло."}
         try:
@@ -258,8 +314,8 @@ class Boss:
         if c == q["ok"]:
             p["streak"] += 1
             p["best"] = max(p["best"], p["streak"])
-            mult = min(COMBO_MAX, 1 + COMBO_STEP * (p["streak"] - 1))
-            dmg = int(DMG[lvl] * mult)
+            mult = min(self.cfg["combo_max"], 1 + self.cfg["combo_step"] * (p["streak"] - 1))
+            dmg = int(self.cfg["dmg_" + lvl] * mult)
             if self.hp <= 0:
                 dmg = 0
             if dmg >= self.hp:
@@ -277,8 +333,8 @@ class Boss:
             return {"ok": True, "right": True, "dmg": dmg, "streak": p["streak"], "mult": round(mult, 1)}
         p["streak"] = 0
         p["bad"] += 1
-        p["stun"] = now + STUN
-        heal = min(HEAL_WRONG[lvl], int(self.hp_max - self.hp))
+        p["stun"] = now + self.cfg["stun"]
+        heal = min(int(self.cfg["heal_" + lvl]), int(self.hp_max - self.hp))
         self.hp += heal
         self.ev("heal", p["nick"], heal)
         return {"ok": True, "right": False, "dmg": 0, "heal": heal, "right_i": q["ok"]}
@@ -290,7 +346,7 @@ class Boss:
         rows = sorted(self.players.items(), key=lambda kv: (-kv[1]["dmg"], kv[1]["nick"].lower()))
         v = {"ok": True, "id": self.id, "game": "boss", "phase": self.phase, "n": len(self.players), "t": int(now * 1000),
              "intro": max(0, int(self.intro_end - now + .999)) if self.phase == "intro" else 0,
-             "hp": int(self.hp), "hpmax": int(self.hp_max), "won": self.won,
+             "hp": int(self.hp), "hpmax": int(self.hp_max), "won": self.won, "cfg": self.cfg,
              "elapsed": round((self.t_end if self.phase == "end" else now) - self.t0, 1) if self.t0 else 0,
              "players": [{"nick": p["nick"], "dmg": p["dmg"], "streak": p["streak"], "ok": p["ok"], "bad": p["bad"], "me": u == uid} for u, p in rows[:40]],
              "events": [e for e in self.events if e["n"] > since], "seq": self.seq}
@@ -299,7 +355,7 @@ class Boss:
             rank = [u for u, _ in rows].index(uid) + 1
             v["me"] = {"joined": True, "dmg": me["dmg"], "rank": rank, "streak": me["streak"], "best": me["best"], "ok": me["ok"], "bad": me["bad"], "stun": max(0.0, round(me["stun"] - now, 1))}
             if me["q"] and self.phase == "run":
-                if now - me["q"]["t0"] <= LIMIT[me["q"]["lvl"]]:
+                if now - me["q"]["t0"] <= self.limit(me["q"]["lvl"]):
                     v["q"] = self.q_view(me)
         else:
             v["me"] = {"joined": False}
