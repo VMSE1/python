@@ -10,7 +10,10 @@ function api(path,tk){return fetch("https://api.github.com"+path,{headers:{Accep
 function logout(){try{sessionStorage.removeItem("tk");localStorage.removeItem("tk");localStorage.removeItem("tkAt");localStorage.removeItem("teacher")}catch(e){}location.href="index.html"}
 
 function srvKeyBox(msg){
- return '<div class="box"><b>Вход по ключу учителя</b><p class="m">Ключ лежит на сервере (файл /etc/pycourse.env). Здесь сдачи учеников, игра для всех, восстановление паролей.</p><label for="sk" class="m">Ключ учителя</label><input type="password" id="sk" autocomplete="off" style="max-width:100%;margin:8px 0;width:100%;font:500 16px var(--mono);padding:10px;border:3px solid #000"><p style="margin:12px 0 0"><button class="btn go" id="sin">Войти</button></p><p id="sm" class="'+(msg?'bad':'m')+'" style="margin-top:10px">'+esc(msg||"")+'</p></div>'}
+ var fs='max-width:100%;margin:8px 0;width:100%;font:500 16px var(--mono);padding:10px;border:3px solid #000';
+ return '<form class="box" id="tf" novalidate><b>Вход учителя</b><p class="m">Логин и пароль учителя. Здесь сдачи учеников, игра для всех, ученики, восстановление паролей.</p><label for="tl" class="m">Логин</label><input type="text" id="tl" autocomplete="username" autocapitalize="off" spellcheck="false" style="'+fs+'"><label for="tp" class="m">Пароль</label><input type="password" id="tp" autocomplete="current-password" style="'+fs+'"><p style="margin:12px 0 0"><button class="btn go" id="tin" type="submit">Войти</button></p></form>'+
+ '<details class="box" style="margin-top:12px"><summary class="m">Войти по ключу сервера</summary><label for="sk" class="m">Ключ учителя</label><input type="password" id="sk" autocomplete="off" style="'+fs+'"><p style="margin:12px 0 0"><button class="btn" id="sin" type="button">Войти по ключу</button></p></details>'+
+ '<p id="sm" class="'+(msg?'bad':'m')+'" role="alert" style="margin-top:10px">'+esc(msg||"")+'</p>'}
 function gate(msg){
  app.innerHTML='<div class="gate"><div class="crumbs">Только для учителя</div><h1>Вход в кабинет</h1>'+(Net.on?srvKeyBox(msg):"")+
  '<details style="margin-top:14px"><summary class="m">Старый вход через GitHub (только если нужны заявки с GitHub)</summary>'+
@@ -18,6 +21,9 @@ function gate(msg){
  '<div class="box"><label for="tk">Токен</label><input type="text" id="tk" placeholder="ghp_…" style="max-width:100%;margin:8px 0" autocomplete="off" spellcheck="false">'+
  '<label class="m" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rem"> запомнить на этом компьютере</label>'+
  '<p style="margin:12px 0 0"><button class="btn" id="in">Войти</button></p><p id="gm" class="m" style="margin-top:10px"></p></div></details></div>';
+ var tf=document.getElementById("tf");if(tf)tf.onsubmit=function(e){e.preventDefault();var l=document.getElementById("tl").value.trim(),p=document.getElementById("tp").value,m=document.getElementById("sm"),b=document.getElementById("tin");if(!l||!p){m.className="bad";m.textContent="Впиши логин и пароль.";return}
+  m.className="m";m.textContent="Проверяю…";b.disabled=true;
+  Net.req("POST","/api/teacher/login",{login:l,password:p}).then(function(j){b.disabled=false;if(j.ok&&j.token){Net.tkey(j.token);srvCabinet()}else{m.className="bad";m.textContent=j.error||"Неверный логин или пароль."}}).catch(function(x){b.disabled=false;m.className="bad";m.textContent=x.message})};
  var sin=document.getElementById("sin");if(sin)sin.onclick=function(){var k=document.getElementById("sk").value.trim(),m=document.getElementById("sm");if(!k)return;m.className="m";m.textContent="Проверяю…";
   Net.req("GET","/api/teacher/check",null,{"X-Teacher-Key":k}).then(function(j){if(j.ok){Net.tkey(k);srvCabinet()}else{m.className="bad";m.textContent="Ключ не подошёл."}}).catch(function(e){m.className="bad";m.textContent=e.message})};
  document.getElementById("in").onclick=function(){
