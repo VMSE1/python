@@ -145,7 +145,7 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         code = 'name = input()\nprint(f"Привет, {name}!")'
         async def sub(meta):
             return await (await self.cl.post("/api/race/submit", json={"i": 0, "code": code, "meta": meta}, headers=h)).json()
-        for bad in (None, "", "v2;t=99", "v1;t=%d;a=1" % len(code), "v1;t=%d;d=1" % len(code), "v1;t=%d;e=2" % len(code), "v1;t=3"):
+        for bad in (None, "", "v2;t=99", "v1;t=%d;a=1" % len(code), "v1;t=%d;d=1" % len(code), "v1;t=%d;e=3" % len(code), "v1;t=3"):
             d = await sub(bad); self.assertFalse(d["passed"], bad)
         A.R.TYPE_RATE = 14.0; d = await sub(self.meta(code)); self.assertFalse(d["passed"]); self.assertIn("быстро", d["msg"])  # мгновенная отправка = не набирал руками
         A.R.TYPE_RATE = 1e9; d = await sub(self.meta(code)); self.assertTrue(d["passed"], d)

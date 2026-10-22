@@ -880,6 +880,8 @@ def botguard(b, base):
     check("бот: настоящий браузер без признаков автоматизации не блокируется", not pg.evaluate("document.getElementById('code').readOnly"))
     pg.keyboard.type("x = 1\n" * 8, delay=25); pg.wait_for_timeout(200)
     check("бот: равномерный «машинный» ввод блокируется", pg.evaluate("document.getElementById('code').readOnly") and "Ай-ай-ай" in pg.inner_text("#hn"), pg.inner_text("#hn")[:60])
+    pg.click("#hn button"); pg.wait_for_timeout(200)
+    check("бот: кнопка «Я человек» снимает блокировку по ритму", not pg.evaluate("document.getElementById('code').readOnly"))
     ctx.close()
     # 3. человек печатает неровно: не блокируем
     ctx = new_ctx(b, raw=True); pg = ctx.new_page(); pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code"); pg.click("#code")
@@ -893,7 +895,7 @@ def botguard(b, base):
     cdp = ctx.new_cdp_session(pg)
     import threading as _th
     cdp.on("Debugger.paused", lambda e: _th.Timer(0.4, lambda: None).start() or pg.wait_for_timeout(400) or cdp.send("Debugger.resume"))
-    cdp.send("Debugger.enable"); pg.wait_for_timeout(3500)
+    cdp.send("Debugger.enable"); pg.wait_for_timeout(6000)
     check("F12: при открытых инструментах разработчика редактор блокируется", pg.evaluate("document.getElementById('code').readOnly") and "F12" in pg.inner_text("#hn"), pg.inner_text("#hn")[:60])
     cdp.send("Debugger.disable"); pg.wait_for_timeout(2500)
     check("F12: после закрытия инструментов редактор снова доступен", not pg.evaluate("document.getElementById('code').readOnly"))
@@ -901,7 +903,7 @@ def botguard(b, base):
     ctx.close()
     # 5. поддельный «режим учителя» из консоли не отключает проверку на F12
     ctx = new_ctx(b, raw=True); ctx.add_init_script("localStorage.setItem('teacher','x')"); pg = ctx.new_page(); pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code")
-    cdp = ctx.new_cdp_session(pg); cdp.on("Debugger.paused", lambda e: pg.wait_for_timeout(400) or cdp.send("Debugger.resume")); cdp.send("Debugger.enable"); pg.wait_for_timeout(3500)
+    cdp = ctx.new_cdp_session(pg); cdp.on("Debugger.paused", lambda e: pg.wait_for_timeout(400) or cdp.send("Debugger.resume")); cdp.send("Debugger.enable"); pg.wait_for_timeout(6000)
     check("F12: флажок teacher в localStorage не освобождает от блокировки", pg.evaluate("document.getElementById('code').readOnly"))
     ctx.close()
 
@@ -1123,11 +1125,18 @@ def lucky(b, base):
     s3.evaluate("Lucky._t.hit()"); s3.wait_for_selector("#lc", timeout=9000)
     check("игра: бочка попала — одна попытка, «Ха-ха-ха», оценка сгорела", "Ха-ха-ха" in s3.inner_text("#lk") and "оценки нет" in s3.inner_text("#lk"))
     rows = tget("/api/teacher/lucky")["rows"]; check("кабинет: проигрыш записан", any(r["nick"] == "lucky_lose" and r["kind"] == "burned" for r in rows))
+    # 3б) медленная сеть на телефоне: барабан не должен зависать (раньше падала анимация и оставалось «Крутим…»)
+    c5, s5 = student("slow_1"); A.LUCKY_ODDS = 0.0; s5.route("**/api/lucky/spin", lambda r: (time.sleep(2.5), r.continue_()))
+    tpost("/api/teacher/play", {"action": "lucky", "nick": "slow_1"}); s5.wait_for_selector("#lk", timeout=9000); s5.click("#lks"); s5.wait_for_selector("#lc", timeout=15000)
+    check("рулетка: при медленном ответе сервера барабан доходит до результата", "Ха-ха-ха" in s5.inner_text("#lk")); c5.close()
     # 4) секреты
     c4, s4 = student("secret_1")
     s4.click("body")
     for k in ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"]: s4.keyboard.press(k)
     s4.wait_for_selector("#gc", timeout=8000); check("секрет: ↑↑↓↓←→←→BA открывает тренировочную игру", "Скелет и бочки" in s4.inner_text("#lk"))
+    s4.click("text=Выйти")
+    for k in ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "Shift+B", "Shift+A"]: s4.keyboard.press(k)
+    s4.wait_for_selector("#gc", timeout=8000); check("секрет: заглавные B A (с Shift) тоже подходят", True)
     s4.click("text=Выйти"); check("секрет: из тренировки можно выйти", s4.locator("#lk").count() == 0)
     for _ in range(5): s4.click(".clock")
     s4.wait_for_selector("#lc", timeout=6000); check("секрет: пять нажатий на часы показывают смеющегося скелета без оценок", "секрет" in s4.inner_text("#lk"))

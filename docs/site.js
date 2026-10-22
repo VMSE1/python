@@ -291,7 +291,7 @@ function fetchIssues(label, cb, fail) {
   }
   document.addEventListener("keydown", function (e) {
     var tg = e.target && e.target.tagName; if (tg === "TEXTAREA" || tg === "INPUT" || tg === "SELECT" || (e.target && e.target.isContentEditable) || document.getElementById("notice") || document.getElementById("lk")) { buf = []; return; }
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || /^(Shift|CapsLock|Control|Alt|Meta|AltGraph)$/.test(e.key)) return;
     var k = e.key.length === 1 ? ({ "и": "b", "ф": "a" }[e.key.toLowerCase()] || e.key.toLowerCase()) : e.key;
     buf.push(k); if (buf.length > KON.length) buf.shift();
     if (buf.join() === KON.join()) { buf = []; withLucky(function () { window.Lucky.practice(); }); }

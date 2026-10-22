@@ -98,7 +98,7 @@ function taskView(t){
  Honest.attach(ta,{id:"race"+t.i+"_"+(S.st?S.st.id:0),starter:"",onBlock:function(k){var h=$("rhn");if(!h)return;h.className="bad";
   if(k==="devtools"||k==="devkey"){h.textContent="Ай-ай-ай! F12 тут не нужен. Закрой инструменты разработчика, и редактор снова заработает.";return}
   if(k==="devtools-off"){h.className="m";h.textContent="Редактор снова доступен.";return}
-  if(k==="bot"){h.textContent="Ай-ай-ай! Похоже, код вводит бот. Редактор заблокирован.";return}
+  if(k==="bot"){h.textContent="Ай-ай-ай! Похоже, код вводит бот. Редактор заблокирован. Если это ошибка, нажми кнопку ниже.";var ub=document.createElement("button");ub.type="button";ub.textContent="Я человек, разблокировать";ub.style.cssText="display:block;margin-top:8px;min-height:44px;padding:8px 14px";ub.onclick=function(ev){if(!Honest.unlock(ta,ev))h.textContent="Не получилось. Подожди минуту, редактор откроется сам."};h.appendChild(ub);return}
   if(k==="size"){h.textContent="Слишком длинно для такой задачи.";return}
   h.textContent=k==="bulk"?"Код нужно набирать руками, а не вставлять кусками.":k==="script"?"Редактор изменён из консоли. Так нельзя.":"Вставка отключена. Набери код сам."}});
  $("rsend").onclick=function(){send(t.i,ta)}}
