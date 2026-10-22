@@ -880,6 +880,8 @@ def botguard(b, base):
     check("бот: настоящий браузер без признаков автоматизации не блокируется", not pg.evaluate("document.getElementById('code').readOnly"))
     pg.keyboard.type("x = 1\n" * 8, delay=25); pg.wait_for_timeout(200)
     check("бот: равномерный «машинный» ввод блокируется", pg.evaluate("document.getElementById('code').readOnly") and "Ай-ай-ай" in pg.inner_text("#hn"), pg.inner_text("#hn")[:60])
+    pg.click("#hn button"); pg.wait_for_timeout(200)
+    check("бот: кнопка «Я человек» снимает блокировку по ритму", not pg.evaluate("document.getElementById('code').readOnly"))
     ctx.close()
     # 3. человек печатает неровно: не блокируем
     ctx = new_ctx(b, raw=True); pg = ctx.new_page(); pg.goto(base + "task.html?id=1.1"); pg.wait_for_selector("#code"); pg.click("#code")

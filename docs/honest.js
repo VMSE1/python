@@ -54,8 +54,9 @@ var Honest = (function () {
     try { var sv = JSON.parse(localStorage.getItem(key) || "null"); if (sv && typeof sv.t === "number") st = { t: sv.t | 0, p: sv.p | 0, b: sv.b | 0, e: sv.e | 0, s: sv.s | 0, a: 0, d: 0 } /* бот и F12 не переносим между визитами: ложное срабатывание не должно висеть вечно */; } catch (e) {}
     var shadow = NAT.get.call(ta), hist = [shadow], initial = o.starter != null ? o.starter : shadow;
     
+    var lockWhy = "";
     function lock(why) {
-      if (locked) return; locked = true; st.a = 1;
+      if (locked) return; locked = true; st.a = 1; lockWhy = why;
       try { ta.readOnly = true; ta.setAttribute("aria-readonly", "true"); } catch (e) {}
       try { localStorage.setItem(lkey, String(Date.now())); } catch (e) {}
       save(); say("bot", 0);
@@ -138,7 +139,14 @@ var Honest = (function () {
       var ok = false; try { ok = document.execCommand("insertText", false, "    "); } catch (x) {}
       if (!ok) { var sp = ta.selectionStart, v = NAT.get.call(ta); put(v.slice(0, sp) + "    " + v.slice(ta.selectionEnd)); ta.selectionStart = ta.selectionEnd = sp + 4; st.t += 4; remember(NAT.get.call(ta)); save(); if (ta.oninput) ta.oninput(); }
     }, true);
-    var h = { locked: function () { return locked || devLocked; }, verify: verify, code: function () { verify(); return shadow; }, st: function () { return st; },
+    /* «Я человек»: снимает блокировку по ритму/вводу. Нужно настоящее нажатие (isTrusted). Признаки автоматизации (webdriver, headless) так не снимаются. */
+    function unlock(ev) {
+      if (!locked || !ev || ev.isTrusted !== true || /webdriver|headless|marker|attr/.test(lockWhy)) return false;
+      locked = false; st.a = 0; orphan = 0; kd = [];
+      try { ta.readOnly = false; ta.setAttribute("aria-readonly", "false"); localStorage.removeItem(lkey); } catch (e) {}
+      save(); say("devtools-off", 0); return true;
+    }
+    var h = { unlock: unlock, locked: function () { return locked || devLocked; }, verify: verify, code: function () { verify(); return shadow; }, st: function () { return st; },
       restart: function () { put(initial); shadow = initial; hist = [initial]; st.t = st.p = st.b = st.e = st.s = 0; last = 0; save(); },
       fill: function (text) { put(text); remember(text); save(); if (ta.oninput) ta.oninput(); } };
     if (S) S.set(ta, h); save();
@@ -153,7 +161,7 @@ var Honest = (function () {
     var c = h.code(), st = h.st();
     return "v1;t=" + st.t + ";p=" + st.p + ";b=" + st.b + ";e=" + st.e + ";s=" + st.s + (st.a ? ";a=1" : "") + (st.d ? ";d=1" : "") + ";h=" + hash(c);
   }
-  var api = { locked: function (ta) { var h = S && S.get(ta); return !!(h && h.locked()); }, attach: attach, code: code, meta: meta, restart: function (ta) { H(ta).restart(); }, hash: hash, norm: norm, parse: parse, verdict: verdict };
+  var api = { locked: function (ta) { var h = S && S.get(ta); return !!(h && h.locked()); }, attach: attach, code: code, meta: meta, restart: function (ta) { H(ta).restart(); }, unlock: function (ta, ev) { return H(ta).unlock(ev); }, hash: hash, norm: norm, parse: parse, verdict: verdict };
   if (TEST) api._fill = function (ta, text) { H(ta).fill(text); };
   /* из консоли нельзя подменить функции защиты: объект заморожен, а имя Honest больше не перезаписывается */
   try { Object.freeze(api); } catch (e) {}
