@@ -147,7 +147,7 @@
     cs.forEach(function (c, i) { drawSym(c, cur[i], 100, 100); });
     var btn = ov.querySelector("#lks"), msg = ov.querySelector("#lkm"), busy = false, cvs = [0, 1, 2].map(function (i) { return ov.querySelector("#r" + i); }), AC = null;
     function tick(f, v) { try { if (!AC) { var A = window.AudioContext || window.webkitAudioContext; if (!A) return; AC = new A(); cleanup.push(function () { try { AC.close(); } catch (e) {} }); } var o = AC.createOscillator(), g = AC.createGain(); o.type = "square"; o.frequency.value = f; g.gain.value = v; o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime + .05); } catch (e) {} }
-    var lights = setInterval(function () { var on = Math.floor(Date.now() / 250) % 2; ov && (ov.querySelector(".rl").style.boxShadow = on ? "0 0 0 6px #ffd23a,0 0 24px #ffd23a" : "0 0 0 6px #ff4d6d,0 0 24px #ff4d6d"); }, 250); cleanup.push(function () { clearInterval(lights); });
+    var lights = setInterval(function () { var on = Math.floor(Date.now() / 250) % 2; var rl = ov && ov.querySelector(".rl"); if (rl) rl.style.boxShadow = on ? "0 0 0 6px #ffd23a,0 0 24px #ffd23a" : "0 0 0 6px #ff4d6d,0 0 24px #ff4d6d"; }, 250); cleanup.push(function () { clearInterval(lights); });
     btn.focus();
     btn.onclick = function () {
       if (busy) return; busy = true; btn.disabled = true; msg.textContent = "Крутим…"; tick(520, .06);
@@ -172,11 +172,11 @@
     };
     function after(j) {
       if (!j.win) {
-        if (j.near) { msg.textContent = "Почти! Два черепа…"; ov.querySelector(".rl").animate([{ transform: "translateX(-8px)" }, { transform: "translateX(8px)" }, { transform: "translateX(0)" }], { duration: 300, iterations: 3 }); setTimeout(function () { laughScreen("Почти! Третий череп не выпал. "); }, 1300); }
+        if (j.near) { msg.textContent = "Почти! Два черепа…"; var rl2 = ov && ov.querySelector(".rl"); if (rl2) rl2.animate([{ transform: "translateX(-8px)" }, { transform: "translateX(8px)" }, { transform: "translateX(0)" }], { duration: 300, iterations: 3 }); setTimeout(function () { laughScreen("Почти! Третий череп не выпал. "); }, 1300); }
         else laughScreen("Три черепа не выпали. ");
         return;
       }
-      msg.textContent = "ТРИ ЧЕРЕПА!"; try { var rl = ov.querySelector(".rl"); rl.animate([{ transform: "scale(1)" }, { transform: "scale(1.12)" }, { transform: "scale(1)" }], { duration: 400, iterations: 3 }); } catch (e) {}
+      msg.textContent = "ТРИ ЧЕРЕПА!"; try { var rl = ov.querySelector(".rl"); if (rl) rl.animate([{ transform: "scale(1)" }, { transform: "scale(1.12)" }, { transform: "scale(1)" }], { duration: 400, iterations: 3 }); } catch (e) {}
       mount('<div class="tt">Три черепа!</div><div class="tx">Поднимись по лестницам к скелету. Стрелки или кнопки на экране, пробел для прыжка. Бочки катятся вниз. <b>Попытка одна.</b></div><button type="button" id="lkg">Начать игру</button>');
       ov.querySelector("#lkg").onclick = function () {
         game(function (win, secs) {
