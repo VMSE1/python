@@ -1,3 +1,3 @@
 /* Адрес сервера курса (регистрация, живая викторина, облако слов). Пусто: сайт работает без сервера.
    Если меняешь адрес, замени его и в CSP (строка connect-src) во всех .html: python3 tools/set_server.py https://адрес */
-window.API_BASE = "https://course.2-27-53-182.sslip.io";
+window.API_BASE = "https://vsemcode.ru";
