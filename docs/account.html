@@ -3,7 +3,7 @@
 <div class="crumbs">Мой профиль</div><h1>Мой профиль</h1>
 <div id="app"></div>
 </main>
-<script src="site.js"></script><script src="data/tasks.js"></script><script src="config.js"></script><script src="net.js"></script>
+<script src="site.js"></script><script src="data/tasks.js"></script><script src="config.js"></script><script src="net.js"></script><script src="hero.js"></script>
 <script>
 layout("account.html","Мой профиль");
 var app=document.getElementById("app"),mode="in";
@@ -50,8 +50,27 @@ function loggedIn(msg){
  '<div class="pbar" role="img" aria-label="Выполнено '+n+' из '+TASKS.length+'"><i style="width:'+p+'%"></i></div><div class="m">Выполнено заданий: <b>'+n+' из '+TASKS.length+'</b></div>'+
  '<div class="btns"><a class="btn big go" href="tasks.html">К заданиям</a><button class="btn" id="sy" type="button">Обновить с сервера</button><button class="btn ghost" id="lo" type="button">Выйти</button></div><div class="m" id="sm" role="status"></div></div>'+
  '<p class="m" style="font-size:14px">Прогресс сохраняется сам, когда ты решаешь задания. На другом устройстве просто войди с этим ником.</p>';
+ heroBox();
  $("sy").onclick=function(){$("sm").textContent="Обновляю…";Net.sync().then(function(j){if(j&&j.ok)loggedIn("Прогресс обновлён.");else $("sm").textContent="Не удалось связаться с сервером."})};
  $("lo").onclick=function(){Net.logout().then(function(){mode="in";loggedOut()})};
+}
+
+/* Мой персонаж: немного настроек, сохраняется на сервере */
+var myLook=null;
+function heroPaint(){var cv=$("hcv");if(!cv)return;var c=cv.getContext("2d");c.clearRect(0,0,cv.width,cv.height);c.fillStyle="#fffbdc";c.fillRect(0,0,cv.width,cv.height);Hero.draw(c,myLook,0,0,6)}
+function heroBox(){
+ var host=document.createElement("div");host.className="box";host.id="hero";host.innerHTML='<div class="pn" style="font-size:13px">Мой персонаж</div><div class="m">Собери себя. Персонажа увидит только твой профиль.</div><div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-top:10px"><canvas id="hcv" width="144" height="162" style="width:144px;height:162px;border:3px solid #1a0f4d;image-rendering:pixelated;background:#fffbdc"></canvas><div id="hopt" style="flex:1;min-width:220px"></div></div><div class="btns" style="margin-top:10px"><button class="btn go" id="hsv" type="button">Сохранить персонажа</button></div><div class="m" id="hms" role="status"></div>';
+ app.appendChild(host);
+ function opts(){var h="";["skin","hair","style","shirt","glasses","tie"].forEach(function(k){
+  var mx=Hero.max[k],cells="";for(var i=0;i<=mx;i++){var on=myLook[k]===i,sw=Hero.swatch[k]&&Hero.swatch[k][i];
+   var label=k==="style"?Hero.styleNames[i]:k==="glasses"?(i?"Есть":"Нет"):k==="tie"?(i?"№"+i:"Нет"):"";
+   cells+='<button type="button" data-k="'+k+'" data-i="'+i+'" aria-pressed="'+on+'" aria-label="'+Hero.names[k]+' '+(i+1)+'" style="min-width:34px;height:34px;margin:2px;padding:0 6px;border:3px solid '+(on?"#d03030":"#1a0f4d")+';background:'+(sw||"#fffbdc")+';font:500 12px var(--mono);cursor:pointer;color:#1a0f4d">'+label+'</button>'}
+  h+='<div style="margin:4px 0"><div class="m" style="font-size:13px;margin:0">'+Hero.names[k]+'</div>'+cells+'</div>'});
+  $("hopt").innerHTML=h;
+  $("hopt").querySelectorAll("button").forEach(function(b){b.onclick=function(){myLook[b.dataset.k]=+b.dataset.i;$("hms").textContent="";opts();heroPaint()}})}
+ myLook=Hero.clean(null);opts();heroPaint();
+ Net.req("GET","/api/look").then(function(j){if(j&&j.ok){myLook=Hero.clean(j.look);opts();heroPaint()}}).catch(function(){});
+ $("hsv").onclick=function(){var m=$("hms");m.textContent="Сохраняю…";Net.req("POST","/api/look",myLook).then(function(j){m.textContent=j&&j.ok?"Персонаж сохранён.":((j&&j.error)||"Не получилось")}).catch(function(e){m.textContent=e.message})}
 }
 if(!Net.on)app.innerHTML='<div class="box"><p>Сервер пока не подключён. Пока что решай задания как раньше: прогресс хранится в этом браузере.</p></div>';
 else if(Net.user()){loggedIn();Net.sync().then(function(j){if(j&&j.ok)loggedIn()})}

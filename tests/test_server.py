@@ -429,6 +429,41 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
             g = await (await self.cl.get("/api/play", headers=h)).json(); self.assertNotIn("scare", g)       # один раз
         A.SCFG["auto"] = True
 
+    async def test_respect_apps_look_heart(self):
+        A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.ONLINE.clear(); A.SCARES.clear(); A.SCFG["auto"] = False
+        post = lambda body, h=T: self.cl.post("/api/teacher/play", json=body, headers=h)
+        h1, h2 = await self.race_user("rs_1"), await self.race_user("rs_2")
+        await self.cl.get("/api/play", headers=h1); await self.cl.get("/api/play", headers=h2)
+        # респект: всем и одному по нику
+        self.assertEqual((await post({"action": "respect"}, {})).status, 403)
+        d = await (await post({"action": "respect"})).json(); self.assertEqual(d["count"], 2)
+        g = await (await self.cl.get("/api/play", headers=h1)).json(); self.assertEqual(g["scare"]["kind"], "respect")
+        d = await (await post({"action": "respect", "nick": "rs_2"})).json(); self.assertEqual(d["scare_nick"], "rs_2")
+        g = await (await self.cl.get("/api/play", headers=h2)).json(); self.assertEqual(g["scare"]["kind"], "respect")
+        d = await (await post({"action": "respect", "nick": "нет_такого"})).json(); self.assertFalse(d["ok"])
+        # игры по кнопке учителя: по умолчанию закрыты, видно всем в /api/play, переживает перезапуск (kv)
+        g = await (await self.cl.get("/api/play", headers=h1)).json(); self.assertEqual(g["apps"], {"games": False})
+        self.assertEqual((await post({"action": "apps_set", "on": True}, {})).status, 403)
+        d = await (await post({"action": "apps_set", "on": True})).json(); self.assertTrue(d["apps"]["games"])
+        g = await (await self.cl.get("/api/play")).json(); self.assertEqual(g["apps"], {"games": True})        # даже без входа
+        self.assertEqual(A.kv_get("apps_games"), "1")
+        d = await (await post({"action": "apps_set", "on": False})).json(); self.assertFalse(d["apps"]["games"])
+        # персонаж: по умолчанию, сохраняется, лишнее отрезается
+        d = await (await self.cl.get("/api/look", headers=h1)).json(); self.assertEqual(d["look"], A.LOOK_DEFAULT)
+        d = await (await self.cl.post("/api/look", json={"skin": 2, "hair": 99, "style": -4, "shirt": "x", "glasses": 1, "tie": 3, "evil": "<b>"}, headers=h1)).json()
+        self.assertEqual(d["look"], {"skin": 2, "hair": 5, "style": 0, "shirt": 0, "glasses": 1, "tie": 3})
+        d = await (await self.cl.get("/api/look", headers=h1)).json(); self.assertEqual(d["look"]["skin"], 2)
+        d = await (await self.cl.get("/api/look", headers=h2)).json(); self.assertEqual(d["look"]["skin"], 0)   # у другого своё
+        self.assertEqual((await self.cl.get("/api/look")).status, 401)
+        # сердечко учителю: видно в кабинете, частые нажатия не плодят записи
+        A.HEARTS.clear(); A.HEART_AT.clear()
+        self.assertEqual((await self.cl.post("/api/heart")).status, 401)
+        d = await (await self.cl.post("/api/heart", headers=h1)).json(); self.assertTrue(d["ok"])
+        d = await (await self.cl.post("/api/heart", headers=h1)).json(); self.assertTrue(d.get("again"))
+        await self.cl.post("/api/heart", headers=h2)
+        d = await (await post({"action": "hearts"})).json(); self.assertEqual((d["total"], sorted(x["nick"] for x in d["last"])), (2, ["rs_1", "rs_2"]))
+        A.SCFG["auto"] = True
+
     async def test_scare_auto(self):
         A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.ONLINE.clear(); A.SCARES.clear()
         h = await self.race_user("sca_1"); await self.cl.get("/api/play", headers=h)                       # попал в онлайн

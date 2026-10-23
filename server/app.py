@@ -57,12 +57,15 @@ def init_db():
     CREATE TABLE IF NOT EXISTS quizzes(id INTEGER PRIMARY KEY, uid INTEGER, lesson INTEGER, score INTEGER, total INTEGER, ts INTEGER, ans TEXT DEFAULT '[]');
     CREATE INDEX IF NOT EXISTS quizzes_u ON quizzes(uid, lesson);
     CREATE INDEX IF NOT EXISTS lucky_u ON lucky(uid);
+    CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT);
     """)
     cols = [r[1] for r in db.execute("PRAGMA table_info(users)")]
     if "email" not in cols:
         db.execute("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''")
     if "seen" not in cols:
         db.execute("ALTER TABLE users ADD COLUMN seen INTEGER DEFAULT 0")      # когда ученик последний раз был на сайте
+    if "look" not in cols:
+        db.execute("ALTER TABLE users ADD COLUMN look TEXT DEFAULT ''")        # внешний вид персонажа (JSON)
     db.commit()
 
 
@@ -1243,18 +1246,88 @@ def scare_send(nick=None, kind="random", now=None):
         row = db.execute("SELECT id,nick FROM users WHERE id=?", (_rnd.choice(c),)).fetchone() if c else None
     if not row:
         return ""
-    k = "thanks" if kind == "thanks" else "skull"
+    k = kind if kind in ("thanks", "respect") else "skull"
     SCARES[row[0]] = {"id": int(now * 1000), "kind": k}
     return row[1]
 
 
-def thanks_all(now=None):
-    """«Спасибо за урок»: каждому ученику, который сейчас на сайте, выскакивает скелет с большим сердцем. Возвращает число учеников."""
+def thanks_all(now=None, kind="thanks"):
+    """«Спасибо за урок» (kind=thanks) или «Респект» (kind=respect): каждому ученику, который сейчас на сайте, выскакивает экран на всю страницу. Возвращает число учеников."""
     now = now or time.time()
     c = online_uids(now)
     for uid in c:
-        SCARES[uid] = {"id": int(now * 1000), "kind": "thanks"}
+        SCARES[uid] = {"id": int(now * 1000), "kind": kind}
     return len(c)
+
+
+# ---------------------------------------------------------------- «приложения» (игры по кнопке учителя), персонаж, ответные сердечки
+def kv_get(k, default=""):
+    r = db.execute("SELECT v FROM kv WHERE k=?", (k,)).fetchone()
+    return r[0] if r else default
+
+
+def kv_set(k, v):
+    db.execute("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (k, str(v)))
+    db.commit()
+
+
+def apps_on():
+    return kv_get("apps_games", "0") == "1"
+
+
+LOOK_MAX = {"skin": 3, "hair": 5, "style": 3, "shirt": 5, "glasses": 1, "tie": 3}     # поле -> максимальный номер варианта
+LOOK_DEFAULT = {"skin": 0, "hair": 0, "style": 0, "shirt": 0, "glasses": 0, "tie": 0}
+HEARTS = []        # [(время, ник)] ответные сердечки учителю, последние 100
+HEART_AT = {}      # uid -> когда отправлял последний раз
+
+
+def look_clean(d):
+    out = dict(LOOK_DEFAULT)
+    if isinstance(d, dict):
+        for k, mx in LOOK_MAX.items():
+            try:
+                out[k] = int(max(0, min(mx, int(d.get(k, 0)))))
+            except Exception:
+                pass
+    return out
+
+
+def look_get(uid):
+    r = db.execute("SELECT look FROM users WHERE id=?", (uid,)).fetchone()
+    try:
+        return look_clean(json.loads(r[0])) if r and r[0] else dict(LOOK_DEFAULT)
+    except Exception:
+        return dict(LOOK_DEFAULT)
+
+
+async def look_api(req):
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    if req.method == "POST":
+        if limited("look:%d" % u[0], 30, 60):
+            return jerr("Слишком часто.", 429)
+        d = await body(req)
+        lk = look_clean(d)
+        db.execute("UPDATE users SET look=? WHERE id=?", (json.dumps(lk), u[0]))
+        db.commit()
+        return web.json_response({"ok": True, "look": lk})
+    return web.json_response({"ok": True, "look": look_get(u[0])})
+
+
+async def heart_post(req):
+    """Ученик отвечает учителю сердечком на «Респект»."""
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    now = time.time()
+    if now - HEART_AT.get(u[0], 0) < 20:
+        return web.json_response({"ok": True, "again": True})
+    HEART_AT[u[0]] = now
+    r = db.execute("SELECT nick FROM users WHERE id=?", (u[0],)).fetchone()
+    HEARTS.append((int(now), r[0] if r else "?"))
+    del HEARTS[:-100]
+    return web.json_response({"ok": True})
 
 
 # ---------------------------------------------------------------- таблицы лидеров
@@ -1372,6 +1445,7 @@ async def play_state(req):
         out = {"ok": True, "game": "boss", "id": BOSS.id, "phase": BOSS.phase, "intro": max(0, int(BOSS.intro_end - time.time() + .999)) if BOSS.phase == "intro" else 0, "n": len(BOSS.players), "t": int(time.time() * 1000)}
     else:
         out = {"ok": True, "game": "race", "id": RACE.id, "phase": RACE.phase, "intro": max(0, int(RACE.intro_end - time.time() + .999)) if RACE.phase == "intro" else 0, "n": len(RACE.players), "t": int(time.time() * 1000)}
+    out["apps"] = {"games": apps_on()}
     u = user_from(req) if req.headers.get("Authorization") else None
     if u:
         ONLINE[u[0]] = time.time()
@@ -1483,6 +1557,24 @@ async def t_play(req):
         if not n:
             return jerr("Сейчас на сайте нет вошедших учеников.")
         return web.json_response({"ok": True, "count": n})
+    elif a == "respect":
+        nick = str(d.get("nick", "")).strip()
+        if nick:
+            who = scare_send(nick, "respect")
+            if not who:
+                return jerr("Такого ученика нет.")
+            return web.json_response({"ok": True, "count": 1, "scare_nick": who})
+        n = thanks_all(kind="respect")
+        if not n:
+            return jerr("Сейчас на сайте нет вошедших учеников.")
+        return web.json_response({"ok": True, "count": n})
+    elif a == "apps_set":
+        kv_set("apps_games", "1" if d.get("on") else "0")
+        return web.json_response({"ok": True, "apps": {"games": apps_on()}})
+    elif a == "apps_get":
+        return web.json_response({"ok": True, "apps": {"games": apps_on()}})
+    elif a == "hearts":
+        return web.json_response({"ok": True, "total": len(HEARTS), "last": [{"ts": t, "nick": n} for t, n in HEARTS[-20:][::-1]]})
     elif a == "scare":
         who = scare_send(str(d.get("nick", "")).strip() or None, str(d.get("kind", "random")))
         if not who:
@@ -1668,7 +1760,7 @@ def make_app():
         web.post("/api/teacher/login", t_login), web.get("/api/ping", ping), web.post("/api/register", register), web.post("/api/login", login), web.post("/api/logout", logout),
         web.post("/api/recover", recover), web.post("/api/recover/confirm", recover_confirm), web.get("/api/teacher/recov", t_recov), web.post("/api/submit", submit), web.get("/api/teacher/subs", t_subs), web.get("/api/teacher/sub", t_sub),
         web.get("/api/play", play_state), web.post("/api/lucky/spin", lucky_spin), web.post("/api/lucky/finish", lucky_finish), web.get("/api/teacher/lucky", t_lucky), web.post("/api/teacher/play", t_play), web.post("/api/race/join", race_join), web.post("/api/boss/join", boss_join), web.post("/api/spy/join", spy_join), web.get("/api/spy/state", spy_state), web.post("/api/spy/{what}", spy_act), web.post("/api/score", score_post), web.get("/api/leaderboards", leaderboards), web.get("/api/boss/state", boss_state), web.post("/api/boss/ask", boss_ask), web.post("/api/boss/answer", boss_answer), web.get("/api/race/state", race_state), web.post("/api/race/submit", race_submit),
-        web.get("/api/me", me), web.put("/api/progress", put_progress),
+        web.get("/api/me", me), web.get("/api/look", look_api), web.post("/api/look", look_api), web.post("/api/heart", heart_post), web.put("/api/progress", put_progress),
         web.get("/api/teacher/check", t_check), web.get("/api/teacher/users", t_users), web.get("/api/teacher/student", t_student), web.post("/api/quiz", quiz_post), web.post("/api/teacher/reset", t_reset), web.delete("/api/teacher/user", t_delete),
         web.get("/ws", ws_handler),
         web.route("OPTIONS", "/{tail:.*}", ping),

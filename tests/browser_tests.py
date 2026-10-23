@@ -1428,8 +1428,57 @@ def spy(b, base):
     check("шпион: нет ошибок в консоли", not [x for x in bag if "Failed to load resource" not in x], bag[:3])
 
 
+def respect(b, base):
+    print("\n== РЕСПЕКТ, ПЕРСОНАЖ, ИГРЫ ПО КНОПКЕ УЧИТЕЛЯ ==")
+    api = start_api(base.rstrip("/")); A = sys.modules["app"]; A.LUCKY.update(next=time.time() + 99999); A.SCFG["auto"] = False
+    ctx = api_ctx(b, api); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    pg.goto(base + "account.html"); pg.wait_for_selector("#app")
+    pg.evaluate("Net.register({nick:'rs_b',password:'secret1',email:'rs_b@mail.ru',fio:'Тест Тестов',group:'9А'})")
+    pg.goto(base + "account.html"); pg.wait_for_selector("#hopt [data-k='skin']")
+    pg.click("#hopt [data-k='skin'][data-i='2']"); pg.click("#hopt [data-k='style'][data-i='3']"); pg.click("#hopt [data-k='glasses'][data-i='1']"); pg.click("#hsv")
+    pg.wait_for_selector("#hms:has-text('сохранён')", timeout=6000)
+    row = A.db.execute("SELECT look FROM users WHERE nick='rs_b'").fetchone()
+    check("профиль: персонаж сохраняется на сервере", json.loads(row[0]) == {"skin": 2, "hair": 0, "style": 3, "shirt": 0, "glasses": 1, "tie": 0}, row[0])
+    pg.reload(); pg.wait_for_selector("#hopt [data-k='skin'][aria-pressed='true']")
+    check("профиль: после перезагрузки выбор на месте", pg.get_attribute("#hopt [data-k='skin'][data-i='2']", "aria-pressed") == "true" and pg.get_attribute("#hopt [data-k='style'][data-i='3']", "aria-pressed") == "true")
+    # игры закрыты по умолчанию: нет иконки, нет пункта меню, страница аркады закрыта
+    pg.goto(base + "index.html"); pg.wait_for_selector("#icons .ico"); pg.wait_for_timeout(1500)
+    check("игры: пока учитель не открыл, иконки аркады нет", pg.locator("#icons a[href='arcade.html']").count() == 0)
+    pg.click("#startBtn"); check("игры: и пункта «Аркада» в меню нет", pg.locator("#smenu a[href='arcade.html']").count() == 0)
+    pg.goto(base + "arcade.html"); pg.wait_for_selector("#arcClosed")
+    check("игры: страница аркады показывает «закрыто»", "закрыты" in pg.inner_text("#arcClosed") and pg.locator("[data-g]").count() == 0)
+    # учитель открывает: страница «закрыто» открывается сама, иконка и тост появляются
+    A.kv_set("apps_games", "1"); pg.wait_for_selector("[data-g]", timeout=12000)
+    check("игры: учитель открыл, закрытая страница обновилась сама", pg.locator("[data-g]").count() == 2)
+    pg.goto(base + "index.html"); pg.wait_for_selector("#icons a[href='arcade.html']")
+    check("игры: иконка «Аркада» на рабочем столе", True)
+    A.kv_set("apps_games", "0"); pg.wait_for_selector("#icons a[href='arcade.html']", state="detached", timeout=12000)
+    check("игры: учитель убрал, иконка пропала без перезагрузки", True)
+    pg.goto(base + "arcade.html"); pg.wait_for_selector("#arcClosed")
+    A.kv_set("apps_games", "1"); pg.wait_for_selector("[data-g]", timeout=12000); A.kv_set("apps_games", "0")
+    pg.wait_for_url("**/index.html", timeout=12000); check("игры: убрали, пока ученик в аркаде, его выводят на рабочий стол", True)
+    # респект на весь экран + ответное сердечко
+    pg.wait_for_timeout(500); uid = A.db.execute("SELECT id FROM users WHERE nick='rs_b'").fetchone()[0]
+    A.HEARTS.clear(); A.HEART_AT.clear(); check("респект: ученик числится онлайн", uid in A.online_uids())
+    A.thanks_all(kind="respect"); pg.wait_for_selector("#scare #rsh", timeout=10000)
+    check("респект: окно с учителем, тарелкой и текстом", pg.locator("#scare canvas").count() == 1 and "Учитель высылает тебе респект за то, что ты работаешь" in pg.inner_text("#scare"))
+    cols = pg.evaluate("(function(){var c=document.querySelector('#scare canvas'),x=c.getContext('2d'),d=x.getImageData(0,0,c.width,c.height).data,r=0,w=0,b=0;for(var i=0;i<d.length;i+=4){if(d[i+3]<200)continue;if(d[i]>180&&d[i+1]<80&&d[i+2]<80)r++;else if(d[i]>240&&d[i+1]>240&&d[i+2]>240)w++;else if(d[i]<40&&d[i+1]<30&&d[i+2]>50&&d[i+2]<110)b++}return [r,w,b]})()")
+    check("респект: на рисунке есть красные пятёрки, белая рубашка и контур", cols[0] > 40 and cols[1] > 300 and cols[2] > 300, cols)
+    pg.locator("#scare").screenshot(path="/tmp/respect.png")
+    pg.click("#rsh"); pg.wait_for_selector("#scare", state="detached", timeout=6000)
+    check("респект: сердечко дошло до учителя", len(A.HEARTS) == 1 and A.HEARTS[0][1] == "rs_b", A.HEARTS)
+    # скример на весь экран
+    A.scare_send("rs_b", "skull"); pg.wait_for_selector("#scare canvas", timeout=10000)
+    box = pg.evaluate("(function(){var r=document.getElementById('scare').getBoundingClientRect();return [r.width,r.height,innerWidth,innerHeight]})()")
+    cv = pg.evaluate("(function(){var c=document.querySelector('#scare canvas');return [c.width,c.height]})()")
+    check("скример: занимает весь экран", box[0] == box[2] and box[1] == box[3] and cv == [box[2], box[3]], [box, cv])
+    pg.keyboard.press("Escape"); pg.wait_for_selector("#scare", state="detached")
+    check("респект: нет ошибок в консоли", not [x for x in bag if "Failed to load resource" not in x], bag[:3])
+    ctx.close()
+
+
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "spy", "leaders", "admin", "lucky", "botguard", "unlock", "subjects", "arcade", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "spy", "leaders", "admin", "lucky", "botguard", "unlock", "subjects", "arcade", "respect", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox", "--disable-features=LocalNetworkAccessChecks,LocalNetworkAccess,PrivateNetworkAccessRespectPreflightResults"])

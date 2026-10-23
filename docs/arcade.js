@@ -26,6 +26,10 @@
     stage.scrollIntoView({ block: "start" });
   }
   document.getElementById("stx").onclick = function () { if (cur) cur.destroy(); cur = null; stage.hidden = true; arc.hidden = false; cards(); try { history.replaceState(null, "", "arcade.html"); } catch (e) {} };
-  cards();
-  var q = new URLSearchParams(location.search).get("g"); if (q) open(q);
+  if (!appsOpen()) {
+    stage.hidden = true; arc.innerHTML = '<div class="box" id="arcClosed"><p>Игры пока закрыты. Их открывает учитель. Когда откроет, иконка «Аркада» появится на рабочем столе, и эта страница откроется сама.</p><p><a class="btn" href="index.html">На рабочий стол</a></p></div>';
+  } else {
+    cards();
+    var q = new URLSearchParams(location.search).get("g"); if (q) open(q);
+  }
 })();

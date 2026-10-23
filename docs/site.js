@@ -47,6 +47,12 @@ function getToken() {
 }
 /* защита от показа сайта во фрейме на чужой странице (clickjacking) */
 try { if (window.top !== window.self) { document.documentElement.style.display = "none"; window.top.location = window.self.location; } } catch (e) { document.documentElement.style.display = "none"; }
+/* Игры (аркада) открывает учитель кнопкой: сервер сообщает apps.games в /api/play, браузер запоминает в appsGames. Без сервера или у учителя аркада всегда открыта. */
+function appsOpen() {
+  try { if (localStorage.getItem("teacher") || sessionStorage.getItem("tkey")) return true; } catch (e) {}
+  var v = ""; try { v = localStorage.getItem("appsGames") || ""; } catch (e) {}
+  return v ? v === "1" : !window.API_BASE;
+}
 function isTeacher() { try { return !!localStorage.getItem("teacher"); } catch (e) { return false; } }
 var PAGES = {
   "tasks.html": ["Задания", "pc"], "theory.html": ["Теория", "folder"], "quiz.html": ["Квизы", "book"],
@@ -73,9 +79,10 @@ function layout(active, title) {
   var items = [["learn.html", "Предметы", "books"], ["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"], ["video.html", "Видеоразборы", "video"], ["live.html", "Онлайн-игра", "bolt"], ["race.html", "Гонка по Python", "bolt"], ["arcade.html", "Аркада", "skull"], ["leaders.html", "Таблица лидеров", "bolt"], ["spy.html", "Шпион", "user"], ["account.html", "Мой профиль", "user"]];
   /* ученикам вход для учителя не показываем: учитель открывает teacher.html по адресу, после входа пункты появляются */
   if (teacher) { items.push(["teacher.html", "Кабинет учителя", "key"]); items.push(["students.html", "Ученики на сервере", "user"]); }
-  var menu = items.map(function (x) { return '<li><a href="' + x[0] + '">' + pix(x[2]) + x[1] + "</a></li>"; }).join("") +
-    '<hr><li><a href="#" id="guideBtn">' + pix("help") + 'Как это работает</a></li>' +
+  function menuHtml() { return items.filter(function (x) { return x[0] !== "arcade.html" || appsOpen(); }).map(function (x) { return '<li><a href="' + x[0] + '">' + pix(x[2]) + x[1] + "</a></li>"; }).join(""); }
+  var tail = '<hr><li><a href="#" id="guideBtn">' + pix("help") + 'Как это работает</a></li>' +
     '<li><a href="index.html">' + pix("win") + 'Рабочий стол</a></li>';
+  var menu = menuHtml() + tail;
   document.body.insertAdjacentHTML("beforeend",
     '<div class="smenu" id="smenu"><div class="side">PYTHON</div><ul>' + menu + '</ul></div>' +
     '<div class="taskbar"><button class="start" id="startBtn" aria-expanded="false" aria-controls="smenu">' + pix("win") + 'Пуск</button>' +
@@ -92,7 +99,9 @@ function layout(active, title) {
   var gs = document.createElement("script"); gs.src = "guide.js";
   gs.onload = function () { if (/[?&]guide=1/.test(location.search)) window.openGuide(0); if (window.__guideAuto) window.openGuide(0); };
   document.body.appendChild(gs);
-  document.getElementById("guideBtn").onclick = function (e) { e.preventDefault(); setMenu(false); if (window.openGuide) window.openGuide(0); };
+  function bindGuide() { document.getElementById("guideBtn").onclick = function (e) { e.preventDefault(); setMenu(false); if (window.openGuide) window.openGuide(0); }; }
+  bindGuide();
+  window.__menuRefresh = function () { var ul = document.querySelector("#smenu ul"); if (ul) { ul.innerHTML = menuHtml() + tail; bindGuide(); } };
   if (title) document.title = title + " · Python-курс";
 }
 function copyText(text, btn) {
@@ -246,11 +255,26 @@ function fetchIssues(label, cb, fail) {
   function scare(sc) {
     var seen = ""; try { seen = sessionStorage.getItem("scareSeen") || ""; } catch (e) {}
     if (!sc || seen === String(sc.id)) return; try { sessionStorage.setItem("scareSeen", String(sc.id)); } catch (e) {}
-    var go = function () { window.Scare.show(sc.kind === "thanks" ? "thanks" : "skull"); };
+    var go = function () { window.Scare.show(sc.kind === "thanks" || sc.kind === "respect" ? sc.kind : "skull"); };
     var needS = function () { if (window.Scare) go(); else { var s2 = document.createElement("script"); s2.src = "scare.js"; s2.onload = go; document.head.appendChild(s2); } };
     if (window.Egg) needS(); else { var s3 = document.createElement("script"); s3.src = "egg.js"; s3.onload = needS; document.head.appendChild(s3); }
   }
+  function appsSync(a) {
+    var now = a.games ? "1" : "0", old = ""; try { old = localStorage.getItem("appsGames") || ""; } catch (e) {}
+    if (old === now) return; try { localStorage.setItem("appsGames", now); } catch (e) {}
+    var pg = location.pathname.split("/").pop() || "index.html";
+    if (window.__menuRefresh) window.__menuRefresh(); if (window.renderDesk) window.renderDesk();
+    if (now === "1" && pg === "arcade.html" && document.getElementById("arcClosed")) { location.reload(); return; }
+    if (now === "0" && pg === "arcade.html" && !appsOpen()) { location.href = "index.html"; return; }
+    if (now === "1" && old !== "" && !document.getElementById("appsToast")) {
+      var t = document.createElement("div"); t.id = "appsToast"; t.setAttribute("role", "status");
+      t.style.cssText = "position:fixed;right:12px;bottom:56px;z-index:9000;max-width:min(92vw,360px);background:#ffffe1;border:3px solid #000;box-shadow:5px 5px 0 #000;padding:12px 14px;font:500 15px/1.35 'IBM Plex Mono',monospace;color:#000;cursor:pointer";
+      t.innerHTML = "<b>🎮 Учитель открыл игры!</b><br>Иконка «Аркада» на рабочем столе и в меню «Пуск».<br><a href=\"arcade.html\" style=\"color:#3a1aa0\">Открыть аркаду</a>";
+      t.onclick = function (e) { if (e.target.tagName !== "A") t.remove(); }; document.body.appendChild(t); setTimeout(function () { if (t.parentNode) t.remove(); }, 12000);
+    }
+  }
   function react(j) {
+    if (j && j.ok && j.apps) appsSync(j.apps);
     if (j && j.ok && j.scare) scare(j.scare);
     if (j && j.ok) lucky(j);
     if (!j || !j.ok || !j.id || j.phase === "idle" || j.phase === "end" || document.getElementById("notice")) return;

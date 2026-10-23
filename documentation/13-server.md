@@ -89,3 +89,11 @@
 | `POST /api/boss/answer` `{a: номер}` | ответ; удар или лечение босса |
 
 Банки вопросов по темам лежат в `boss_bank.py` (тема 0 = все). Константы в начале `boss.py`: `HP_PER_PLAYER`, `HP_MIN`, `DMG`, `HEAL_WRONG`, `STUN`, `LIMIT`, `REGEN_PER_SEC`, `BIG_HEAL`, `BIG_EVERY`. Запуск арены сбрасывает гонку, запуск гонки сбрасывает арену.
+
+
+## Новое: респект, персонаж, игры по кнопке учителя
+- `POST /api/teacher/play` `{action:"respect", nick?}`: экран «Респект» всем онлайн или одному.
+- `{action:"apps_set", on:true|false}` / `{action:"apps_get"}`: открыть или убрать игры; `/api/play` отдаёт `apps.games`.
+- `{action:"hearts"}`: кто ответил сердечком.
+- `GET/POST /api/look`: персонаж ученика (нужен вход). `POST /api/heart`: ответное сердечко учителю.
+- В базе: колонка `users.look`, таблица `kv(k,v)`. Обе создаются сами при запуске, ничего вручную не нужно. Чтобы это заработало на живом сервере, обнови его: `curl -fsSL https://raw.githubusercontent.com/VMSE1/python/main/server/install.sh | bash`.
