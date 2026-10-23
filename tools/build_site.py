@@ -5,7 +5,8 @@
 Делает три вещи:
   1. docs/data/tasks.js — список заданий для сайта;
   2. .github/ISSUE_TEMPLATE/submit.yml — форма сдачи со списком заданий;
-  3. таблицу заданий в README.md (между маркерами <!-- TASKS --> и <!-- /TASKS -->).
+  3. таблицу заданий в README.md (между маркерами <!-- TASKS --> и <!-- /TASKS -->);
+  4. docs/data/subjects.js — уроки других предметов из папки subjects/ (tools/subjects.py).
 Запускается автоматически при каждой публикации сайта (workflow pages.yml).
 """
 import json, os, re, sys
@@ -93,6 +94,9 @@ body:
     s = re.sub(r"<!-- TASKS -->.*?<!-- /TASKS -->", "<!-- TASKS -->\n" + "\n".join(rows) + "\n<!-- /TASKS -->", s, flags=re.S)
     open(rp, "w", encoding="utf-8", newline="\n").write(s)
     print("заданий: %d" % len(pub))
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import subjects  # другие предметы: docs/data/subjects.js
+    subjects.main()
 
 if __name__ == "__main__":
     main()

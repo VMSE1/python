@@ -38,7 +38,7 @@ function submit(){
   o.email=$("em").value.trim();o.fio=$("fo").value;o.group=$("gr").value}
  var b=$("go");b.disabled=true;b.textContent="Подожди…";
  Net[mode==="up"?"register":"login"](o).then(function(j){
-  if(j.ok){loggedIn("Готово! Ты вошёл.");return}
+  if(j.ok){loggedIn("Готово! Ты вошёл.");try{localStorage.setItem("pickSubj","1")}catch(e){}if(window.askSubject)askSubject();return}
   er.textContent=j.error||"Не получилось. Попробуй ещё раз.";b.disabled=false;b.textContent=mode==="up"?"Создать профиль":"Войти"
  }).catch(function(e){er.textContent=e.message;b.disabled=false;b.textContent=mode==="up"?"Создать профиль":"Войти"});
 }

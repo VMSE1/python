@@ -34,7 +34,8 @@ def serve():
     return srv, "http://127.0.0.1:%d/" % srv.server_address[1]
 
 
-PAGES = ["index.html", "tasks.html", "theory.html", "quiz.html", "projects.html", "teacher.html", "cloud.html", "slides.html", "video.html", "task.html?id=1.1", "task.html?id=5.4", "theory.html?l=3"]
+PAGES = ["index.html", "tasks.html", "theory.html", "quiz.html", "projects.html", "teacher.html", "cloud.html", "slides.html", "video.html", "task.html?id=1.1", "task.html?id=5.4", "theory.html?l=3",
+         "learn.html", "learn.html?s=sql", "learn.html?s=sql&l=4", "learn.html?s=blender&l=2", "learn.html?s=ai&l=3", "arcade.html"]
 
 
 def issue(n, nick, task, status, body_extra="", title=None, updated="2026-10-20T10:00:00Z"):
@@ -135,13 +136,13 @@ def functional(b, base):
     ctx = new_ctx(b); mock_github(ctx, {"проект": [issue(1, "ann", "1.1", None, title="[Проект] Бот")], "сдача": []})
     pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
     pg.goto(base + "index.html"); pg.wait_for_timeout(300)
-    check("desktop: 10 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 10 and "id=1.1" in pg.get_attribute("#cont", "href"))
+    check("desktop: 12 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 12 and "id=1.1" in pg.get_attribute("#cont", "href"))
     pg.click("a.ico >> nth=0"); pg.wait_for_url("**/tasks.html"); check("иконка «Задания» открывает карту", "tasks.html" in pg.url)
     check("карта: 25 квадратов, один «следующий»", pg.locator(".node").count() == 25 and pg.locator(".node.next").count() == 1)
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
     pg.click("#startBtn"); check("меню: «Вход для учителя» ученикам не показывается", "Вход для учителя" not in pg.inner_text("#smenu") and "Кабинет" not in pg.inner_text("#smenu"))
-    check("«Пуск» открывает меню (13 пунктов)", pg.locator("#smenu.on a").count() == 13, pg.locator("#smenu.on a").count())
+    check("«Пуск» открывает меню (15 пунктов)", pg.locator("#smenu.on a").count() == 15, pg.locator("#smenu.on a").count())
     pg.keyboard.press("Escape"); check("Esc закрывает меню", pg.locator("#smenu.on").count() == 0)
     pg.click("#startBtn"); pg.mouse.click(900, 300); check("клик вне меню закрывает его", pg.locator("#smenu.on").count() == 0)
     # проекты
@@ -804,8 +805,9 @@ def start_api(origin):
     return "http://127.0.0.1:%d" % box["port"]
 
 
-def api_ctx(b, api, w=1280, h=800, mobile=False, gate=True):
+def api_ctx(b, api, w=1280, h=800, mobile=False, gate=True, pick=False):
     ctx = new_ctx(b, w, h, mobile=mobile)
+    if not pick: ctx.add_init_script("window.__noPick=true")  # окно выбора предмета проверяется в наборе subjects
     host = api.split("//")[1]
     def html(route):
         r = route.fetch(); body = re.sub(r"https://[a-z0-9.-]+sslip\.io wss://[a-z0-9.-]+sslip\.io", "%s ws://%s" % (api, host), r.text())
@@ -1270,8 +1272,119 @@ def leaders(b, base):
     ctx.close()
 
 
+def subjects(b, base):
+    print("\n== ДРУГИЕ ПРЕДМЕТЫ (SQL, Blender, нейросети) ==")
+    ctx = new_ctx(b); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    pg.goto(base + "learn.html"); pg.wait_for_selector(".subj")
+    check("предметы: на странице 4 предмета", pg.locator(".subj").count() == 4)
+    pg.click('.subj[data-s="sql"]'); pg.wait_for_selector(".track .node")
+    check("предметы: клик выбирает предмет", pg.evaluate("localStorage.subject") == "sql")
+    check("предметы: у SQL есть уроки и план «Скоро»", pg.locator(".track:not(.soon)").count() >= 5 and pg.locator(".track.soon li").count() >= 3)
+    pg.goto(base + "learn.html?s=sql&l=2"); pg.wait_for_selector('[id="t2.1"] textarea')
+    T = '[id="t2.1"] '
+    pg.fill(T + "textarea", "SELECT * FROM studentz;"); pg.click(T + '[data-a="chk"]'); pg.wait_for_selector(T + ".res.fail", timeout=30000)
+    check("sql: ошибка в названии таблицы объясняется по-русски", "Нет таблицы" in pg.inner_text(T + ".res"), pg.inner_text(T + ".res"))
+    pg.fill(T + "textarea", "SELECT name FROM students WHERE city = 'Москва';"); pg.click(T + '[data-a="chk"]'); pg.wait_for_selector(T + ".res.fail .rh", timeout=10000)
+    check("sql: не те столбцы — подсказка про столбцы", "Столбцов" in pg.inner_text(T + ".res"), pg.inner_text(T + ".res"))
+    pg.fill(T + "textarea", "select * from students where city='Москва'"); pg.click(T + '[data-a="chk"]'); pg.wait_for_selector(T + ".res.pass", timeout=10000)
+    check("sql: верный запрос засчитан и показана таблица", pg.locator(T + ".out table.rt tbody tr").count() == 6 and pg.evaluate("JSON.parse(localStorage.subjp)['sql:2.1']") == 1)
+    check("sql: задание отмечено галочкой", "dn" in pg.get_attribute('[id="t2.1"]', "class"))
+    T = '[id="t2.4"] '
+    pg.fill(T + "textarea", "SELECT name, age FROM students ORDER BY age;"); pg.click(T + '[data-a="chk"]'); pg.wait_for_selector(T + ".res.fail .rh", timeout=10000)
+    check("sql: неверный порядок строк замечен", "порядок" in pg.inner_text(T + ".res"), pg.inner_text(T + ".res"))
+    pg.fill(T + "textarea", "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c) SELECT count(*) FROM c;"); pg.click(T + '[data-a="run"]'); pg.wait_for_selector(T + ".res.fail .rh", timeout=15000)
+    check("sql: бесконечный запрос останавливается", "долго" in pg.inner_text(T + ".res"), pg.inner_text(T + ".res"))
+    pg.goto(base + "learn.html?s=sql&l=5"); pg.wait_for_selector('[id="t5.1"] textarea'); T = '[id="t5.1"] '
+    pg.fill(T + "textarea", "INSERT INTO students VALUES (13, 'Нина Белова', '9Б', 14, 'Казань', 'театр');"); pg.click(T + '[data-a="chk"]'); pg.wait_for_selector(T + ".res.on:not(.wait)", timeout=15000)
+    check("sql: INSERT проверяется по таблице после команды", "pass" in pg.get_attribute(T + ".res", "class"), pg.inner_text(T + ".res"))
+    check("sql: эталонных решений нет в данных сайта", "solution" not in pg.evaluate("JSON.stringify(SUBJECTS)"))
+    # квиз
+    pg.goto(base + "learn.html?s=ai&l=1"); pg.wait_for_selector('[id="t1.1"] [data-i]'); T = '[id="t1.1"] '
+    pg.click(T + '[data-i="0"]'); check("квиз: неверный ответ не засчитан", "fail" in pg.get_attribute(T + ".res", "class") and not pg.evaluate("JSON.parse(localStorage.subjp||'{}')['ai:1.1']"))
+    pg.click(T + '[data-i="1"]'); check("квиз: верный ответ засчитан", pg.evaluate("JSON.parse(localStorage.subjp)['ai:1.1']") == 1)
+    # нейрон: обучение перцептроном доходит до 100%
+    pg.goto(base + "learn.html?s=ai&l=3"); pg.wait_for_selector('[id="t3.1"] canvas'); T = '[id="t3.1"] '
+    pg.click(T + '[data-a="reset"]'); pg.click(T + '[data-a="train"]'); pg.wait_for_selector(T + ".res.pass", timeout=60000)
+    check("нейрон: обучение находит веса для всех дней", "14 из 14" in pg.inner_text(T + ".nra"), pg.inner_text(T + ".nra"))
+    # тренажёр клавиш Blender
+    pg.goto(base + "learn.html?s=blender&l=2"); pg.wait_for_selector('[id="t2.1"] .kt'); T = '[id="t2.1"] '
+    items = pg.evaluate("SUBJECTS.blender.lessons[1].tasks[0].items")
+    pg.click(T + ".kt"); pg.keyboard.press("KeyQ"); check("клавиши: неверная клавиша названа", "Не та клавиша" in pg.inner_text(T + ".ktr"))
+    for _ in items:
+        what = pg.inner_text(T + ".ktq b"); it = [x for x in items if x["what"] == what][0]
+        mods = ("Control+" if it.get("ctrl") else "") + ("Shift+" if it.get("shift") else "") + ("Alt+" if it.get("altk") else "")
+        pg.keyboard.press(mods + it["code"])
+    check("клавиши: тренажёр пройден", pg.evaluate("JSON.parse(localStorage.subjp)['blender:2.1']") == 1, pg.inner_text(T + ".kt"))
+    # практика по шагам
+    T = '[id="t2.2"] '
+    check("шаги: «Готово» выключена, пока не отмечены все шаги", pg.is_disabled(T + '[data-a="ok"]'))
+    for c in pg.locator(T + "input[type=checkbox]").all(): c.check()
+    pg.click(T + '[data-a="ok"]'); check("шаги: практика отмечена", pg.evaluate("JSON.parse(localStorage.subjp)['blender:2.2']") == 1)
+    # окно выбора предмета после входа
+    pg.goto(base + "index.html"); pg.evaluate("localStorage.pickSubj='1'"); pg.reload(); pg.wait_for_selector("#spick .sb")
+    check("выбор предмета: окно появляется после входа", pg.locator("#spick .sb").count() == 4)
+    pg.click('#spick [data-s="blender"]'); pg.wait_for_url("**/learn.html?s=blender")
+    check("выбор предмета: переход к выбранному предмету", pg.evaluate("localStorage.subject") == "blender" and not pg.evaluate("localStorage.pickSubj"))
+    pg.goto(base + "index.html"); pg.wait_for_timeout(300)
+    check("рабочий стол: «Продолжить» ведёт к выбранному предмету", "learn.html?s=blender" in pg.get_attribute("#cont", "href"))
+    check("предметы: нет ошибок в консоли", not [x for x in bag if "Failed to load resource" not in x], bag[:3])
+    ctx.close()
+    # синхронизация с настоящим сервером
+    api = start_api(base.rstrip("/")); A = sys.modules["app"]; A.LUCKY.update(next=time.time() + 99999)
+    ctx = api_ctx(b, api, pick=True); pg = ctx.new_page(); bag = []; attach_errors(pg, bag); pg.goto(base + "index.html"); pg.wait_for_selector("#gate")
+    pg.fill("#gn", "subj_1"); pg.fill("#gp", "secret1"); pg.fill("#ge", "subj_1@mail.ru"); pg.click("#ggo"); pg.wait_for_selector("#spick .sb", timeout=10000)
+    check("сервер: после регистрации предлагают выбрать предмет", True)
+    pg.click('#spick [data-s="sql"]'); pg.wait_for_url("**/learn.html?s=sql"); pg.goto(base + "learn.html?s=sql&l=1"); pg.wait_for_selector('[id="t1.3"] [data-i]')
+    pg.click('[id="t1.3"] [data-i="0"]'); pg.evaluate("Net.sync()"); pg.wait_for_timeout(1200)
+    row = A.db.execute("SELECT progress FROM users WHERE nick='subj_1'").fetchone(); pr = json.loads(row[0])
+    check("сервер: прогресс по SQL и выбор предмета сохранены", pr.get("subj", {}).get("sql:1.3") == 1 and pr.get("subject") == "sql", row[0][:200])
+    pg.evaluate("Net.logout()"); pg.wait_for_timeout(500)
+    check("сервер: после выхода прогресс предмета стёрт с устройства", pg.evaluate("localStorage.subjp") is None)
+    pg.evaluate("Net.login({nick:'subj_1',password:'secret1'})"); pg.wait_for_timeout(1500)
+    check("сервер: после входа прогресс и предмет вернулись", "sql:1.3" in (pg.evaluate("localStorage.subjp") or "") and pg.evaluate("localStorage.subject") == "sql")
+    check("сервер: чужие ключи в subj отбрасываются", A.merge_progress({}, {"subj": {"sql:1.1": 1, "<x>": 1, "python:1.1": 1}, "subject": "hack"}) .get("subj") == {"sql:1.1": 1})
+    check("сервер: нет ошибок в консоли", not [x for x in bag if "Failed to load resource" not in x], bag[:3])
+    ctx.close()
+
+
+def arcade(b, base):
+    print("\n== АРКАДА ==")
+    ctx = new_ctx(b); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    pg.goto(base + "arcade.html"); pg.wait_for_selector("[data-g]")
+    check("аркада: две игры", pg.locator("[data-g]").count() == 2)
+    pg.click('[data-g="chick"]'); pg.wait_for_selector("#chGo"); pg.click("#chGo"); pg.wait_for_timeout(300)
+    check("цыплята: игра идёт", pg.get_attribute(".gm-root", "data-state") == "play")
+    # ставим бота прямо перед игроком и стреляем
+    for _ in range(4):
+        pg.evaluate("(function(){var s=__game._state();s.bots=[{p:false,x:s.pl.x+30,y:s.pl.y,vx:0,vy:0,w:10,h:12,face:-1,on:true,hp:1,cd:9,inv:0,flash:0,step:0,think:9,dir:0,body:'#fff',shade:'#ccc',hat:'bug'}];s.pl.face=1;s.pl.cd=0;s.toSpawn=0;})()")
+        pg.keyboard.down("KeyX"); pg.wait_for_timeout(450); pg.keyboard.up("KeyX")
+    check("цыплята: попадание яйцом даёт очки", int(pg.get_attribute(".gm-root", "data-score")) >= 10, pg.get_attribute(".gm-root", "data-score"))
+    pg.evaluate("__game._state().pl.hp=1;__game._state().pl.inv=0;__game._state().bots=[]"); pg.evaluate("(function(){var s=__game._state();s.eggs.push({x:s.pl.x+2,y:s.pl.y+4,vx:0,vy:0,p:false,life:1})})()"); pg.wait_for_timeout(300)
+    check("цыплята: конец игры и рекорд", pg.get_attribute(".gm-root", "data-state") == "over" and "Рекорд" in pg.inner_text(".gm-over"))
+    pg.click("#stx"); check("аркада: игра закрывается", pg.is_visible("#arc") and not pg.is_visible("#stage"))
+    pg.evaluate("localStorage.subject='sql'")
+    pg.click('[data-g="dungeon"]'); pg.wait_for_selector("#dgGo"); pg.click("#dgGo"); pg.wait_for_timeout(200)
+    check("подземелье: игра идёт", pg.get_attribute(".gm-root", "data-state") == "play")
+    x0 = pg.evaluate("__game._state().x"); pg.keyboard.down("KeyW"); pg.wait_for_timeout(500); pg.keyboard.up("KeyW")
+    check("подземелье: W двигает вперёд", pg.evaluate("__game._state().x") != x0 or pg.evaluate("__game._state().y") != 1.5)
+    # встаём перед дверью-терминалом (уровень 1, клетка 4,3) и открываем её
+    pg.evaluate("(function(){var s=__game._state();s.x=3.5;s.y=3.5;s.dx=1;s.dy=0;s.plx=0;s.ply=0.66;})()"); pg.keyboard.press("KeyE"); pg.wait_for_selector(".dgq")
+    q = pg.inner_text(".dgq"); check("подземелье: дверь задаёт вопрос по выбранному предмету (SQL)", any(w in q for w in ["SELECT", "NULL", "JOIN", "WHERE", "HAVING", "UPDATE", "AVG", "столб"]), q[:120])
+    ans = pg.evaluate("(function(){var qs=SUBJECTS.sql.lessons.reduce(function(a,l){return a.concat(l.tasks.filter(function(t){return t.type==='quiz'}))},[]);var t=document.querySelector('.dgq p').textContent;var m=qs.filter(function(x){return x.q.replace(/`/g,'')===t})[0];return m?m.o[m.a].replace(/`/g,''):''})()")
+    pg.click('.dgo button:text-is("%s")' % ans.replace('"', '\\"')); pg.wait_for_timeout(1700)
+    check("подземелье: верный ответ открывает дверь", pg.evaluate("__game._state().map[3][4]") == "." and pg.get_attribute(".gm-root", "data-state") == "play")
+    # подходим к багу и стреляем
+    pg.evaluate("(function(){var s=__game._state();var e=s.ents.filter(function(e){return e.hp>0})[0];s.x=e.x-1.5;s.y=e.y;s.dx=1;s.dy=0;s.plx=0;s.ply=0.66;s.cd=0;e.cd=99;})()")
+    for _ in range(3): pg.keyboard.press("Space"); pg.wait_for_timeout(400)
+    check("подземелье: выстрелы убивают бага", pg.evaluate("__game._state().kills") >= 1, pg.evaluate("__game._state().kills"))
+    pg.evaluate("(function(){var s=__game._state();s.x=12.5;s.y=8.5;s.dx=1;s.dy=0;s.plx=0;s.ply=0.66;})()"); pg.keyboard.press("KeyE"); pg.wait_for_timeout(200)
+    check("подземелье: выход ведёт на уровень 2", pg.get_attribute(".gm-root", "data-level") == "2")
+    check("аркада: нет ошибок в консоли", not bag, bag[:3])
+    ctx.close()
+
+
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "leaders", "admin", "lucky", "botguard", "unlock", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "leaders", "admin", "lucky", "botguard", "unlock", "subjects", "arcade", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox", "--disable-features=LocalNetworkAccessChecks,LocalNetworkAccess,PrivateNetworkAccessRespectPreflightResults"])

@@ -1,0 +1,20 @@
+{
+ "title": "Считаем: COUNT, AVG и GROUP BY",
+ "goal": "Научишься считать количество, среднее и итоги по группам.",
+ "db": "school",
+ "theory": [
+  {"t": "Функции-счётчики", "x": "`COUNT(*)` считает строки, `SUM` складывает, `AVG` находит среднее, `MIN` и `MAX` — самое маленькое и большое. Ответ — одна строка с итогом.", "c": "SELECT COUNT(*) FROM students;"},
+  {"t": "Округление: ROUND", "x": "`ROUND(число, 2)` оставляет два знака после точки. Удобно для средних оценок.", "c": "SELECT ROUND(AVG(mark), 2) FROM grades;"},
+  {"t": "Таблица оценок", "x": "В таблице `grades` хранятся оценки: кто получил (`student_id`), по какому предмету (`subject`) и какую (`mark`)."},
+  {"t": "GROUP BY — раскладываем по кучкам", "x": "Представь, что раскладываешь тетради по стопкам: каждая стопка — один класс. `GROUP BY class` делает так же, а `COUNT(*)` считает тетради в каждой стопке.", "c": "SELECT class, COUNT(*) FROM students\nGROUP BY class;"},
+  {"t": "HAVING — фильтр для групп", "k": "warn", "x": "`WHERE` отсеивает строки ДО группировки. `HAVING` отсеивает уже готовые группы. Условие на `COUNT(*)` или `AVG(...)` пишут в HAVING.", "c": "SELECT class, COUNT(*) FROM students\nGROUP BY class\nHAVING COUNT(*) >= 3;"}
+ ],
+ "tasks": [
+  {"type": "sql", "title": "Сколько учеников", "text": "Посчитай, сколько всего учеников в таблице `students`.", "hint": "`SELECT COUNT(*) FROM ...;`", "solution": "SELECT COUNT(*) FROM students;"},
+  {"type": "sql", "title": "Средний возраст", "text": "Найди средний возраст учеников, округлённый до одного знака после точки.", "hint": "`ROUND(AVG(age), 1)`", "solution": "SELECT ROUND(AVG(age), 1) FROM students;"},
+  {"type": "sql", "title": "Ученики по городам", "text": "Для каждого города выведи название и сколько оттуда учеников.", "hint": "`SELECT city, COUNT(*) ... GROUP BY city;`", "solution": "SELECT city, COUNT(*) FROM students GROUP BY city;"},
+  {"type": "sql", "title": "Средняя оценка по предметам", "text": "По таблице `grades` выведи каждый предмет и среднюю оценку по нему, округлённую до двух знаков.", "hint": "Группируй по `subject`, считай `ROUND(AVG(mark), 2)`.", "solution": "SELECT subject, ROUND(AVG(mark), 2) FROM grades GROUP BY subject;"},
+  {"type": "sql", "title": "Большие города", "text": "Выведи города, из которых хотя бы 4 ученика, и сколько их там.", "hint": "После GROUP BY добавь `HAVING COUNT(*) >= 4`.", "solution": "SELECT city, COUNT(*) FROM students GROUP BY city HAVING COUNT(*) >= 4;"},
+  {"type": "quiz", "q": "Нужно оставить только классы, где средний возраст больше 15. Куда писать условие `AVG(age) > 15`?", "o": ["В WHERE", "В HAVING", "В ORDER BY", "В SELECT"], "a": 1, "why": "AVG считается по группе, а группы появляются после GROUP BY. Фильтр по группам — HAVING."}
+ ]
+}

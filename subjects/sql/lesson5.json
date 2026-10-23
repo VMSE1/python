@@ -1,0 +1,19 @@
+{
+ "title": "Меняем данные: INSERT, UPDATE, DELETE",
+ "goal": "Научишься добавлять, исправлять и удалять записи и не сломаешь всё одним запросом.",
+ "db": "school",
+ "theory": [
+  {"t": "INSERT — новая строка", "x": "`INSERT INTO таблица VALUES (...)` добавляет строку. Значения идут в том же порядке, что и столбцы.", "c": "INSERT INTO students VALUES (20, 'Петя Лис', '9Б', 15, 'Тверь', NULL);"},
+  {"t": "UPDATE — исправить", "x": "`UPDATE ... SET столбец = значение WHERE ...` меняет данные в найденных строках.", "c": "UPDATE students SET city = 'Казань' WHERE id = 4;"},
+  {"t": "Забыл WHERE — исправил всех", "k": "warn", "x": "UPDATE и DELETE без WHERE меняют ВСЮ таблицу. Это как исправить оценку одному ученику, а поставить её всему классу. Сначала проверь условие обычным SELECT."},
+  {"t": "DELETE — удалить", "x": "`DELETE FROM ... WHERE ...` удаляет найденные строки.", "c": "DELETE FROM students WHERE id = 20;"},
+  {"t": "Здесь можно ошибаться", "x": "В тренажёре база создаётся заново при каждом запуске. После твоих команд мы сами показываем таблицу, чтобы ты увидел результат."}
+ ],
+ "tasks": [
+  {"type": "sql", "title": "Новенькая", "text": "В школу пришла Нина Белова: id 13, класс 9Б, 14 лет, из Казани, ходит в театр. Добавь её в `students`.", "hint": "`INSERT INTO students VALUES (13, 'Нина Белова', ...);` — значения в порядке столбцов.", "solution": "INSERT INTO students VALUES (13, 'Нина Белова', '9Б', 14, 'Казань', 'театр');", "verify": "SELECT * FROM students ORDER BY id;"},
+  {"type": "sql", "title": "Новый кружок", "text": "Борис Ким (id 2) записался в кружок «шахматы». Исправь его запись.", "hint": "`UPDATE students SET club = 'шахматы' WHERE id = 2;`", "solution": "UPDATE students SET club = 'шахматы' WHERE id = 2;", "verify": "SELECT * FROM students ORDER BY id;"},
+  {"type": "quiz", "q": "Что сделает запрос `UPDATE students SET age = 15;`?", "o": ["Ничего: не хватает WHERE", "Поставит 15 лет одному ученику", "Поставит 15 лет всем ученикам", "Выдаст ошибку"], "a": 2, "why": "Без WHERE изменение касается всех строк. Ошибки не будет, и это опасно."},
+  {"type": "sql", "title": "День рождения у 9А", "text": "У всех учеников класса 9А прошёл день рождения. Увеличь их возраст на 1.", "hint": "`SET age = age + 1 WHERE class = '9А'`", "solution": "UPDATE students SET age = age + 1 WHERE class = '9А';", "verify": "SELECT * FROM students ORDER BY id;"},
+  {"type": "sql", "title": "Выпускники", "text": "Ученики 11А окончили школу. Удали их из таблицы `students`.", "hint": "`DELETE FROM students WHERE class = '11А';`", "solution": "DELETE FROM students WHERE class = '11А';", "verify": "SELECT * FROM students ORDER BY id;"}
+ ]
+}

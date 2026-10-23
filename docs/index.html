@@ -8,14 +8,15 @@
 </div></section>
 <div class="ghost-logo" aria-hidden="true">PYTHON</div>
 </div>
-<script src="site.js"></script><script src="config.js"></script><script src="net.js"></script><script src="data/tasks.js"></script><script src="data/theory.js"></script><script src="data/clips.js"></script><script src="explainer.js"></script><script src="reward.js"></script>
+<script src="site.js"></script><script src="config.js"></script><script src="net.js"></script><script src="data/tasks.js"></script><script src="data/theory.js"></script><script src="data/clips.js"></script><script src="explainer.js"></script><script src="reward.js"></script><script src="subjects.js"></script>
 <script>
 layout("desk");
 function load(k){try{var v=JSON.parse(localStorage.getItem(k)||"{}");return v&&typeof v==="object"?v:{}}catch(e){return {}}}
 var sent=load("done"),passed=load("passed"),seen=false;try{seen=!!localStorage.getItem("visited")}catch(e){}
 var nextT=TASKS.filter(function(t){return !sent[t.id]&&!passed[t.id]})[0]||null;
 var cnt=TASKS.filter(function(t){return sent[t.id]}).length;
-var ic=[["tasks.html","pc","Задания",cnt+" из "+TASKS.length],["theory.html","folder","Теория","шпаргалки"],["quiz.html","book","Квизы","проверь себя"],["projects.html","disk","Проекты","работы ребят"],["cloud.html","win","Облако слов","пиши слова"],["slides.html","doc","Презентации","с кодом внутри"],["video.html","video","Видеоразборы","30 секунд"],["live.html","bolt","Онлайн-игра","по коду"],["account.html","user","Мой профиль",(function(){try{var a=JSON.parse(localStorage.getItem("acct")||"null");return a&&a.nick?a.nick:"вход и регистрация"}catch(e){return "вход и регистрация"}})()]];
+var subj=Subject.byId(Subject.get())||Subject.LIST[0];
+var ic=[["tasks.html","pc","Задания",cnt+" из "+TASKS.length],["learn.html","books","Предметы",subj.title],["arcade.html","skull","Аркада","2 игры"],["theory.html","folder","Теория","шпаргалки"],["quiz.html","book","Квизы","проверь себя"],["projects.html","disk","Проекты","работы ребят"],["cloud.html","win","Облако слов","пиши слова"],["slides.html","doc","Презентации","с кодом внутри"],["video.html","video","Видеоразборы","30 секунд"],["live.html","bolt","Онлайн-игра","по коду"],["account.html","user","Мой профиль",(function(){try{var a=JSON.parse(localStorage.getItem("acct")||"null");return a&&a.nick?a.nick:"вход и регистрация"}catch(e){return "вход и регистрация"}})()]];
 if(isTeacher()){ic.push(["teacher.html","key","Кабинет","для учителя"]);ic.push(["students.html","user","Ученики","на сервере"])}
 ic.push(["#how","help","Как это работает","инструкция"]);
 document.getElementById("icons").innerHTML=ic.map(function(x,i){return '<a class="ico" href="'+x[0]+'" '+(x[0]==="#how"?'id="icoHow"':"")+'>'+(i===0&&!seen?'<span class="bubble">Нажми сюда!</span>':"")+pix(x[1])+'<span>'+x[2]+'</span><small>'+x[3]+'</small></a>'}).join("");
@@ -24,6 +25,8 @@ if(nextT){var started=Object.keys(sent).length||Object.keys(passed).length;
  document.getElementById("nx").innerHTML=pix("doc")+'<div><span class="m">'+(started?"Ты остановился на:":"Первое задание:")+'</span><b>'+nextT.id+" "+esc(nextT.title)+'</b></div>';
  cont.textContent=started?"Продолжить":"Начать";cont.href="task.html?id="+nextT.id}
 else{document.getElementById("nx").innerHTML=pix("check")+'<div><b>Все задания отправлены!</b><span class="m">Загляни в «Проекты» и покажи свою работу.</span></div>';cont.textContent="К заданиям"}
+if(subj.id!=="python"){document.getElementById("nx").innerHTML=pix(subj.icon)+'<div><span class="m">Сейчас учишь:</span><b>'+esc(subj.title)+'</b></div>';cont.textContent="Продолжить";cont.href=subj.href}
+cont.parentNode.insertAdjacentHTML("beforeend",'<button class="btn ghost" type="button" id="chs">Сменить предмет</button>');document.getElementById("chs").onclick=function(){Subject.pick()};
 var sk=Streak.get();if(sk.n>0){var nxe=document.getElementById("nx");nxe.insertAdjacentHTML("afterend",'<p class="m" id="skline" style="margin:8px 0 0">Серия: '+Streak.plural(sk.n)+" подряд"+(sk.today?"":". Реши задание сегодня, чтобы не потерять")+"</p>")}
 function how(e){if(e)e.preventDefault();window.openGuide&&window.openGuide(0)}
 document.getElementById("vg").onclick=function(){Explainer.modal("guide")};
