@@ -166,6 +166,8 @@ def clean_str(v, n):
 
 
 MAX_NEW, NEW_WINDOW = 10, 600
+SUBJECTS = ("python", "sql", "blender", "ai")
+SUBJ_KEY = re.compile(r"^(sql|blender|ai):\d{1,2}\.\d{1,2}$")
 
 
 def merge_progress(old, new):
@@ -178,6 +180,17 @@ def merge_progress(old, new):
             if re.match(r"^\d{1,2}\.\d{1,2}$", str(i)) and v:
                 m[i] = 1
         out[k] = m
+    # другие предметы (SQL, Blender, нейросети): отметки вида "sql:1.2" и выбранный предмет
+    a, b = old.get("subj") if isinstance(old.get("subj"), dict) else {}, new.get("subj") if isinstance(new.get("subj"), dict) else {}
+    m = {i: 1 for i, v in a.items() if SUBJ_KEY.match(str(i)) and v}
+    for i, v in b.items():
+        if v and SUBJ_KEY.match(str(i)) and len(m) < 400:
+            m[i] = 1
+    out["subj"] = m
+    if new.get("subject") in SUBJECTS:
+        out["subject"] = new["subject"]
+    elif old.get("subject") not in SUBJECTS:
+        out.pop("subject", None)
     sa, sb = old.get("streak") if isinstance(old.get("streak"), dict) else {}, new.get("streak") if isinstance(new.get("streak"), dict) else {}
     pick = sa if str(sa.get("last", "")) >= str(sb.get("last", "")) else sb
     out["streak"] = {"last": str(pick.get("last", ""))[:10], "n": int(pick.get("n", 0) or 0) if isinstance(pick.get("n", 0), (int, float)) else 0,
@@ -368,7 +381,7 @@ async def t_users(req):
         except Exception:
             p = {}
         out.append({"nick": nick, "fio": fio, "group": grp, "created": cr, "updated": up, "email": em or "",
-                    "passed": sorted((p.get("passed") or {}).keys()), "done": sorted((p.get("done") or {}).keys()),
+                    "passed": sorted((p.get("passed") or {}).keys()), "done": sorted((p.get("done") or {}).keys()), "subj": sorted((p.get("subj") or {}).keys()) if isinstance(p.get("subj"), dict) else [], "subject": p.get("subject", ""),
                     "streak": (p.get("streak") or {}).get("n", 0), "sus": (p.get("sus") or {}).get("n", 0)})
     return web.json_response({"ok": True, "users": out})
 
@@ -1172,6 +1185,8 @@ BOARDS = {
     "maze": ("Лабиринт", "desc", "очк.", (1, 500)),
     "barrels": ("Скелет и бочки (тренировка)", "asc", "с", (12, 75)),
     "skull": ("Убеги от скелета", "asc", "с", (10, 3600)),
+    "chick": ("Пернатый бой", "desc", "очк.", (10, 200000)),
+    "dungeon": ("Подземелье багов", "desc", "очк.", (50, 20000)),
     "race": ("Гонка по Python", "asc", "с", None),
     "boss": ("Босс-арена: урон за бой", "desc", "урона", None),
 }

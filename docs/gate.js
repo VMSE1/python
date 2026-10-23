@@ -24,7 +24,7 @@
   function offBtn() { return offline ? '<p class="m">Сервер сейчас не отвечает.</p><button type="button" class="lk" id="skip">Продолжить без входа</button>' : ""; }
   function bindOff() { var b = $("skip"); if (b) b.onclick = close; }
   function close() { el.remove(); st.remove(); document.documentElement.style.overflow = ""; }
-  function ok() { location.reload(); }
+  function ok() { try { localStorage.setItem("pickSubj", "1"); } catch (e) {} location.reload(); } /* после входа сайт покажет выбор предмета */
   /* после слишком многих неверных паролей сервер просит подождать: показываем обратный отсчёт и держим кнопку выключенной */
   function cool(b, sec, label) {
     var t = setInterval(function () { sec--; if (!document.body.contains(b)) { clearInterval(t); return; } if (sec <= 0) { clearInterval(t); b.disabled = false; b.textContent = label; var e = $("ger"); if (e) e.textContent = ""; } else b.textContent = "Подожди " + sec + " с"; }, 1000);

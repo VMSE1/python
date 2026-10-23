@@ -23,6 +23,8 @@ var PIX = {
   doc: ["................", "..KKKKKKKKK.....", "..KWWWWWWKK.....", "..KWWWWWWKWK....", "..KWBBBBWKKKK...", "..KWWWWWWWWWK...", "..KWBBBBBBBWK...", "..KWWWWWWWWWK...", "..KWBBBBBBBWK...", "..KWWWWWWWWWK...", "..KWBBBBBWWWK...", "..KWWWWWWWWWK...", "..KKKKKKKKKKK...", "................", "................", "................"],
   check: ["................", "............KK..", "...........KWK..", "..........KWK...", ".........KWK....", ".KK.....KWK.....", ".KWK...KWK......", "..KWK.KWK.......", "...KWKWK........", "....KWK.........", ".....K..........", "................", "................", "................", "................", "................"],
   video: ["................", ".KKKKKKKKKKKKKK.", ".KBBBBBBBBBBBBK.", ".KBBYBBBBBBBBBK.", ".KBBYYBBBBBBBBK.", ".KBBYYYBBBBBBBK.", ".KBBYYYYBBBBBBK.", ".KBBYYYBBBBBBBK.", ".KBBYYBBBBBBBBK.", ".KBBYBBBBBBBBBK.", ".KBBBBBBBBBBBBK.", ".KKKKKKKKKKKKKK.", "......KKKK......", ".....KKKKKK.....", "................", "................"],
+  books: ["................", "..KKKKKKKKKKKK..", "..KRRRRRRRRRRK..", "..KRWWWWWWWWRK..", "..KKKKKKKKKKKK..", ".KKKKKKKKKKKK...", ".KLLLLLLLLLLK...", ".KLWWWWWWWWLK...", ".KKKKKKKKKKKK...", "...KKKKKKKKKKKK.", "...KNNNNNNNNNNK.", "...KNWWWWWWWWNK.", "...KKKKKKKKKKKK.", "................", "................", "................"],
+  cube: ["................", "......KKKK......", "....KKLLLLKK....", "..KKLLLLLLLLKK..", ".KLLLLLLLLLLLLK.", ".KBBLLLLLLLLYYK.", ".KBBBBLLLLYYYYK.", ".KBBBBBBYYYYYYK.", ".KBBBBBBYYYYYYK.", ".KBBBBBBYYYYYYK.", ".KBBBBBBYYYYYYK.", "..KKBBBBYYYYKK..", "....KKBBYYKK....", "......KKKK......", "................", "................"],
   win: ["................", ".KKKKKKKKKKKKKK.", ".KBBBBBBBBBBBBK.", ".KBWBBBBBBBBBBK.", ".KGGGGGGGGGGGGK.", ".KGWWWWWWWWWWGK.", ".KGWWWWWWWWWWGK.", ".KGWWWWWWWWWWGK.", ".KGWWWWWWWWWWGK.", ".KGGGGGGGGGGGGK.", ".KKKKKKKKKKKKKK.", "................", "................", "................", "................", "................"]
 };
 function pix(name, cls) {
@@ -48,7 +50,8 @@ try { if (window.top !== window.self) { document.documentElement.style.display =
 function isTeacher() { try { return !!localStorage.getItem("teacher"); } catch (e) { return false; } }
 var PAGES = {
   "tasks.html": ["Задания", "pc"], "theory.html": ["Теория", "folder"], "quiz.html": ["Квизы", "book"],
-  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "video.html": ["Видеоразборы", "video"], "leaders.html": ["Таблица лидеров", "bolt"], "teacher.html": ["Кабинет учителя", "key"], "account.html": ["Мой профиль", "user"], "students.html": ["Ученики на сервере", "user"], "live.html": ["Онлайн-игра", "bolt"], "run.html": ["Убеги от скелета", "skull"], "race.html": ["Гонка по Python", "bolt"]
+  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "video.html": ["Видеоразборы", "video"], "leaders.html": ["Таблица лидеров", "bolt"], "teacher.html": ["Кабинет учителя", "key"], "account.html": ["Мой профиль", "user"], "students.html": ["Ученики на сервере", "user"], "live.html": ["Онлайн-игра", "bolt"], "run.html": ["Убеги от скелета", "skull"], "race.html": ["Гонка по Python", "bolt"],
+  "learn.html": ["Предметы", "books"], "arcade.html": ["Аркада", "skull"]
 };
 function layout(active, title) {
   var desk = active === "desk", pg = PAGES[active] || ["Окно", "win"];
@@ -57,7 +60,7 @@ function layout(active, title) {
   if (!desk) {
     var main = document.querySelector("main.wrap");
     if (main) {
-      var ttl = "C:\\Python\\" + (title || pg[0]);
+      var ttl = "C:\\" + (window.WIN_ROOT || "Python") + "\\" + (title || pg[0]);
       main.innerHTML = '<div class="tbar">' + pix(pg[1]) + '<span class="ti">' + esc(ttl) + '</span>' +
         '<a class="wb" id="wBack" href="index.html" title="Назад">&#9664;<span> Назад</span></a>' +
         '<a class="wb" href="index.html" title="Закрыть окно и вернуться на рабочий стол">&#10005;<span> Закрыть</span></a></div><div class="in">' + main.innerHTML + "</div>";
@@ -67,7 +70,7 @@ function layout(active, title) {
       };
     }
   }
-  var items = [["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"], ["video.html", "Видеоразборы", "video"], ["live.html", "Онлайн-игра", "bolt"], ["race.html", "Гонка по Python", "bolt"], ["leaders.html", "Таблица лидеров", "bolt"], ["account.html", "Мой профиль", "user"]];
+  var items = [["learn.html", "Предметы", "books"], ["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"], ["video.html", "Видеоразборы", "video"], ["live.html", "Онлайн-игра", "bolt"], ["race.html", "Гонка по Python", "bolt"], ["arcade.html", "Аркада", "skull"], ["leaders.html", "Таблица лидеров", "bolt"], ["account.html", "Мой профиль", "user"]];
   /* ученикам вход для учителя не показываем: учитель открывает teacher.html по адресу, после входа пункты появляются */
   if (teacher) { items.push(["teacher.html", "Кабинет учителя", "key"]); items.push(["students.html", "Ученики на сервере", "user"]); }
   var menu = items.map(function (x) { return '<li><a href="' + x[0] + '">' + pix(x[2]) + x[1] + "</a></li>"; }).join("") +
@@ -336,4 +339,24 @@ function fetchIssues(label, cb, fail) {
     buf = (buf + e.key).slice(-CODE.length);
     if (buf === CODE) { buf = ""; go(); }
   });
+})();
+
+/* Выбор предмета (Python, SQL, Blender, нейросети): окно появляется после входа или регистрации и у тех, кто вошёл, но ещё не выбирал.
+   Само окно лежит в subjects.js. askSubject() открывает его вручную. */
+window.askSubject = function () {
+  if (window.__noPick) return; /* автотесты старых сценариев */
+  function go() { if (window.Subject) Subject.pick(); }
+  if (window.Subject) go(); else { var s = document.createElement("script"); s.src = "subjects.js"; s.onload = go; document.head.appendChild(s); }
+};
+(function () {
+  if (typeof document === "undefined") return;
+  var path = location.pathname.split("/").pop() || "index.html";
+  if (/^(teacher|students|race|boss)\.html$/.test(path)) return;
+  function boot() {
+    var flag = "", subj = "", acct = null;
+    try { flag = localStorage.getItem("pickSubj") || ""; subj = localStorage.getItem("subject") || ""; acct = JSON.parse(localStorage.getItem("acct") || "null"); } catch (e) { return; }
+    try { if (sessionStorage.getItem("tkey")) return; } catch (e) {}
+    if (flag || (acct && acct.token && !subj)) setTimeout(function () { if (!document.getElementById("gate") && !document.getElementById("notice")) window.askSubject(); }, 300);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 })();

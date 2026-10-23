@@ -1,0 +1,19 @@
+{
+ "title": "Связи между таблицами: JOIN",
+ "goal": "Соединишь две таблицы и узнаешь, чьи это оценки.",
+ "db": "school",
+ "theory": [
+  {"t": "Зачем две таблицы", "x": "В `grades` нет имён, только `student_id`. Это как номер в журнале: по номеру находим ученика в `students`. Так данные не повторяются: имя хранится в одном месте."},
+  {"t": "JOIN ... ON", "x": "`JOIN` склеивает строки двух таблиц. После `ON` пишем, по какому правилу: номер ученика в оценках равен id ученика.", "c": "SELECT students.name, grades.mark\nFROM grades\nJOIN students ON students.id = grades.student_id;"},
+  {"t": "Короткие имена таблиц", "x": "Чтобы не писать длинные названия, таблицам дают псевдонимы: `grades g`, `students s`. Тогда пишем `s.name`, `g.mark`.", "c": "SELECT s.name, g.subject, g.mark\nFROM grades g\nJOIN students s ON s.id = g.student_id;"},
+  {"t": "JOIN + GROUP BY", "x": "Склеенную таблицу можно группировать так же, как обычную. Например, посчитать среднюю оценку каждого ученика.", "c": "SELECT s.name, ROUND(AVG(g.mark), 2)\nFROM grades g JOIN students s ON s.id = g.student_id\nGROUP BY s.name;"},
+  {"t": "LEFT JOIN — никого не потерять", "k": "warn", "x": "Обычный JOIN выбросит учеников, у которых нет оценок. `LEFT JOIN` оставит всех из левой таблицы, а на месте оценок будет NULL.", "c": "SELECT s.name, g.mark\nFROM students s\nLEFT JOIN grades g ON g.student_id = s.id;"}
+ ],
+ "tasks": [
+  {"type": "sql", "title": "Чьи оценки по информатике", "text": "Выведи имя ученика и оценку для всех оценок по предмету «Информатика».", "hint": "JOIN двух таблиц и `WHERE g.subject = 'Информатика'`.", "solution": "SELECT s.name, g.mark FROM grades g JOIN students s ON s.id = g.student_id WHERE g.subject = 'Информатика';"},
+  {"type": "sql", "title": "Средняя у каждого", "text": "Для каждого ученика, у которого есть оценки, выведи имя и среднюю оценку, округлённую до двух знаков.", "hint": "JOIN, затем `GROUP BY s.name` и `ROUND(AVG(g.mark), 2)`.", "solution": "SELECT s.name, ROUND(AVG(g.mark), 2) FROM grades g JOIN students s ON s.id = g.student_id GROUP BY s.name;"},
+  {"type": "sql", "title": "Лучший ученик", "text": "Выведи имя и среднюю оценку (два знака) одного ученика с самой высокой средней.", "hint": "К прошлому запросу добавь сортировку по средней по убыванию и `LIMIT 1`.", "solution": "SELECT s.name, ROUND(AVG(g.mark), 2) AS avg_mark FROM grades g JOIN students s ON s.id = g.student_id GROUP BY s.name ORDER BY avg_mark DESC LIMIT 1;", "ordered": true},
+  {"type": "quiz", "q": "Чем LEFT JOIN отличается от обычного JOIN?", "o": ["Он быстрее", "Он оставляет все строки левой таблицы, даже без пары", "Он соединяет таблицы справа налево", "Ничем"], "a": 1, "why": "У строк без пары в правой таблице будут NULL, но сами строки не пропадут."},
+  {"type": "sql", "title": "Пока без оценок", "text": "Найди имена учеников, у которых нет ни одной оценки.", "hint": "`students s LEFT JOIN grades g ON ...` и `WHERE g.id IS NULL`.", "solution": "SELECT s.name FROM students s LEFT JOIN grades g ON g.student_id = s.id WHERE g.id IS NULL;"}
+ ]
+}

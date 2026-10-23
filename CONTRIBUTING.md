@@ -33,3 +33,13 @@
 ## Проекты учеников
 
 Через Issue «Показать свой проект» или Pull Request в папку `projects/ник/` (см. `projects/README.md`).
+
+## Как добавить урок другого предмета (SQL, Blender, нейросети)
+
+Уроки лежат в `subjects/<предмет>/lessonN.json`, описание предмета в `subjects/<предмет>/subject.json`. Учебная база для SQL: `subjects/sql/db/*.sql`.
+
+1. Скопируй соседний `lessonN.json` и поправь: `title`, `goal`, `theory` (плашки), `tasks`.
+2. Типы заданий: `sql` (поле `solution` — эталон, на сайт не попадает; `ordered: true` — важен порядок строк; `names: true` — важны названия столбцов; `verify` — запрос для проверки после INSERT/UPDATE/DELETE), `quiz`, `steps`, `keys` (тренажёр горячих клавиш), `neuron`.
+3. Проверь: `python tools/subjects.py --check` (эталонные запросы выполняются, номера ответов квизов проверяются).
+4. Собери: `python tools/subjects.py` (или `python tools/build_site.py`; на GitHub Pages это делается само).
+5. Новый предмет: добавь папку, строку в `ORDER` (`tools/subjects.py`), в `LIST` (`docs/subjects.js`) и ключ в `SUBJECTS`/`SUBJ_KEY` (`server/app.py`).

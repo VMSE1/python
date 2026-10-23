@@ -1,0 +1,22 @@
+{
+ "title": "Фильтры: WHERE, сортировка и LIMIT",
+ "goal": "Научишься выбирать только нужные строки и расставлять их по порядку.",
+ "db": "school",
+ "theory": [
+  {"t": "WHERE — сито для строк", "x": "`WHERE` пропускает в ответ только строки, для которых условие верно. Как сито: всё лишнее остаётся сверху.", "c": "SELECT name FROM students WHERE age = 15;"},
+  {"t": "Сравнения", "x": "`=` равно, `<>` не равно, `>` `<` `>=` `<=` больше и меньше. Текст пишут в одинарных кавычках: `'Москва'`.", "c": "SELECT * FROM students WHERE city = 'Казань';"},
+  {"t": "Несколько условий: AND и OR", "x": "`AND` — должны выполняться оба условия. `OR` — хватит одного. Если смешиваешь их, ставь скобки.", "c": "SELECT name FROM students\nWHERE age >= 16 AND city = 'Москва';"},
+  {"t": "Похоже на: LIKE", "x": "`LIKE` ищет по шаблону. Знак `%` значит «любые символы». `'10%'` — всё, что начинается на 10.", "c": "SELECT name, class FROM students WHERE class LIKE '10%';"},
+  {"t": "Пусто: NULL", "k": "warn", "x": "Если в ячейке ничего нет, там `NULL`. Сравнивать с ним через `=` нельзя: пиши `IS NULL` или `IS NOT NULL`.", "c": "SELECT name FROM students WHERE club IS NULL;"},
+  {"t": "Порядок: ORDER BY и LIMIT", "x": "`ORDER BY столбец` сортирует по возрастанию, `DESC` — по убыванию. Можно указать второй столбец: он решает, если первый совпал. `LIMIT 3` оставляет первые три строки.", "c": "SELECT name, age FROM students\nORDER BY age DESC, name\nLIMIT 3;"}
+ ],
+ "tasks": [
+  {"type": "sql", "title": "Только Москва", "text": "Выведи все столбцы учеников, которые живут в городе Москва.", "hint": "`WHERE city = 'Москва'` — не забудь одинарные кавычки.", "solution": "SELECT * FROM students WHERE city = 'Москва';"},
+  {"type": "sql", "title": "Старше 15", "text": "Выведи имя и возраст учеников, которым больше 15 лет.", "hint": "Больше — это знак `>`.", "solution": "SELECT name, age FROM students WHERE age > 15;"},
+  {"type": "sql", "title": "Десятиклассники из Казани", "text": "Выведи имена учеников любых 10-х классов (10А, 10Б), которые живут в Казани.", "hint": "Два условия через AND. Класс можно проверить через `LIKE '10%'`.", "solution": "SELECT name FROM students WHERE class LIKE '10%' AND city = 'Казань';"},
+  {"type": "sql", "title": "От старших к младшим", "text": "Выведи имя и возраст всех учеников: сначала самые старшие. Если возраст одинаковый, по имени от А до Я.", "hint": "`ORDER BY age DESC, name`", "solution": "SELECT name, age FROM students ORDER BY age DESC, name;", "ordered": true},
+  {"type": "sql", "title": "Трое самых младших", "text": "Выведи имя и возраст трёх самых младших учеников. При одинаковом возрасте сортируй по имени.", "hint": "Сортировка по возрастанию и `LIMIT 3`.", "solution": "SELECT name, age FROM students ORDER BY age, name LIMIT 3;", "ordered": true},
+  {"type": "quiz", "q": "Как найти учеников, у которых не указан кружок (`club`)?", "o": ["WHERE club = NULL", "WHERE club IS NULL", "WHERE club = ''", "WHERE NOT club"], "a": 1, "why": "С NULL сравнивают только через IS NULL. `= NULL` всегда даёт «не знаю», и строк не будет."},
+  {"type": "sql", "title": "Без кружка", "text": "Выведи имена учеников, у которых не указан кружок.", "hint": "`WHERE club IS NULL`", "solution": "SELECT name FROM students WHERE club IS NULL;"}
+ ]
+}
