@@ -1,0 +1,53 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com https://course.2-27-53-182.sslip.io wss://course.2-27-53-182.sslip.io; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Шпион</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="live.css"><link rel="stylesheet" href="boss.css"></head><body>
+<main class="wrap">
+<div class="crumbs">Шпион</div>
+<div id="app" class="bs" aria-live="polite"></div>
+</main>
+<style>
+.sp pre{margin:8px 0;padding:12px;background:#1b1b2b;color:#e8e8f4;font:500 clamp(14px,3.6vw,19px)/1.5 var(--mono);overflow:auto;white-space:pre-wrap;border:3px solid #000}
+.sp .say{display:flex;gap:8px;flex-wrap:wrap}.sp .say input{flex:1;min-width:200px;font:500 16px var(--mono);padding:12px;border:3px solid #000}
+.sp .votes{display:grid;gap:8px;margin-top:10px}
+.sp .votes .vr{display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:3px solid #000;background:#fff;padding:8px 12px}
+.sp .votes .vr.on{background:#ffe9a8}.sp .votes .vr span{flex:1;min-width:160px;font:500 15px var(--mono)}
+.sp .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sp .win{font:400 clamp(15px,3.6vw,24px)/1.5 var(--px);margin:8px 0}
+.sp .chips{display:flex;gap:6px;flex-wrap:wrap}.sp .chips i{font-style:normal;border:2px solid #000;background:#fff7d6;padding:3px 9px;font:600 14px var(--mono)}
+@media(max-width:620px){.sp .two{grid-template-columns:1fr}}
+</style>
+<script src="site.js"></script><script src="config.js"></script><script src="net.js"></script>
+<script>
+layout("spy.html","Шпион");
+(function(){
+var app=document.getElementById("app"),S=null,busy=false,joined=false,lastSig="";
+function esc(t){return String(t==null?"":t).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function timer(v){return v.left?'<div class="m">Осталось: <b><span id="tm">'+v.left+'</span> с</b></div>':""}
+function board(v){if(!v.board||!v.board.length)return"";return '<div class="rate"><div class="bhd" style="font-size:14px;margin:0 0 6px">Очки</div>'+v.board.slice(0,12).map(function(r){return '<div class="rw'+(v.me&&r.nick===v.me.nick?" me":"")+'"><b>'+esc(r.nick)+'</b><span>'+r.score+'</span></div>'}).join("")+'</div>'}
+function chips(v){return '<div class="chips">'+(v.players||[]).map(function(n){return '<i>'+esc(n)+'</i>'}).join("")+'</div>'}
+function render(v){
+ var ph=v.phase,h='<div class="sp">';
+ if(ph==="idle"||ph==="end"){h+='<div class="bhd">'+(ph==="end"?"Игра окончена":"Шпиона сейчас нет")+'</div><p class="m">'+(ph==="end"?"Спасибо за игру!":"Учитель ещё не запустил игру. Эта страница сама оживёт, когда игра начнётся.")+'</p>'+(ph==="end"?board(v):"")}
+ else if(ph==="intro"||ph==="lobby"){h+='<div class="bhd">Шпион среди нас</div><p>У всех на экране программа на Python. У большинства она <b>одинаковая</b>, а у шпиона <b>чуть другая</b>. Никто не знает, шпион он или нет. Опиши свою программу так, чтобы тебя не раскусили, и найди тех, чьё описание не сходится.</p><p class="m">В игре: <b>'+v.n+'</b>. Жди сигнала учителя.</p>'+chips(v)}
+ else if(!v.joined){h+='<div class="bhd">Раунд идёт</div><p class="m">Ты присоединишься со следующего раунда. Пока смотри очки.</p>'+board(v)}
+ else if(ph==="describe"){h+='<div class="bhd">Раунд '+v.round+': опиши программу</div>'+timer(v)+'<pre>'+esc(v.code)+'</pre>'+(v.said?'<div class="box fin">Описание отправлено. Ждём остальных ('+v.sent+' из '+v.n+').</div>':'<p class="m">Что делает твоя программа? Одной фразой, своими словами. Код дословно писать нельзя. Не выдай лишнего: вдруг ты шпион.</p><div class="say"><input id="tx" maxlength="70" placeholder="например: считает что-то в цикле" autocomplete="off"><button class="btn go" id="sd" type="button">Отправить</button></div>')+'<div class="bad" id="er" role="alert"></div>'}
+ else if(ph==="vote"){h+='<div class="bhd">Кто шпион?</div>'+timer(v)+'<p class="m">Прочитай описания. Чья программа звучит иначе? Проголосуй. Проголосовало: '+v.votes_in+' из '+v.n+'.</p><details><summary class="m">Моя программа</summary><pre>'+esc(v.code)+'</pre></details><div class="votes">'+(v.says||[]).map(function(s){var me=v.me&&s.nick===v.me.nick;return '<div class="vr'+(v.my_vote===s.nick?" on":"")+'"><b>'+esc(s.nick)+(me?" (ты)":"")+'</b><span>'+esc(s.text)+'</span>'+(me?"":'<button class="btn sm" data-v="'+esc(s.nick)+'" type="button">'+(v.my_vote===s.nick?"Твой голос":"Это шпион")+'</button>')+'</div>'}).join("")+'</div><div class="bad" id="er" role="alert"></div>'}
+ else if(ph==="guess"){if(v.guess){h+='<div class="bhd">Тебя раскрыли!</div>'+timer(v)+'<p>Ты шпион, и тебя нашли. Но есть шанс победить: угадай, что выводит программа большинства.</p><pre>'+esc(v.code)+'</pre><div class="opts">'+v.guess.options.map(function(o,i){return '<button type="button" data-g="'+i+'">'+esc(o)+'</button>'}).join("")+'</div>'}
+  else h+='<div class="bhd">Шпиона нашли!</div>'+timer(v)+'<p>Это <b>'+esc(v.caught)+'</b>. Но у него есть последний шанс: угадать, что выводит программа большинства. Ждём…</p>'}
+ else if(ph==="result"){var r=v.result;h+='<div class="bhd">Итог раунда '+v.round+'</div><div class="win" style="color:'+(r.spy_wins?"#b00020":"#0a7a2a")+'">'+(r.spy_wins?"Шпион победил!":"Мирные победили!")+'</div><p>Шпион: <b>'+r.spies.map(esc).join(", ")+'</b>'+(r.caught?" (его нашли"+(r.guessed?", но он угадал вывод":"")+")":" (его не нашли"+(r.tie?", голоса разделились":"")+")")+(r.you?'. Ты был: <b>'+(r.you==="spy"?"шпионом":"мирным")+'</b>':"")+'.</p><div class="two"><div><b>Программа большинства</b><pre>'+esc(r.civ_code)+'</pre><div class="m">Вывод: <b>'+esc(r.civ_out)+'</b></div></div><div><b>Программа шпиона</b><pre>'+esc(r.spy_code)+'</pre><div class="m">Вывод: <b>'+esc(r.spy_out)+'</b></div></div></div><p class="m">Голоса: '+(Object.keys(r.votes||{}).map(function(k){return esc(k)+" — "+r.votes[k]}).join(", ")||"никто не голосовал")+'</p>'+board(v)+'<p class="m">Жди следующий раунд от учителя.</p>'}
+ h+='</div>';
+ var sg=JSON.stringify([ph,v.round,v.joined,v.said,v.voted,v.sent,v.votes_in,v.n,v.my_vote,v.caught,v.guess&&1,v.board,(v.says||[]).length]);
+ if(sg===lastSig&&document.getElementById("tm")){document.getElementById("tm").textContent=v.left;return}
+ var keep=document.getElementById("tx")?document.getElementById("tx").value:"";lastSig=sg;app.innerHTML=h;var t=document.getElementById("tx");if(t&&keep){t.value=keep;t.focus()}
+ bind()}
+function bind(){
+ var sd=document.getElementById("sd");if(sd)sd.onclick=function(){act("say",{text:document.getElementById("tx").value})};
+ var tx=document.getElementById("tx");if(tx)tx.onkeydown=function(e){if(e.key==="Enter")act("say",{text:tx.value})};
+ Array.prototype.forEach.call(app.querySelectorAll("[data-v]"),function(b){b.onclick=function(){act("vote",{nick:b.getAttribute("data-v")})}});
+ Array.prototype.forEach.call(app.querySelectorAll("[data-g]"),function(b){b.onclick=function(){act("guess",{i:+b.getAttribute("data-g")})}})}
+function act(w,body){Net.req("POST","/api/spy/"+w,body).then(function(j){if(j.error){var e=document.getElementById("er");if(e)e.textContent=j.error;return}render(j)}).catch(function(e){var er=document.getElementById("er");if(er)er.textContent=e.message})}
+function poll(){if(busy)return;busy=true;var go=function(){return Net.req("GET","/api/spy/state").then(function(j){if(j&&j.ok)render(j)})};
+ (joined?Promise.resolve():Net.req("POST","/api/spy/join",{}).then(function(){joined=true}).catch(function(){})).then(go).catch(function(){}).finally(function(){busy=false})}
+if(!Net.on)app.innerHTML='<div class="box"><p>Сервер пока не подключён.</p></div>';
+else if(!Net.user())app.innerHTML='<div class="box"><p>Войди, чтобы играть.</p></div>';
+else{poll();setInterval(function(){if(!document.hidden)poll()},1500)}
+})();
+</script></body></html>

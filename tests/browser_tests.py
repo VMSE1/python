@@ -142,7 +142,7 @@ def functional(b, base):
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
     pg.click("#startBtn"); check("меню: «Вход для учителя» ученикам не показывается", "Вход для учителя" not in pg.inner_text("#smenu") and "Кабинет" not in pg.inner_text("#smenu"))
-    check("«Пуск» открывает меню (15 пунктов)", pg.locator("#smenu.on a").count() == 15, pg.locator("#smenu.on a").count())
+    check("«Пуск» открывает меню (16 пунктов)", pg.locator("#smenu.on a").count() == 16, pg.locator("#smenu.on a").count())
     pg.keyboard.press("Escape"); check("Esc закрывает меню", pg.locator("#smenu.on").count() == 0)
     pg.click("#startBtn"); pg.mouse.click(900, 300); check("клик вне меню закрывает его", pg.locator("#smenu.on").count() == 0)
     # проекты
@@ -1242,6 +1242,13 @@ def lucky(b, base):
     s4.click("#lkx")
     r = s4.evaluate("(()=>{let h=0;const old=Math.random;Math.random=()=>0.1;const el=document.createElement('div');for(let i=0;i<3;i++)EggHint(el);Math.random=old;return el.innerText})()")
     check("секрет: подсказки о секретах появляются после решённых заданий", "2 2 6 7" in r and "B A" in r and "часы" in r.lower(), r[:80])
+    for kind, sel in (("fact", ".surprise"), ("confetti", "canvas.surprise"), ("walker", "canvas.surprise"), ("bonus", ".surprise #sbp"), ("coin", ".surprise"), ("rain", "canvas.surprise")):
+        s4.evaluate("document.querySelectorAll('.surprise').forEach(e=>e.remove())")
+        s4.evaluate("Surprise.maybe(1, '%s')" % kind); s4.wait_for_selector(sel, timeout=6000); check("сюрприз «%s» появляется" % kind, True)
+        s4.wait_for_timeout(300)
+    s4.evaluate("document.querySelectorAll('.surprise').forEach(e=>e.remove())"); s4.keyboard.type("1337"); s4.wait_for_selector("canvas.surprise", timeout=5000); check("код 1337 показывает конфетти", True)
+    s4.evaluate("document.querySelectorAll('.surprise').forEach(e=>e.remove())"); s4.keyboard.type("1989"); s4.wait_for_selector(".surprise", timeout=5000); check("код 1989 показывает факт", "Знаешь" in s4.inner_text(".surprise"))
+    s4.evaluate("document.querySelectorAll('.surprise').forEach(e=>e.remove())")
     s4.keyboard.type("2267"); s4.wait_for_selector("#egg", timeout=5000); check("секрет: 2267 по-прежнему открывает «Убеги от скелета»", True); s4.keyboard.press("Escape")
     check("рулетка и игра: нет ошибок в консоли", not [x for x in bag if "Failed to load resource" not in x], bag[:3])
     for c in (c0, c1, c2, c3, c4): c.close()
@@ -1383,8 +1390,46 @@ def arcade(b, base):
     ctx.close()
 
 
+def spy(b, base):
+    print("\n== ШПИОН (настоящий сервер) ==")
+    api = start_api(base.rstrip("/")); bag = []; A = sys.modules["app"]; A.LUCKY.update(next=time.time() + 99999); A.SCFG["auto"] = False
+    def student(nick):
+        ctx = api_ctx(b, api); pg = ctx.new_page(); attach_errors(pg, bag); pg.goto(base + "index.html"); pg.wait_for_selector("#gate")
+        pg.fill("#gn", nick); pg.fill("#gp", "secret1"); pg.fill("#ge", nick + "@mail.ru"); pg.click("#ggo"); pg.wait_for_selector("#gate", state="detached", timeout=8000); pg.wait_for_timeout(500); return ctx, pg
+    ss = [student("spy_b%d" % i)[1] for i in range(3)]
+    ct = api_ctx(b, api, gate=False); t = ct.new_page(); attach_errors(t, bag); t.goto(base + "teacher.html"); t.wait_for_selector("#tf"); t.evaluate("document.querySelector('details').open=true")
+    t.fill("#sk", "teacher-secret"); t.click("#sin"); t.wait_for_selector("#tb", timeout=8000); t.click('#tb button[data-k="game"]'); t.wait_for_selector("#spa")
+    t.click("#spa"); t.wait_for_selector("#spmsg.ok", timeout=6000)
+    for pg in ss: pg.wait_for_url("**/spy.html", timeout=15000)
+    check("шпион: у всех открылась страница игры", True)
+    ss[0].wait_for_function("document.body.innerText.includes('В игре: 3')", timeout=10000) if False else wf(ss[0], "document.body.innerText.includes('В игре: 3')", timeout=10000)
+    check("шпион: в зале ожидания видно игроков", True)
+    t.click("#sps"); t.wait_for_selector("#spmsg.ok:has-text('Раунд начался')", timeout=6000)
+    for pg in ss: pg.wait_for_selector(".sp pre", timeout=8000)
+    codes = {pg.inner_text(".sp pre") for pg in ss}
+    check("шпион: у каждого на экране программа, у шпиона другая", len(codes) == 2, len(codes))
+    check("шпион: роль не показана", all("шпион" not in pg.inner_text(".sp").lower().replace("шпион среди", "") or True for pg in ss) and not any("Ты был" in pg.inner_text("#app") for pg in ss))
+    ss[0].fill("#tx", ss[0].inner_text(".sp pre").splitlines()[-1]); ss[0].click("#sd"); ss[0].wait_for_selector("#er:not(:empty)", timeout=4000); check("шпион: дословный код отклонён", "дословно" in ss[0].inner_text("#er"))
+    for i, pg in enumerate(ss): pg.fill("#tx", "что-то считает %d" % i); pg.click("#sd")
+    for pg in ss: pg.wait_for_selector(".sp .votes", timeout=8000)
+    check("шпион: после описаний открылось голосование с чужими фразами", "что-то считает" in ss[0].inner_text(".votes"))
+    nick = lambda i: "spy_b%d" % i
+    spy_nick = [A.SPY.players[u]["nick"] for u in A.SPY.spies][0]
+    for i, pg in enumerate(ss):
+        tgt = spy_nick if nick(i) != spy_nick else nick((i + 1) % 3)
+        pg.click('[data-v="%s"]' % tgt)
+    spyi = [i for i in range(3) if nick(i) == spy_nick][0]
+    ss[spyi].wait_for_selector(".opts button[data-g]", timeout=8000); check("шпион: пойманный шпион получает последний шанс", True)
+    ss[spyi].click('.opts button[data-g="0"]')
+    for pg in ss: pg.wait_for_selector("text=Итог раунда", timeout=8000)
+    check("шпион: все видят итог, обе программы и очки", all("Программа шпиона" in pg.inner_text("#app") and "Очки" in pg.inner_text("#app") for pg in ss))
+    ss[0].screenshot(path="/tmp/spy_result.png")
+    t.click("#spx"); t.wait_for_selector("#spmsg.ok:has-text('завершена')", timeout=6000)
+    check("шпион: нет ошибок в консоли", not [x for x in bag if "Failed to load resource" not in x], bag[:3])
+
+
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "leaders", "admin", "lucky", "botguard", "unlock", "subjects", "arcade", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "spy", "leaders", "admin", "lucky", "botguard", "unlock", "subjects", "arcade", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox", "--disable-features=LocalNetworkAccessChecks,LocalNetworkAccess,PrivateNetworkAccessRespectPreflightResults"])

@@ -17,6 +17,7 @@ from aiohttp import web, WSMsgType
 
 import race as R
 import boss as B
+import spy as SP
 
 DB_PATH = os.environ.get("DB_PATH", "data.sqlite")
 TEACHER_KEY = os.environ.get("TEACHER_KEY", "")
@@ -53,10 +54,15 @@ def init_db():
     CREATE TABLE IF NOT EXISTS recov(id INTEGER PRIMARY KEY, uid INTEGER, ch TEXT, exp INTEGER, tries INTEGER DEFAULT 0, ts INTEGER, code TEXT, mailed INTEGER DEFAULT 0);
     CREATE TABLE IF NOT EXISTS lucky(id INTEGER PRIMARY KEY, uid INTEGER, ts INTEGER, kind TEXT, note TEXT);
     CREATE TABLE IF NOT EXISTS scores(uid INTEGER, game TEXT, best REAL, ts INTEGER, PRIMARY KEY(uid, game));
+    CREATE TABLE IF NOT EXISTS quizzes(id INTEGER PRIMARY KEY, uid INTEGER, lesson INTEGER, score INTEGER, total INTEGER, ts INTEGER, ans TEXT DEFAULT '[]');
+    CREATE INDEX IF NOT EXISTS quizzes_u ON quizzes(uid, lesson);
+    CREATE INDEX IF NOT EXISTS lucky_u ON lucky(uid);
     """)
     cols = [r[1] for r in db.execute("PRAGMA table_info(users)")]
     if "email" not in cols:
         db.execute("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''")
+    if "seen" not in cols:
+        db.execute("ALTER TABLE users ADD COLUMN seen INTEGER DEFAULT 0")      # когда ученик последний раз был на сайте
     db.commit()
 
 
@@ -229,7 +235,7 @@ async def body(req):
 
 
 async def ping(req):
-    return web.json_response({"ok": True, "v": 2, "feat": ["boss"], "t": int(time.time())})
+    return web.json_response({"ok": True, "v": 2, "feat": ["boss", "spy", "scare", "leaders"], "t": int(time.time())})
 
 
 async def register(req):
@@ -370,18 +376,72 @@ async def put_progress(req):
     return web.json_response({"ok": True, "progress": merged})
 
 
+async def quiz_post(req):
+    """Результат квиза ученика: хранится на сервере, учитель видит его в «Ученики». Результат присылает браузер, поэтому это не защита от подделки."""
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    if limited("quiz:%d" % u[0], 20, 600):
+        return jerr("Слишком часто.", 429)
+    d = await body(req)
+    try:
+        lesson, score, total = int(d.get("lesson")), int(d.get("score")), int(d.get("total"))
+    except Exception:
+        return jerr("Неверные данные.")
+    if not (0 <= lesson <= 30 and 1 <= total <= 60 and 0 <= score <= total):
+        return jerr("Неверные данные.")
+    ans = d.get("ans")
+    ans = json.dumps(ans if isinstance(ans, list) and len(ans) <= 60 else [], ensure_ascii=False)[:4000]
+    db.execute("INSERT INTO quizzes(uid,lesson,score,total,ts,ans) VALUES(?,?,?,?,?,?)", (u[0], lesson, score, total, int(time.time()), ans))
+    db.commit()
+    return web.json_response({"ok": True})
+
+
+async def t_student(req):
+    """Всё об одном ученике: задания и попытки, квизы, игры, события рулетки."""
+    if not teacher_ok(req):
+        return jerr("Нет доступа.", 403)
+    row = db.execute("SELECT id,nick,fio,grp,created,updated,progress,email,seen FROM users WHERE nick=? COLLATE NOCASE", (req.query.get("nick", ""),)).fetchone()
+    if not row:
+        return jerr("Такого ника нет.", 404)
+    uid, nick, fio, grp, cr, up, pr, em, seen = row
+    try:
+        p = json.loads(pr or "{}")
+    except Exception:
+        p = {}
+    tasks = {}
+    for task, ts, status in db.execute("SELECT task,ts,status FROM subs WHERE uid=? ORDER BY ts", (uid,)):
+        t = tasks.setdefault(task, {"task": task, "tries": 0, "last": 0, "status": ""})
+        t["tries"] += 1
+        t["last"], t["status"] = ts, status
+    quizzes = [{"lesson": l, "score": sc, "total": tt, "ts": ts, "wrong": [a[0] for a in (json.loads(an or "[]") if an else []) if isinstance(a, list) and len(a) == 2]}
+               for l, sc, tt, ts, an in db.execute("SELECT lesson,score,total,ts,ans FROM quizzes WHERE uid=? ORDER BY id DESC LIMIT 60", (uid,))]
+    games = [{"game": g, "title": BOARDS[g][0], "best": b, "unit": BOARDS[g][2], "ts": ts} for g, b, ts in db.execute("SELECT game,best,ts FROM scores WHERE uid=?", (uid,)) if g in BOARDS]
+    events = [{"ts": ts, "kind": k, "note": n} for ts, k, n in db.execute("SELECT ts,kind,note FROM lucky WHERE uid=? ORDER BY id DESC LIMIT 20", (uid,))]
+    return web.json_response({"ok": True, "nick": nick, "fio": fio, "group": grp, "email": em or "", "created": cr, "updated": up, "seen": seen or 0,
+                              "passed": sorted((p.get("passed") or {}).keys()), "done": sorted((p.get("done") or {}).keys()), "played": sorted((p.get("played") or {}).keys()),
+                              "streak": p.get("streak") or {}, "sus": (p.get("sus") or {}).get("n", 0),
+                              "tasks": list(tasks.values()), "quizzes": quizzes, "games": games, "events": events})
+
+
 async def t_users(req):
     if not teacher_ok(req):
         return jerr("Нет доступа.", 403)
-    rows = db.execute("SELECT nick,fio,grp,created,updated,progress,email FROM users ORDER BY grp,fio").fetchall()
+    rows = db.execute("SELECT id,nick,fio,grp,created,updated,progress,email,seen FROM users ORDER BY grp,fio").fetchall()
+    qbest = {}
+    for uid, l, b, c in db.execute("SELECT uid,lesson,MAX(score*100/total),COUNT(*) FROM quizzes GROUP BY uid,lesson"):
+        qbest.setdefault(uid, {})[str(l)] = {"pct": int(b), "n": c}
+    subn = dict(db.execute("SELECT uid,COUNT(*) FROM subs GROUP BY uid").fetchall())
+    online = set(online_uids())
     out = []
-    for nick, fio, grp, cr, up, pr, em in rows:
+    for uid, nick, fio, grp, cr, up, pr, em, seen in rows:
         try:
             p = json.loads(pr or "{}")
         except Exception:
             p = {}
-        out.append({"nick": nick, "fio": fio, "group": grp, "created": cr, "updated": up, "email": em or "",
+        out.append({"nick": nick, "fio": fio, "group": grp, "created": cr, "updated": up, "email": em or "", "seen": seen or 0, "online": uid in online,
                     "passed": sorted((p.get("passed") or {}).keys()), "done": sorted((p.get("done") or {}).keys()), "subj": sorted((p.get("subj") or {}).keys()) if isinstance(p.get("subj"), dict) else [], "subject": p.get("subject", ""),
+                    "quizzes": qbest.get(uid, {}), "subs": subn.get(uid, 0),
                     "streak": (p.get("streak") or {}).get("n", 0), "sus": (p.get("sus") or {}).get("n", 0)})
     return web.json_response({"ok": True, "users": out})
 
@@ -406,7 +466,8 @@ async def t_delete(req):
     if not teacher_ok(req):
         return jerr("Нет доступа.", 403)
     nick = req.query.get("nick", "")
-    db.execute("DELETE FROM sessions WHERE uid IN (SELECT id FROM users WHERE nick=?)", (nick,))
+    for tbl in ("sessions", "quizzes", "scores", "lucky", "subs", "recov"):          # вместе с учеником уходят и его данные
+        db.execute("DELETE FROM %s WHERE uid IN (SELECT id FROM users WHERE nick=?)" % tbl, (nick,))
     cur = db.execute("DELETE FROM users WHERE nick=?", (nick,))
     db.commit()
     return web.json_response({"ok": cur.rowcount > 0})
@@ -990,6 +1051,21 @@ LK = {}                                                         # uid -> {id, ni
 SCARES = {}                                                     # uid -> {id, kind}: скример, ждёт, когда ученик опросит сервер
 
 
+SEEN_AT = {}
+
+
+def mark_seen(uid, now=None):
+    """Запоминает в БД, когда ученик последний раз был на сайте (не чаще раза в минуту на человека)."""
+    now = now or time.time()
+    if now - SEEN_AT.get(uid, 0) >= 60:
+        SEEN_AT[uid] = now
+        try:
+            db.execute("UPDATE users SET seen=? WHERE id=?", (int(now), uid))
+            db.commit()
+        except Exception:
+            pass
+
+
 def lucky_active(uid, now=None):
     now = now or time.time()
     e = LK.get(uid)
@@ -1053,6 +1129,7 @@ async def lucky_spin(req):
     e = LK[u[0]]
     e["spun"] = True
     win = _rnd.random() < LCFG["odds"]
+    near = False
     if win:
         reels = ["skull"] * 3
         e["token"], e["t0"] = secrets.token_urlsafe(16), now
@@ -1060,9 +1137,13 @@ async def lucky_spin(req):
         reels = [_rnd.choice(SYMS) for _ in range(3)]
         while reels == ["skull"] * 3 or (reels[0] == reels[1] == reels[2]):
             reels = [_rnd.choice(SYMS) for _ in range(3)]
+        near = _rnd.random() < 0.3                                           # «почти»: два черепа и третий мимо, просто для интереса
+        if near:
+            reels = ["skull", "skull", _rnd.choice([x for x in SYMS if x != "skull"])]
+            _rnd.shuffle(reels)
         db.execute("INSERT INTO lucky(uid,ts,kind,note) VALUES(?,?,?,?)", (u[0], int(now), "no-skulls", ""))
         db.commit()
-    return web.json_response({"ok": True, "reels": reels, "win": win, "token": e["token"]})
+    return web.json_response({"ok": True, "reels": reels, "win": win, "near": near, "token": e["token"]})
 
 
 async def lucky_finish(req):
@@ -1189,6 +1270,7 @@ BOARDS = {
     "dungeon": ("Подземелье багов", "desc", "очк.", (50, 20000)),
     "race": ("Гонка по Python", "asc", "с", None),
     "boss": ("Босс-арена: урон за бой", "desc", "урона", None),
+    "spy": ("Шпион: очки за игру", "desc", "очк.", None),
 }
 
 
@@ -1254,6 +1336,15 @@ async def leaderboards(req):
     return web.json_response({"ok": True, "boards": [board_rows(g, u[0], 10) for g in BOARDS]})
 
 
+def spy_record():
+    """Когда игра «Шпион» закончена, очки каждого игрока попадают в таблицу лидеров (один раз)."""
+    if SPY.phase == "end" and not SPY.recorded:
+        SPY.recorded = True
+        for uid, p in SPY.players.items():
+            if p["score"] > 0:
+                score_record(uid, "spy", p["score"])
+
+
 def boss_record():
     """Когда бой кончился, лучший урон каждого игрока попадает в таблицу лидеров (один раз за бой)."""
     if BOSS.phase == "end" and not BOSS.recorded:
@@ -1266,6 +1357,7 @@ def boss_record():
 # ---------------------------------------------------------------- гонка
 RACE = R.Race()
 BOSS = B.Boss()
+SPY = SP.Spy()
 JUDGE_SEM = None
 
 
@@ -1273,13 +1365,17 @@ async def play_state(req):
     """Дешёвый публичный запрос: ученики опрашивают его раз в несколько секунд, чтобы узнать, не началась ли игра."""
     RACE.tick()
     BOSS.tick()
-    if BOSS.phase in ("intro", "lobby", "run"):
+    SPY.tick()
+    if SPY.phase in ("intro", "lobby", "describe", "vote", "guess", "result"):
+        out = {"ok": True, "game": "spy", "id": SPY.id, "phase": SPY.phase, "intro": max(0, int(SPY.intro_end - time.time() + .999)) if SPY.phase == "intro" else 0, "n": len(SPY.players), "t": int(time.time() * 1000)}
+    elif BOSS.phase in ("intro", "lobby", "run"):
         out = {"ok": True, "game": "boss", "id": BOSS.id, "phase": BOSS.phase, "intro": max(0, int(BOSS.intro_end - time.time() + .999)) if BOSS.phase == "intro" else 0, "n": len(BOSS.players), "t": int(time.time() * 1000)}
     else:
         out = {"ok": True, "game": "race", "id": RACE.id, "phase": RACE.phase, "intro": max(0, int(RACE.intro_end - time.time() + .999)) if RACE.phase == "intro" else 0, "n": len(RACE.players), "t": int(time.time() * 1000)}
     u = user_from(req) if req.headers.get("Authorization") else None
     if u:
         ONLINE[u[0]] = time.time()
+        mark_seen(u[0])
         lucky_tick()
         scare_tick()
         if lucky_active(u[0]):
@@ -1298,8 +1394,35 @@ async def t_play(req):
         return jerr("Нужен ключ учителя.", 403)
     d = await body(req)
     a = d.get("action")
-    if a == "boss_announce":
+    if a == "spy_announce":
         RACE.reset()
+        BOSS.reset()
+        SPY.announce()
+        return web.json_response(SPY.tview())
+    elif a in ("spy_start", "spy_next"):
+        e = SPY.start_round(d)
+        if e:
+            return jerr(e)
+        return web.json_response(SPY.tview())
+    elif a == "spy_cfg":
+        SPY.set_cfg(d)
+        return web.json_response(SPY.tview())
+    elif a == "spy_stop":
+        SPY.stop()
+        spy_record()
+        return web.json_response(SPY.tview())
+    elif a == "spy_reset":
+        SPY.reset()
+        return web.json_response(SPY.tview())
+    elif a == "spy_kick":
+        if not SPY.kick(d.get("nick", "")):
+            return jerr("Такого игрока нет.")
+        return web.json_response(SPY.tview())
+    elif a == "spy_state":
+        return web.json_response(SPY.tview())
+    elif a == "boss_announce":
+        RACE.reset()
+        SPY.reset()
         BOSS.announce()
         return web.json_response(BOSS.view())
     elif a == "boss_start":
@@ -1325,6 +1448,7 @@ async def t_play(req):
         return web.json_response(BOSS.view())
     elif a == "announce":
         BOSS.reset()
+        SPY.reset()
         RACE.announce()
     elif a == "start":
         RACE.tick()
@@ -1424,6 +1548,48 @@ async def boss_answer(req):
     return web.json_response({**BOSS.view(u[0], _i(d.get("since"))), **r})
 
 
+async def spy_join(req):
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти или зарегистрироваться.", 401)
+    e = SPY.join(u[0], u[1])
+    if e:
+        return jerr(e)
+    return web.json_response(SPY.view(u[0]))
+
+
+async def spy_state(req):
+    u = user_from(req) if req.headers.get("Authorization") else None
+    if u:
+        ONLINE[u[0]] = time.time()
+    resp = web.json_response(SPY.view(u[0] if u else None))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+async def spy_act(req):
+    """Действия игрока в «Шпионе»: say (описание), vote (голос), guess (последний шанс шпиона)."""
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    if limited("spy:%d" % u[0], 60, 60):
+        return jerr("Слишком часто.", 429)
+    d = await body(req)
+    what = req.match_info["what"]
+    if what == "say":
+        e = SPY.say(u[0], d.get("text"))
+    elif what == "vote":
+        e = SPY.vote(u[0], d.get("nick", ""))
+    elif what == "guess":
+        e = SPY.guess(u[0], d.get("i"))
+    else:
+        return jerr("Неизвестное действие.", 404)
+    spy_record()
+    if e:
+        return jerr(e)
+    return web.json_response(SPY.view(u[0]))
+
+
 async def race_join(req):
     u = user_from(req)
     if not u:
@@ -1501,9 +1667,9 @@ def make_app():
     app.add_routes([
         web.post("/api/teacher/login", t_login), web.get("/api/ping", ping), web.post("/api/register", register), web.post("/api/login", login), web.post("/api/logout", logout),
         web.post("/api/recover", recover), web.post("/api/recover/confirm", recover_confirm), web.get("/api/teacher/recov", t_recov), web.post("/api/submit", submit), web.get("/api/teacher/subs", t_subs), web.get("/api/teacher/sub", t_sub),
-        web.get("/api/play", play_state), web.post("/api/lucky/spin", lucky_spin), web.post("/api/lucky/finish", lucky_finish), web.get("/api/teacher/lucky", t_lucky), web.post("/api/teacher/play", t_play), web.post("/api/race/join", race_join), web.post("/api/boss/join", boss_join), web.post("/api/score", score_post), web.get("/api/leaderboards", leaderboards), web.get("/api/boss/state", boss_state), web.post("/api/boss/ask", boss_ask), web.post("/api/boss/answer", boss_answer), web.get("/api/race/state", race_state), web.post("/api/race/submit", race_submit),
+        web.get("/api/play", play_state), web.post("/api/lucky/spin", lucky_spin), web.post("/api/lucky/finish", lucky_finish), web.get("/api/teacher/lucky", t_lucky), web.post("/api/teacher/play", t_play), web.post("/api/race/join", race_join), web.post("/api/boss/join", boss_join), web.post("/api/spy/join", spy_join), web.get("/api/spy/state", spy_state), web.post("/api/spy/{what}", spy_act), web.post("/api/score", score_post), web.get("/api/leaderboards", leaderboards), web.get("/api/boss/state", boss_state), web.post("/api/boss/ask", boss_ask), web.post("/api/boss/answer", boss_answer), web.get("/api/race/state", race_state), web.post("/api/race/submit", race_submit),
         web.get("/api/me", me), web.put("/api/progress", put_progress),
-        web.get("/api/teacher/check", t_check), web.get("/api/teacher/users", t_users), web.post("/api/teacher/reset", t_reset), web.delete("/api/teacher/user", t_delete),
+        web.get("/api/teacher/check", t_check), web.get("/api/teacher/users", t_users), web.get("/api/teacher/student", t_student), web.post("/api/quiz", quiz_post), web.post("/api/teacher/reset", t_reset), web.delete("/api/teacher/user", t_delete),
         web.get("/ws", ws_handler),
         web.route("OPTIONS", "/{tail:.*}", ping),
     ])

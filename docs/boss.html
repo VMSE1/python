@@ -135,7 +135,7 @@ function head(st){
  var p=st.phase;
  if(p==="idle")return'<div class="bhd">Арены сейчас нет</div><p class="m">Учитель выключил игру или она ещё не началась. Когда она запустится, эта страница откроется сама.</p>';
  if(p==="intro"||p==="lobby")return'<div class="bhd">Босс просыпается…</div><p class="m">В арене: <b>'+st.n+'</b>. Жди сигнала учителя. Отвечай на вопросы и бей босса вместе со всем классом!</p>';
- if(p==="run")return'<div class="bhd">Бой идёт · '+Math.floor(st.elapsed/60)+':'+("0"+Math.floor(st.elapsed%60)).slice(-2)+'</div>';
+ if(p==="run")return'<div class="bhd">Бой идёт · '+Math.floor(st.elapsed/60)+':'+("0"+Math.floor(st.elapsed%60)).slice(-2)+(st.topic&&st.topic!=="Все темы"?' · Тема: '+esc(st.topic):'')+'</div>';
  return'<div class="bhd">'+(st.won?"Босс повержен!":"Бой окончен")+'</div>'}
 function ctlHtml(st){
  if(BOARD)return"";
@@ -175,7 +175,7 @@ function answer(i){
  var st=S.st,opts=st&&st.q?st.q.opts.slice():null;
  document.querySelectorAll(".opts button").forEach(function(b){b.disabled=true});
  api("POST","/api/boss/answer",{a:i,since:S.seq}).then(function(j){
-  if(j.error){var m=$("bs_ctl");if(m)m.insertAdjacentHTML("afterbegin",'<div class="bad" role="alert">'+esc(j.error)+'</div>');return}
+  if(j.error){document.querySelectorAll(".opts button").forEach(function(b){b.disabled=false});var m=$("bs_ctl");if(m){m.querySelectorAll(".bad.tmp").forEach(function(x){x.remove()});m.insertAdjacentHTML("afterbegin",'<div class="bad tmp" role="alert">'+esc(j.error)+'</div>');setTimeout(function(){m.querySelectorAll(".bad.tmp").forEach(function(x){x.remove()})},1500)}return}
   var hadQ=S.st&&S.st.q;take(j);if(S.st)S.st.q=null;
   S.fb={right:j.right,dmg:j.dmg,mult:j.mult||1,heal:j.heal||0,late:j.late,opts:opts,chosen:i,right_i:j.right_i};
   draw(S.st);setTimeout(function(){S.fb=null;if(S.st)draw(S.st)},j.right?700:1600)}).catch(function(){})}

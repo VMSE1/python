@@ -1,6 +1,6 @@
 <!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com https://course.2-27-53-182.sslip.io wss://course.2-27-53-182.sslip.io; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Квизы</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"></head><body>
 <main class="wrap"><div id="app"></div></main>
-<script src="site.js"></script><script src="data/tasks.js"></script><script src="questions.js"></script>
+<script src="site.js"></script><script src="data/tasks.js"></script><script src="questions.js"></script><script src="config.js"></script><script src="net.js"></script>
 <script>layout("quiz.html","Квизы");</script>
 <script>
 var Q=window.QUESTIONS,app=document.getElementById("app").parentNode.querySelector("#app"),st={},LT={};
@@ -35,9 +35,9 @@ function pick(k){var it=st.qs[st.i],q=it.q;st.ans.push([q.id,k]);if(k==q.a)st.sc
  var nx=document.getElementById("nx");nx.focus();nx.scrollIntoView({block:"nearest",behavior:"smooth"});
  nx.onclick=function(){st.i++;st.i<st.qs.length?show():fin()}}
 function enc(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o))))}
-function fin(){var s=st.score,code=enc({n:st.name,l:st.lesson,d:new Date().toISOString().slice(0,16),a:st.ans});
+function fin(){var s=st.score;try{if(window.Net&&Net.user())Net.req("POST","/api/quiz",{lesson:st.lesson||0,score:s,total:st.qs.length,ans:st.ans.filter(function(a){var q=st.qs.filter(function(x){return x.q.id===a[0]})[0];return q&&q.q.a!==a[1]})}).catch(function(){})}catch(e){}var code=enc({n:st.name,l:st.lesson,d:new Date().toISOString().slice(0,16),a:st.ans});
  var p=Math.round(s/st.qs.length*100);
  app.innerHTML='<div class="intro">'+pix(p>=70?"check":"book")+'<h1>Результат: '+s+' из '+st.qs.length+' ('+p+'%)</h1><p>'+(p>=85?"Отлично!":p>=60?"Хорошо. Загляни в «Теорию» и повтори ошибки.":"Повтори теорию и попробуй ещё раз.")+'</p></div><div class="box"><p><b>Шаг 1.</b> Нажми «Копировать код».</p><textarea class="code" id="cd" readonly style="min-height:110px;white-space:pre-wrap;word-break:break-all;width:100%">'+code+'</textarea><p style="margin-top:12px"><b>Шаг 2.</b> Отправь его учителю.</p><div class="btns" style="margin:8px 0 0"><button class="btn go" id="cp">Копировать код</button><button class="btn ghost" id="rs">Пройти ещё раз</button><a class="btn ghost" href="quiz.html">Другие квизы</a></div></div>';
- document.getElementById("cp").onclick=function(){var t=document.getElementById("cd");t.select();try{document.execCommand("copy")}catch(e){}if(navigator.clipboard)navigator.clipboard.writeText(t.value).catch(function(){});this.textContent="Скопировано!"};document.getElementById("rs").onclick=function(){intro(st.lesson)}}
+ document.getElementById("cp").onclick=function(){var t=document.getElementById("cd");t.select();try{document.execCommand("copy")}catch(e){}if(navigator.clipboard)navigator.clipboard.writeText(t.value).catch(function(){});this.textContent="Скопировано!"};document.getElementById("rs").onclick=function(){intro(st.lesson)};if(p>=60&&window.Surprise)Surprise.maybe(0.5)}
 list();
 </script></body></html>

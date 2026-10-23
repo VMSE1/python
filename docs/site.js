@@ -50,7 +50,7 @@ try { if (window.top !== window.self) { document.documentElement.style.display =
 function isTeacher() { try { return !!localStorage.getItem("teacher"); } catch (e) { return false; } }
 var PAGES = {
   "tasks.html": ["Задания", "pc"], "theory.html": ["Теория", "folder"], "quiz.html": ["Квизы", "book"],
-  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "video.html": ["Видеоразборы", "video"], "leaders.html": ["Таблица лидеров", "bolt"], "teacher.html": ["Кабинет учителя", "key"], "account.html": ["Мой профиль", "user"], "students.html": ["Ученики на сервере", "user"], "live.html": ["Онлайн-игра", "bolt"], "run.html": ["Убеги от скелета", "skull"], "race.html": ["Гонка по Python", "bolt"],
+  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "video.html": ["Видеоразборы", "video"], "leaders.html": ["Таблица лидеров", "bolt"], "spy.html": ["Шпион", "user"], "teacher.html": ["Кабинет учителя", "key"], "account.html": ["Мой профиль", "user"], "students.html": ["Ученики на сервере", "user"], "live.html": ["Онлайн-игра", "bolt"], "run.html": ["Убеги от скелета", "skull"], "race.html": ["Гонка по Python", "bolt"],
   "learn.html": ["Предметы", "books"], "arcade.html": ["Аркада", "skull"]
 };
 function layout(active, title) {
@@ -70,7 +70,7 @@ function layout(active, title) {
       };
     }
   }
-  var items = [["learn.html", "Предметы", "books"], ["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"], ["video.html", "Видеоразборы", "video"], ["live.html", "Онлайн-игра", "bolt"], ["race.html", "Гонка по Python", "bolt"], ["arcade.html", "Аркада", "skull"], ["leaders.html", "Таблица лидеров", "bolt"], ["account.html", "Мой профиль", "user"]];
+  var items = [["learn.html", "Предметы", "books"], ["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"], ["video.html", "Видеоразборы", "video"], ["live.html", "Онлайн-игра", "bolt"], ["race.html", "Гонка по Python", "bolt"], ["arcade.html", "Аркада", "skull"], ["leaders.html", "Таблица лидеров", "bolt"], ["spy.html", "Шпион", "user"], ["account.html", "Мой профиль", "user"]];
   /* ученикам вход для учителя не показываем: учитель открывает teacher.html по адресу, после входа пункты появляются */
   if (teacher) { items.push(["teacher.html", "Кабинет учителя", "key"]); items.push(["students.html", "Ученики на сервере", "user"]); }
   var menu = items.map(function (x) { return '<li><a href="' + x[0] + '">' + pix(x[2]) + x[1] + "</a></li>"; }).join("") +
@@ -225,12 +225,12 @@ function fetchIssues(label, cb, fail) {
 (function () {
   if (typeof document === "undefined" || location.protocol === "file:") return;
   var path = location.pathname.split("/").pop() || "index.html";
-  if (/^(race|boss|teacher|students)\.html$/.test(path)) return;
+  if (/^(race|boss|spy|teacher|students)\.html$/.test(path)) return;
   try { if (sessionStorage.getItem("tkey")) return; } catch (e) {}
   var busy = false, started = false;
   function api() { return String(window.API_BASE || "").replace(/\/+$/, ""); }
   var gameName = "race";
-  function goRace() { try { sessionStorage.setItem("playBack", location.href); } catch (e) {} location.href = gameName === "boss" ? "boss.html" : "race.html"; }
+  function goRace() { try { sessionStorage.setItem("playBack", location.href); } catch (e) {} location.href = gameName === "boss" ? "boss.html" : gameName === "spy" ? "spy.html" : "race.html"; }
   function intro() {
     var run = function () { window.Egg.play({ ms: 5000, onClose: goRace }); };
     if (window.Egg && window.Egg.play) run(); else { var sc = document.createElement("script"); sc.src = "egg.js"; sc.onload = run; sc.onerror = goRace; document.head.appendChild(sc); }
@@ -257,8 +257,8 @@ function fetchIssues(label, cb, fail) {
     var seen = ""; try { seen = sessionStorage.getItem("playSeen") || ""; } catch (e) {}
     if (seen === String(j.id)) return;
     try { sessionStorage.setItem("playSeen", String(j.id)); } catch (e) {}
-    started = true; gameName = j.game === "boss" ? "boss" : "race";
-    if (j.phase === "run") goRace(); else intro();
+    started = true; gameName = j.game === "boss" ? "boss" : j.game === "spy" ? "spy" : "race";
+    if (j.phase === "run" || (gameName === "spy" && j.phase !== "intro" && j.phase !== "lobby")) goRace(); else intro();
   }
   function poll() {
     if (busy || started || luckyOpen || document.hidden || !api()) return; busy = true;
@@ -315,7 +315,24 @@ function fetchIssues(label, cb, fail) {
   });
   var HINTS = ["Подсказка для внимательных: у скелетов есть любимое число из четырёх цифр. Набери его на клавиатуре, но не в поле ввода: 2 2 6 7.",
     "Старый секрет геймеров: ↑ ↑ ↓ ↓ ← → ← → B A. Нажми по очереди не в поле ввода и увидишь, что будет.",
-    "Часы в правом нижнем углу не любят, когда на них нажимают пять раз подряд. Проверь."];
+    "Часы в правом нижнем углу не любят, когда на них нажимают пять раз подряд. Проверь.",
+    "Эти числа любят все программисты. Набери по одному не в поле ввода: 1337, 404, 777, 1989. Каждое показывает своё.",
+    "После решённых заданий иногда появляются сюрпризы: конфетти, прохожий скелет, золотой череп. Решай больше, и повезёт."];
+  /* случайный сюрприз после выполненного задания: не чаще раза в полторы минуты, примерно в каждом третьем случае */
+  var lastS = 0;
+  window.Surprise = {
+    maybe: function (p, force) {
+      try {
+        var now = Date.now();
+        if (document.getElementById("notice") || document.getElementById("egg") || document.getElementById("lk") || document.getElementById("scare")) return false;
+        if (!force && (now - lastS < 90000 || Math.random() > (p == null ? 0.34 : p))) return false;
+        lastS = now;
+        var run = function () { window.SurpriseRun(typeof force === "string" ? force : undefined); };
+        if (window.SurpriseRun) run(); else { var s = document.createElement("script"); s.src = "surprise.js"; s.onload = run; document.head.appendChild(s); }
+        return true;
+      } catch (e) { return false; }
+    }
+  };
   /* после решённого задания иногда показываем одну подсказку (примерно в каждом третьем случае) */
   window.EggHint = function (el) {
     try { if (!el || Math.random() > 0.34) return; var n = +(localStorage.getItem("hintN") || 0); localStorage.setItem("hintN", String(n + 1));
@@ -325,7 +342,7 @@ function fetchIssues(label, cb, fail) {
 
 /* Пасхалка: цифры 2267 подряд (любая другая клавиша сбрасывает ввод) */
 (function () {
-  var CODE = "2267", buf = "", loading = false;
+  var CODE = "2267", buf = "", loading = false, SMALL = { "1337": "confetti", "404": "walker", "777": "coin", "1989": "fact" };
   function go() {
     if (window.Egg) { window.Egg.start(); return; }
     if (loading) return; loading = true;
@@ -337,7 +354,9 @@ function fetchIssues(label, cb, fail) {
     if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) { if (e.key.length === 1) buf = ""; return; }
     if (e.key < "0" || e.key > "9") { buf = ""; return; }
     buf = (buf + e.key).slice(-CODE.length);
-    if (buf === CODE) { buf = ""; go(); }
+    if (buf === CODE) { buf = ""; go(); return; }
+    var q = SMALL[buf.slice(-4)] || SMALL[buf.slice(-3)] || SMALL[buf.slice(-2)];     // короткие коды: каждый показывает свой сюрприз
+    if (q && window.Surprise) { buf = ""; Surprise.maybe(1, q); }
   });
 })();
 

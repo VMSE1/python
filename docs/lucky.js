@@ -145,29 +145,38 @@
       '<div class="rl" aria-live="polite"><canvas width="100" height="100" id="r0"></canvas><canvas width="100" height="100" id="r1"></canvas><canvas width="100" height="100" id="r2"></canvas></div><div class="tx" id="lkm" role="status"></div><button type="button" id="lks">Крутить</button>');
     var cs = [0, 1, 2].map(function (i) { return ov.querySelector("#r" + i).getContext("2d"); }), names = ["skull", "bone", "coin", "heart", "star"], cur = ["bone", "coin", "star"];
     cs.forEach(function (c, i) { drawSym(c, cur[i], 100, 100); });
-    var btn = ov.querySelector("#lks"), msg = ov.querySelector("#lkm"), busy = false;
+    var btn = ov.querySelector("#lks"), msg = ov.querySelector("#lkm"), busy = false, cvs = [0, 1, 2].map(function (i) { return ov.querySelector("#r" + i); }), AC = null;
+    function tick(f, v) { try { if (!AC) { var A = window.AudioContext || window.webkitAudioContext; if (!A) return; AC = new A(); cleanup.push(function () { try { AC.close(); } catch (e) {} }); } var o = AC.createOscillator(), g = AC.createGain(); o.type = "square"; o.frequency.value = f; g.gain.value = v; o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime + .05); } catch (e) {} }
+    var lights = setInterval(function () { var on = Math.floor(Date.now() / 250) % 2; ov && (ov.querySelector(".rl").style.boxShadow = on ? "0 0 0 6px #ffd23a,0 0 24px #ffd23a" : "0 0 0 6px #ff4d6d,0 0 24px #ff4d6d"); }, 250); cleanup.push(function () { clearInterval(lights); });
     btn.focus();
     btn.onclick = function () {
-      if (busy) return; busy = true; btn.disabled = true; msg.textContent = "Крутим…";
+      if (busy) return; busy = true; btn.disabled = true; msg.textContent = "Крутим…"; tick(520, .06);
       Net.req("POST", "/api/lucky/spin", {}).then(function (j) {
         if (!j.ok) { msg.textContent = j.error || "Не получилось."; setTimeout(close, 2500); return; }
-        var t0 = performance.now(), stop = [900, 1400, 1900], done = [false, false, false], raf = 0;
+        var t0 = performance.now(), stop = [1000, 1900, 3000], done = [false, false, false], raf = 0, lastSym = [-1, -1, -1], shownTwo = false;
         function fr(now) {
           var el = Math.max(0, (now || performance.now()) - t0), all = true;
           cs.forEach(function (c, i) {
             if (done[i]) return;
-            if (el >= stop[i]) { done[i] = true; drawSym(c, j.reels[i], 100, 100); } else { all = false; drawSym(c, names[(Math.floor(el / 70 + i * 2) % names.length + names.length) % names.length], 100, 100, Math.round(Math.sin(el / 30) * 6)); }
+            if (el >= stop[i]) { done[i] = true; drawSym(c, j.reels[i], 100, 100); tick(900 + i * 150, .09); cvs[i].style.borderColor = j.reels[i] === "skull" ? "#ff4d4d" : "#ffd23a"; if (j.reels[i] === "skull" && done[0] && done[1] && j.reels[0] === "skull" && j.reels[1] === "skull" && !shownTwo) { shownTwo = true; msg.textContent = "Два черепа! Третий решает…"; } }
+            else { all = false; var slow = i === 2 && el > 2000 ? 2.4 : i === 2 && el > 1500 ? 1.5 : 1, idx = (Math.floor(el / (70 * slow) + i * 2) % names.length + names.length) % names.length;
+              if (idx !== lastSym[i]) { lastSym[i] = idx; tick(260 + i * 40, .025); } drawSym(c, names[idx], 100, 100, Math.round(Math.sin(el / 30) * (slow > 1 ? 3 : 6))); }
           });
           if (!all) raf = requestAnimationFrame(fr); else if (!fin) { fin = true; clearTimeout(fb); setTimeout(function () { after(j); }, 700); }
         }
         /* страховка: если анимация не может идти (вкладка в фоне, ошибка рисования), через 3 секунды показываем результат сами */
-        var fin = false, fb = setTimeout(function () { if (fin) return; fin = true; cancelAnimationFrame(raf); cs.forEach(function (c, i) { try { drawSym(c, j.reels[i], 100, 100); } catch (e) {} }); after(j); }, 3500);
+        var fin = false, fb = setTimeout(function () { if (fin) return; fin = true; cancelAnimationFrame(raf); cs.forEach(function (c, i) { try { drawSym(c, j.reels[i], 100, 100); } catch (e) {} }); after(j); }, 5200);
         var fr0 = fr; fr = function (now) { if (fin) return; try { fr0(now); } catch (e) { if (!fin) { fin = true; clearTimeout(fb); after(j); } } };
         raf = requestAnimationFrame(fr); cleanup.push(function () { fin = true; clearTimeout(fb); cancelAnimationFrame(raf); });
       }).catch(function (e) { msg.textContent = e.message; setTimeout(close, 2500); });
     };
     function after(j) {
-      if (!j.win) { laughScreen("Три черепа не выпали. "); return; }
+      if (!j.win) {
+        if (j.near) { msg.textContent = "Почти! Два черепа…"; ov.querySelector(".rl").animate([{ transform: "translateX(-8px)" }, { transform: "translateX(8px)" }, { transform: "translateX(0)" }], { duration: 300, iterations: 3 }); setTimeout(function () { laughScreen("Почти! Третий череп не выпал. "); }, 1300); }
+        else laughScreen("Три черепа не выпали. ");
+        return;
+      }
+      msg.textContent = "ТРИ ЧЕРЕПА!"; try { var rl = ov.querySelector(".rl"); rl.animate([{ transform: "scale(1)" }, { transform: "scale(1.12)" }, { transform: "scale(1)" }], { duration: 400, iterations: 3 }); } catch (e) {}
       mount('<div class="tt">Три черепа!</div><div class="tx">Поднимись по лестницам к скелету. Стрелки или кнопки на экране, пробел для прыжка. Бочки катятся вниз. <b>Попытка одна.</b></div><button type="button" id="lkg">Начать игру</button>');
       ov.querySelector("#lkg").onclick = function () {
         game(function (win, secs) {

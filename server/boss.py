@@ -26,84 +26,37 @@ DEFAULT_CFG = {
     "big_heal": 4.0,     # большое залечивание, процентов максимума
     "big_min": 45, "big_max": 75,            # раз в сколько секунд (0 и 0 = выключить)
     "combo_step": 0.1, "combo_max": 2.0,     # рост удара за серию и потолок множителя
-    "min_think": 1.2,    # быстрее ответить нельзя (секунд)
-    "answer_gap": 0.5,   # пауза между ответами
+    "min_think": 0.4,    # быстрее ответить нельзя (секунд)
+    "answer_gap": 0.15,  # пауза между ответами
+    "topic": 0,          # тема вопросов: 0 = все, 1..5 = номер урока
 }
 # допустимые границы (нижняя, верхняя): защита от опечаток
 CFG_LIMITS = {"hp": (0, 100000000), "hp_per": (1, 10000000), "hp_min": (1, 100000000), "dmg_easy": (1, 1000000), "dmg_hard": (1, 1000000),
               "heal_easy": (0, 1000000), "heal_hard": (0, 1000000), "stun": (0, 60), "limit_easy": (5, 300), "limit_hard": (5, 600),
               "regen_min": (0, 100), "big_heal": (0, 100), "big_min": (0, 3600), "big_max": (0, 3600), "combo_step": (0, 5), "combo_max": (1, 20),
-              "min_think": (0, 10), "answer_gap": (0, 10)}
+              "min_think": (0, 10), "answer_gap": (0, 10), "topic": (0, 5)}
 EVENTS_KEEP = 60
 
-# (вопрос, [варианты], номер верного). Простые: основы первых уроков.
-EASY = [
-    ("Что выведет print(2 + 3)?", ["5", "23", "2 + 3", "Ошибка"], 0),
-    ("Какая функция читает ввод с клавиатуры?", ["input()", "print()", "scan()", "read()"], 0),
-    ("Как получить целое число из строки \"7\"?", ["int(\"7\")", "str(7)", "float(7)", "num(\"7\")"], 0),
-    ("Какой тип у значения 3.14?", ["float", "int", "str", "bool"], 0),
-    ("Что выведет print(\"При\" + \"вет\")?", ["Привет", "При вет", "При+вет", "Ошибка"], 0),
-    ("Какой знак даёт остаток от деления?", ["%", "//", "/", "&"], 0),
-    ("Чему равно 10 // 3?", ["3", "3.33", "1", "4"], 0),
-    ("Чему равно 10 % 3?", ["1", "3", "0", "10"], 0),
-    ("С какого знака начинается комментарий в Python?", ["#", "//", "--", "/*"], 0),
-    ("Что выведет print(len(\"мир\"))?", ["3", "2", "4", "мир"], 0),
-    ("Какой оператор проверяет равенство?", ["==", "=", "!=", "=>"], 0),
-    ("Чему равно 2 ** 3?", ["8", "6", "5", "9"], 0),
-    ("Какой тип у значения True?", ["bool", "int", "str", "float"], 0),
-    ("Какой цикл удобен, когда число повторов известно заранее?", ["for", "if", "def", "else"], 0),
-    ("Сколько раз сработает print в цикле for i in range(4)?", ["4", "3", "5", "0"], 0),
-    ("Как взять первый элемент списка a?", ["a[0]", "a[1]", "a(0)", "a.first"], 0),
-    ("Каким методом добавляют элемент в конец списка?", ["append", "add", "push", "insert_end"], 0),
-    ("Каким словом объявляют функцию?", ["def", "func", "function", "make"], 0),
-    ("Что выведет print(\"a\" * 3)?", ["aaa", "a3", "a a a", "Ошибка"], 0),
-    ("Какое слово выполняется, когда условие if ложно?", ["else", "then", "other", "stop"], 0),
-    ("x = 5, потом x += 2. Чему равно x?", ["7", "5", "2", "52"], 0),
-    ("Что выведет print(7 > 3)?", ["True", "False", "7", "Ошибка"], 0),
-    ("Что вернёт input()?", ["Строку", "Целое число", "Дробное число", "Список"], 0),
-    ("Как узнать длину списка a?", ["len(a)", "a.len", "size(a)", "a.count"], 0),
-    ("Что выведет print(10 / 4)?", ["2.5", "2", "3", "2.0"], 0),
-    ("Какое слово означает логическое «и»?", ["and", "or", "not", "&&"], 0),
-    ("Какая ошибка бывает при неверных отступах?", ["IndentationError", "NameError", "ValueError", "TypeError"], 0),
-    ("Что выведет print(type(5))?", ["<class 'int'>", "<class 'str'>", "int", "5"], 0),
-    ("Что выведет print(\"5\" + \"5\")?", ["55", "10", "5 5", "Ошибка"], 0),
-    ("Что делает print()?", ["Выводит на экран", "Читает с клавиатуры", "Считает сумму", "Создаёт список"], 0),
-]
+try:
+    from boss_bank import EASY, HARD, TOPIC_NAMES
+except ImportError:                       # запуск как пакета
+    from .boss_bank import EASY, HARD, TOPIC_NAMES
 
-# Сложные: код надо «прогнать в голове».
-HARD = [
-    ("x = \"5\"\nprint(x * 2)", ["55", "10", "5 5", "Ошибка"], 0),
-    ("for i in range(1, 6, 2):\n    print(i, end=\" \")", ["1 3 5", "1 2 3 4 5", "2 4", "1 3 5 7"], 0),
-    ("a = [1, 2, 3]\na.append(4)\nprint(a[-1] + len(a))", ["8", "7", "4", "9"], 0),
-    ("print(7 // 2 + 7 % 2)", ["4", "3", "5", "4.5"], 0),
-    ("s = \"python\"\nprint(s[1:4])", ["yth", "pyt", "ytho", "pyth"], 0),
-    ("d = {\"a\": 1, \"b\": 2}\nprint(d[\"b\"] + len(d))", ["4", "3", "2", "Ошибка"], 0),
-    ("def f(x):\n    return x * 2\nprint(f(f(3)))", ["12", "6", "9", "None"], 0),
-    ("x = 10\nif x > 5 and x < 8:\n    print(\"A\")\nelif x >= 10:\n    print(\"B\")\nelse:\n    print(\"C\")", ["B", "A", "C", "AB"], 0),
-    ("n = 0\nwhile n < 10:\n    n += 4\nprint(n)", ["12", "10", "8", "4"], 0),
-    ("print(bool(0), bool(\"0\"))", ["False True", "False False", "True True", "True False"], 0),
-    ("a = [3, 1, 2]\na.sort()\nprint(a)", ["[1, 2, 3]", "[3, 2, 1]", "[3, 1, 2]", "None"], 0),
-    ("print(\"abc\".upper().lower() + \"D\")", ["abcD", "ABCD", "abcd", "ABCd"], 0),
-    ("x = 5\ny = x\nx = 8\nprint(y)", ["5", "8", "13", "Ошибка"], 0),
-    ("print(2 ** 3 ** 2)", ["512", "64", "36", "256"], 0),
-    ("print(10 - 2 * 3 ** 2)", ["-8", "72", "-26", "28"], 0),
-    ("total = 0\nfor i in range(5):\n    if i % 2 == 0:\n        total += i\nprint(total)", ["6", "10", "4", "2"], 0),
-    ("print(\"5\" + \"5\" == \"55\")", ["True", "False", "55", "Ошибка"], 0),
-    ("s = \"a,b,c\"\nprint(len(s.split(\",\")))", ["3", "5", "1", "2"], 0),
-    ("try:\n    print(int(\"x\"))\nexcept ValueError:\n    print(\"ой\")", ["ой", "x", "0", "Ошибка без обработки"], 0),
-    ("print(not (3 > 2 or 1 > 5))", ["False", "True", "3", "Ошибка"], 0),
-    ("a = [1, 2, 3]\nb = a\nb.append(9)\nprint(len(a))", ["4", "3", "9", "Ошибка"], 0),
-    ("print(type(5 / 1))", ["<class 'float'>", "<class 'int'>", "<class 'str'>", "5"], 0),
-    ("x = 7\nx -= 3\nx *= 2\nprint(x)", ["8", "4", "11", "14"], 0),
-    ("for ch in \"abc\":\n    print(ch.upper(), end=\"\")", ["ABC", "abc", "A B C", "Aabc"], 0),
-]
-BANK = {"easy": EASY, "hard": HARD}
+
+def bank_of(topic, lvl):
+    """Список вопросов темы (0 = все темы). В банке верный ответ записан первым, в игре порядок перемешивается."""
+    t = topic if topic in EASY else 0
+    return [(q, o, 0) for q, o in (EASY if lvl == "easy" else HARD)[t]]
+
+
+BANK = {"easy": bank_of(0, "easy"), "hard": bank_of(0, "hard")}   # все темы: для проверок и обратной совместимости
 
 
 def _check_bank():
-    for lvl, qs in BANK.items():
-        for q, opts, ok in qs:
-            assert len(opts) == 4 and len(set(opts)) == 4 and 0 <= ok < 4, q
+    for d in (EASY, HARD):
+        for t, qs in d.items():
+            for q, opts in qs:
+                assert len(opts) == 4 and len(set(opts)) == 4, q
 
 
 _check_bank()
@@ -266,8 +219,9 @@ class Boss:
             p["q"] = None
         if now < p["stun"]:
             return None, "Оглушён, подожди %d с." % (int(p["stun"] - now) + 1)
-        bank = BANK[lvl]
-        seen = p["seen"][lvl]
+        topic = int(self.cfg.get("topic", 0))
+        bank = bank_of(topic, lvl)
+        seen = p["seen"].setdefault("%d:%s" % (topic, lvl), [])
         free = [i for i in range(len(bank)) if i not in seen]
         if not free:
             seen.clear()
@@ -277,7 +231,7 @@ class Boss:
         text, opts, ok = bank[i]
         order = list(range(4))
         random.shuffle(order)
-        p["q"] = {"lvl": lvl, "i": i, "t0": now, "order": order, "ok": order.index(ok)}
+        p["q"] = {"lvl": lvl, "i": i, "topic": topic, "t0": now, "order": order, "ok": order.index(ok)}
         return self.q_view(p), ""
 
     def limit(self, lvl):
@@ -285,7 +239,7 @@ class Boss:
 
     def q_view(self, p):
         q = p["q"]
-        text, opts, _ = BANK[q["lvl"]][q["i"]]
+        text, opts, _ = bank_of(q.get("topic", 0), q["lvl"])[q["i"]]
         return {"lvl": q["lvl"], "text": text, "opts": [opts[k] for k in q["order"]], "limit": self.limit(q["lvl"]), "left": max(0.0, self.limit(q["lvl"]) - (time.time() - q["t0"])), "dmg": int(self.cfg["dmg_" + q["lvl"]])}
 
     def answer(self, uid, choice, now=None):
@@ -347,7 +301,7 @@ class Boss:
         rows = sorted(self.players.items(), key=lambda kv: (-kv[1]["dmg"], kv[1]["nick"].lower()))
         v = {"ok": True, "id": self.id, "game": "boss", "phase": self.phase, "n": len(self.players), "t": int(now * 1000),
              "intro": max(0, int(self.intro_end - now + .999)) if self.phase == "intro" else 0,
-             "hp": int(self.hp), "hpmax": int(self.hp_max), "won": self.won, "cfg": self.cfg,
+             "hp": int(self.hp), "hpmax": int(self.hp_max), "won": self.won, "cfg": self.cfg, "topic": TOPIC_NAMES.get(int(self.cfg.get("topic", 0)), "Все темы"),
              "elapsed": round((self.t_end if self.phase == "end" else now) - self.t0, 1) if self.t0 else 0,
              "players": [{"nick": p["nick"], "dmg": p["dmg"], "streak": p["streak"], "ok": p["ok"], "bad": p["bad"], "me": u == uid} for u, p in rows[:40]],
              "events": [e for e in self.events if e["n"] > since], "seq": self.seq}

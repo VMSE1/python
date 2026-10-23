@@ -72,7 +72,7 @@ chk.onclick=function(){if(Honest.locked(ta)){var hh=document.getElementById("hn"
  res.className="res on wait";res.innerHTML='<div class="rh">'+(BrowserCheck.isReady()?'Проверяю…':'Первый запуск: загружаю проверку (около 13 МБ, один раз). Подожди…')+'</div>';chk.disabled=true;
  BrowserCheck.run(t,Honest.code(ta)).then(function(r){chk.disabled=false;
   if(r.todo){res.className="res on fail";res.innerHTML='<div class="rh">'+BADI+'Пока тут только заготовка. Напиши решение.</div>';return}
-  if(r.ok){res.className="res on pass";res.innerHTML='<div class="rh">'+OKI+'Все тесты пройдены. Отправь решение учителю</div>';var p=load("passed");p[t.id]=1;save("passed",p);Net.push();refreshSteps();Streak.touch();Reward.show(document.getElementById("next"),t);document.getElementById("go").focus()}
+  if(r.ok){res.className="res on pass";res.innerHTML='<div class="rh">'+OKI+'Все тесты пройдены. Отправь решение учителю</div>';var p=load("passed");p[t.id]=1;save("passed",p);Net.push();refreshSteps();Streak.touch();Reward.show(document.getElementById("next"),t);window.Surprise&&Surprise.maybe();document.getElementById("go").focus()}
   else{res.className="res on fail";res.innerHTML='<div class="rh">'+BADI+'Пока не так</div><ul>'+r.messages.map(function(x){return "<li>"+esc(x)+"</li>"}).join("")+'</ul>'+(r.sample?'<pre>'+esc(r.sample.slice(0,400))+'</pre>':"")+Hints.html(Hints.explain(Honest.code(ta),t,r))}
  });
 };
@@ -86,7 +86,7 @@ document.getElementById("go").onclick=function(){if(Honest.locked(ta)){var hh=do
   if(!j.ok){msg.className="bad";msg.textContent=j.error||"Не получилось отправить.";return}
   if(j.verdict==="todo"){msg.className="warn";msg.textContent="Тут пока только заготовка. Напиши решение.";return}
   var d=load("done");d[t.id]=1;save("done",d);
-  if(j.verdict==="ok"){var p=load("passed");p[t.id]=1;save("passed",p);msg.className="ok";msg.textContent="Принято! Сервер проверил, учитель видит решение.";Streak.touch();Reward.show(document.getElementById("next"),t);window.EggHint&&EggHint(document.getElementById("next"))}
+  if(j.verdict==="ok"){var p=load("passed");p[t.id]=1;save("passed",p);msg.className="ok";msg.textContent="Принято! Сервер проверил, учитель видит решение.";Streak.touch();Reward.show(document.getElementById("next"),t);window.EggHint&&EggHint(document.getElementById("next"));window.Surprise&&Surprise.maybe()}
   else{msg.className="bad";msg.textContent="Отправлено, но тесты не пройдены: "+(j.messages||[]).slice(0,2).join("; ")}
   Net.push();refreshSteps();
  }).catch(function(e){b.disabled=false;msg.className="bad";msg.textContent=e.message})

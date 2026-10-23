@@ -356,6 +356,27 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sum("scare" in g for g in got), 1); self.assertIn([g for g in got if "scare" in g][0]["scare"]["kind"], A.SCARE_KINDS)
         d = await (await self.cl.post("/api/teacher/play", json={"action": "scare", "nick": "нет"}, headers=T)).json(); self.assertFalse(d["ok"])
 
+    async def test_boss_topics_bank(self):
+        import io, contextlib
+        A = self.A; B = A.B
+        for t in range(1, 6):
+            self.assertGreaterEqual(len(B.EASY[t]), 20); self.assertGreaterEqual(len(B.HARD[t]), 14)
+            for code, opts in B.HARD[t]:                                 # верный ответ к коду проверяем настоящим запуском
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    exec(code, {"__name__": "__main__"})
+                self.assertEqual(out.getvalue().strip(), opts[0].strip(), code)
+        self.assertEqual(len(B.EASY[0]), sum(len(B.EASY[t]) for t in range(1, 6)))
+        A.BOSS.reset(); A.BOSS.cfg.update(B.DEFAULT_CFG); A.BOSS.set_cfg({"topic": 2, "min_think": 0, "answer_gap": 0})
+        A.BOSS.phase = "lobby"; A.BOSS.join(1, "tp"); A.BOSS.phase = "run"; A.BOSS.hp = A.BOSS.hp_max = 1000
+        texts = {q for q, _ in B.EASY[2]}
+        for _ in range(8):
+            q, err = A.BOSS.ask(1, "easy"); self.assertEqual(err, ""); self.assertIn(q["text"], texts)   # вопросы только темы 2
+            A.BOSS.players[1]["q"] = None
+        A.BOSS.set_cfg({"topic": 99}); self.assertEqual(A.BOSS.cfg["topic"], 5)      # граница
+        self.assertEqual(A.BOSS.view(1)["topic"], "Ошибки и проект")
+        A.BOSS.reset(); A.BOSS.cfg.update(B.DEFAULT_CFG)
+
     async def test_boss_settings(self):
         A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.BOSS.reset(); A.BOSS.cfg.update(A.B.DEFAULT_CFG)
         play = lambda body: self.cl.post("/api/teacher/play", json=body, headers=T)
@@ -418,6 +439,77 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         d = await (await self.cl.post("/api/teacher/play", json={"action": "scare_cfg", "auto": True, "every_min": 1, "every_max": 999999}, headers=T)).json()
         self.assertEqual((d["scare"]["auto"], d["scare"]["every_min"], d["scare"]["every_max"]), (True, 30, 86400))   # границы
         d = await (await self.cl.get("/api/teacher/lucky", headers=T)).json(); self.assertIn("next_in", d["scare"])
+
+    async def test_teacher_students_progress(self):
+        A = self.A; T = {"X-Teacher-Key": "teacher-secret"}; A.ONLINE.clear()
+        h = await self.race_user("prog_1")
+        post = lambda b: self.cl.post("/api/quiz", json=b, headers=h)
+        self.assertEqual((await self.cl.post("/api/quiz", json={"lesson": 1, "score": 5, "total": 8})).status, 401)
+        self.assertEqual((await post({"lesson": 1, "score": 9, "total": 8})).status, 400)                      # больше, чем вопросов
+        self.assertEqual((await post({"lesson": "x", "score": 1, "total": 8})).status, 400)
+        d = await (await post({"lesson": 1, "score": 5, "total": 8, "ans": [[3, 1], [4, 0]]})).json(); self.assertTrue(d["ok"])
+        await post({"lesson": 1, "score": 7, "total": 8}); await post({"lesson": 0, "score": 20, "total": 40})
+        await self.cl.get("/api/play", headers=h)                                                              # попал в «онлайн» и в seen
+        await self.cl.post("/api/score", json={"game": "mines", "score": 80}, headers=h)
+        await self.cl.put("/api/progress", json={"progress": {"passed": {"1.1": 1, "1.2": 1}}}, headers=h)
+        d = await (await self.cl.get("/api/teacher/users", headers=T)).json(); u = [x for x in d["users"] if x["nick"] == "prog_1"][0]
+        self.assertEqual(u["quizzes"]["1"], {"pct": 87, "n": 2}); self.assertEqual(u["quizzes"]["0"]["pct"], 50)   # лучший результат и число попыток
+        self.assertTrue(u["online"]); self.assertGreater(u["seen"], 0); self.assertEqual(len(u["passed"]), 2)
+        self.assertEqual((await self.cl.get("/api/teacher/student?nick=prog_1")).status, 403)
+        d = await (await self.cl.get("/api/teacher/student?nick=prog_1", headers=T)).json()
+        self.assertEqual(len(d["quizzes"]), 3); self.assertEqual(d["quizzes"][-1]["wrong"], [3, 4]); self.assertEqual(d["games"][0]["game"], "mines"); self.assertEqual(d["passed"], ["1.1", "1.2"])
+        self.assertEqual((await self.cl.get("/api/teacher/student?nick=нет_такого", headers=T)).status, 404)
+        await self.cl.delete("/api/teacher/user?nick=prog_1", headers=T)                                       # данные уходят вместе с учеником
+        self.assertEqual(A.db.execute("SELECT COUNT(*) FROM quizzes").fetchone()[0] + A.db.execute("SELECT COUNT(*) FROM scores WHERE game='mines' AND best=80").fetchone()[0], 0)
+
+    async def test_spy_game(self):
+        import io, contextlib
+        A = self.A; SP = A.SP; T = {"X-Teacher-Key": "teacher-secret"}
+        for t, a, oa, b, ob in SP.PAIRS:                               # результаты программ в банке проверяем настоящим запуском
+            for code, want in ((a, oa), (b, ob)):
+                o = io.StringIO()
+                with contextlib.redirect_stdout(o):
+                    exec(code, {"__name__": "__main__"})
+                self.assertEqual(o.getvalue().strip(), want, code)
+            self.assertNotEqual(oa, ob)
+        A.SPY.reset(); A.SPY.cfg.update(SP.DEFAULT_CFG)
+        play = lambda body: self.cl.post("/api/teacher/play", json=body, headers=T)
+        hs = [await self.race_user("spy_%d" % i) for i in range(4)]
+        d = await (await play({"action": "spy_announce"})).json(); self.assertEqual(d["phase"], "intro")
+        g = await (await self.cl.get("/api/play")).json(); self.assertEqual(g["game"], "spy")                 # у всех откроется страница шпиона
+        A.SPY.phase = "lobby"
+        for h in hs[:2]:
+            await self.cl.post("/api/spy/join", json={}, headers=h)
+        d = await (await play({"action": "spy_start"})).json(); self.assertIn("хотя бы", d["error"])           # меньше трёх игроков
+        for h in hs[2:]:
+            await self.cl.post("/api/spy/join", json={}, headers=h)
+        d = await (await play({"action": "spy_start", "t_say": 30, "topic": 1})).json(); self.assertEqual(d["phase"], "describe"); self.assertEqual(len(d["spies"]), 1)
+        spy_nick = d["spies"][0]; pair = A.SPY.pair; self.assertEqual(pair[0], 1)
+        views = [await (await self.cl.get("/api/spy/state", headers=h)).json() for h in hs]
+        self.assertEqual(sorted(set(v["code"] for v in views)), sorted({pair[1], pair[3]}))                   # у шпиона другая программа
+        for v in views:
+            self.assertNotIn("role", v); self.assertNotIn("result", v); self.assertNotIn("spies", v)            # роль не раскрывается
+        r = await self.cl.post("/api/spy/say", json={"text": pair[1].splitlines()[-1]}, headers=hs[0]); self.assertEqual(r.status, 400)   # код дословно нельзя
+        for i, h in enumerate(hs):
+            d = await (await self.cl.post("/api/spy/say", json={"text": "считает что-то %d" % i}, headers=h)).json(); self.assertTrue(d["ok"])
+        v = await (await self.cl.get("/api/spy/state", headers=hs[0])).json(); self.assertEqual(v["phase"], "vote"); self.assertEqual(len(v["says"]), 4)   # все ответили: сразу голосование
+        nicks = ["spy_%d" % i for i in range(4)]
+        r = await self.cl.post("/api/spy/vote", json={"nick": "spy_0"}, headers=hs[0]); self.assertEqual(r.status, 400)                      # за себя нельзя
+        for i, h in enumerate(hs):                                    # все голосуют за шпиона (себя пропускаем)
+            tgt = spy_nick if nicks[i] != spy_nick else [n for n in nicks if n != spy_nick][0]
+            d = await (await self.cl.post("/api/spy/vote", json={"nick": tgt}, headers=h)).json(); self.assertTrue(d["ok"])
+        v = await (await self.cl.get("/api/spy/state", headers=hs[nicks.index(spy_nick)])).json()
+        self.assertEqual(v["phase"], "guess"); self.assertEqual(len(v["guess"]["options"]), 4)                  # шпион пойман: последний шанс
+        other = [h for i, h in enumerate(hs) if nicks[i] != spy_nick][0]
+        r = await self.cl.post("/api/spy/guess", json={"i": 0}, headers=other); self.assertEqual(r.status, 400)  # угадывает только шпион
+        ok_i = v["guess"]["options"].index(pair[2]); bad_i = (ok_i + 1) % 4
+        d = await (await self.cl.post("/api/spy/guess", json={"i": bad_i}, headers=hs[nicks.index(spy_nick)])).json()
+        self.assertEqual(d["phase"], "result"); self.assertFalse(d["result"]["spy_wins"]); self.assertEqual(d["result"]["spies"], [spy_nick])
+        scores = {r["nick"]: r["score"] for r in d["board"]}; self.assertEqual(scores[spy_nick], 0)
+        self.assertTrue(all(sc >= 1 for n, sc in scores.items() if n != spy_nick))
+        d = await (await play({"action": "spy_next"})).json(); self.assertEqual((d["phase"], d["round"]), ("describe", 2))
+        await play({"action": "spy_stop"}); b = await (await self.cl.get("/api/leaderboards?game=spy", headers=hs[0])).json(); self.assertTrue(len(b["rows"]) >= 1)
+        await play({"action": "spy_reset"}); A.SPY.cfg.update(SP.DEFAULT_CFG)
 
     async def test_lucky_schedule(self):
         A = self.A; A.ONLINE.clear(); A.LUCKY.update(next=0); A.LK.clear()

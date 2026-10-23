@@ -13,20 +13,38 @@ var T=Net.tkey(),users=[];$("tk").value=T;
 function load(){var k=$("tk").value.trim();if(!k){$("er").textContent="Впиши ключ.";return}
  Net.req("GET","/api/teacher/users",null,{"X-Teacher-Key":k}).then(function(j){if(!j.ok){$("er").textContent=j.error||"Нет доступа.";return}Net.tkey(k);$("er").textContent="";users=j.users;draw()}).catch(function(e){$("er").textContent=e.message})}
 function ago(ts){if(!ts)return "";var d=Math.round((Date.now()/1000-ts)/60);return d<2?"только что":d<60?d+" мин назад":d<1440?Math.round(d/60)+" ч назад":Math.round(d/1440)+" дн назад"}
+var LS={"0":"все","1":"1","2":"2","3":"3","4":"4","5":"5"};
+function qcell(u){var k=Object.keys(u.quizzes||{}).sort();return k.length?k.map(function(l){var q=u.quizzes[l];return '<span title="Лучший результат, попыток: '+q.n+'">'+(LS[l]||l)+':'+q.pct+'%</span>'}).join(" "):"—"}
 function draw(){
  var o=$("out"),n=TASKS.length;
  if(!users.length){o.innerHTML='<div class="box">Пока никто не зарегистрировался.</div>';return}
- var h='<div class="btns"><button class="btn" id="csv" type="button">Скачать таблицу (CSV)</button><button class="btn ghost" id="rf" type="button">Обновить</button></div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Группа</th><th>Фамилия Имя</th><th>Ник</th><th>Решено</th><th>Сдано</th><th>Серия</th><th>Подозрения</th><th>Был</th><th></th></tr></thead><tbody>';
- users.forEach(function(u,i){h+='<tr><td>'+esc(u.group)+'</td><td>'+esc(u.fio)+'</td><td>'+esc(u.nick)+'</td><td>'+u.passed.length+' / '+n+'</td><td>'+u.done.length+'</td><td>'+u.streak+'</td><td'+(u.sus?' class="bad" title="Сервер отклонил отметки о решённых заданиях: похоже на подмену прогресса через консоль"':'')+'>'+(u.sus?"⚠ "+u.sus:"")+'</td><td>'+ago(u.updated)+'</td><td><button class="btn sm ghost" data-r="'+i+'" type="button">Новый пароль</button> <button class="btn sm ghost" data-d="'+i+'" type="button">Удалить</button></td></tr>'});
- o.innerHTML=h+'</tbody></table></div><div class="m" id="msg" role="status"></div>';
+ var on=users.filter(function(u){return u.online}).length;
+ var h='<p class="m">Зарегистрировано: <b>'+users.length+'</b> · сейчас на сайте: <b>'+on+'</b>. Нажми на строку, чтобы увидеть полный прогресс ученика.</p><div class="btns"><button class="btn" id="csv" type="button">Скачать таблицу (CSV)</button><button class="btn ghost" id="rf" type="button">Обновить</button></div><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Группа</th><th>Фамилия Имя</th><th>Ник</th><th>Решено</th><th>Сдано</th><th>Квизы (урок:лучший %)</th><th>Серия</th><th>Подозрения</th><th>Был на сайте</th><th></th></tr></thead><tbody>';
+ users.forEach(function(u,i){h+='<tr data-i="'+i+'" style="cursor:pointer"><td>'+esc(u.group)+'</td><td>'+esc(u.fio)+'</td><td>'+(u.online?'<span title="сейчас на сайте" style="color:#0a0">●</span> ':'')+esc(u.nick)+'</td><td>'+u.passed.length+' / '+n+'</td><td>'+u.done.length+'</td><td>'+qcell(u)+'</td><td>'+u.streak+'</td><td'+(u.sus?' class="bad" title="Сервер отклонил отметки о решённых заданиях: похоже на подмену прогресса через консоль"':'')+'>'+(u.sus?"⚠ "+u.sus:"")+'</td><td>'+(u.online?"сейчас":ago(u.seen||u.updated))+'</td><td><button class="btn sm ghost" data-r="'+i+'" type="button">Новый пароль</button> <button class="btn sm ghost" data-d="'+i+'" type="button">Удалить</button></td></tr>'});
+ o.innerHTML=h+'</tbody></table></div><div class="m" id="msg" role="status"></div><div id="det"></div>';
  $("rf").onclick=load;
- $("csv").onclick=function(){var rows=[["Группа","ФИО","Ник","Решено","Сдано","Серия"]].concat(users.map(function(u){return [u.group,u.fio,u.nick,u.passed.length,u.done.length,u.streak]}));
+ $("csv").onclick=function(){var rows=[["Группа","ФИО","Ник","Решено","Сдано","Квизы","Серия","Был на сайте"]].concat(users.map(function(u){return [u.group,u.fio,u.nick,u.passed.length,u.done.length,Object.keys(u.quizzes||{}).map(function(l){return (LS[l]||l)+":"+u.quizzes[l].pct+"%"}).join(" "),u.streak,u.seen?new Date(u.seen*1000).toLocaleString("ru"):""]}));
   var t="﻿"+rows.map(function(r){return r.map(function(c){c=String(c);if(/^[=+\-@]/.test(c))c="'"+c;return '"'+c.replace(/"/g,'""')+'"'}).join(";")}).join("\r\n");
   var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type:"text/csv;charset=utf-8"}));a.download="ucheniki.csv";document.body.appendChild(a);a.click();a.remove()};
+ Array.prototype.forEach.call(o.querySelectorAll("tr[data-i]"),function(r){r.onclick=function(e){if(e.target.tagName==="BUTTON")return;detail(users[+r.dataset.i].nick)}});
  Array.prototype.forEach.call(o.querySelectorAll("[data-r]"),function(b){b.onclick=function(){var u=users[+b.dataset.r],p=prompt?window.prompt("Новый пароль для "+u.nick+" (минимум 6 символов):"):"";if(!p)return;
   Net.req("POST","/api/teacher/reset",{nick:u.nick,password:p},{"X-Teacher-Key":T}).then(function(j){$("msg").textContent=j.ok?"Пароль для "+u.nick+" изменён.":(j.error||"Не удалось.")})}});
  Array.prototype.forEach.call(o.querySelectorAll("[data-d]"),function(b){b.onclick=function(){var u=users[+b.dataset.d];if(b.dataset.sure!=="1"){b.dataset.sure="1";b.textContent="Точно удалить?";return}
   Net.req("DELETE","/api/teacher/user?nick="+encodeURIComponent(u.nick),null,{"X-Teacher-Key":T}).then(function(j){if(j.ok)load();else $("msg").textContent=j.error||"Не удалось."})}});
 }
+function dt(ts){return ts?new Date(ts*1000).toLocaleString("ru",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"—"}
+function detail(nick){var d=$("det");d.innerHTML='<div class="box">Загружаю…</div>';
+ Net.req("GET","/api/teacher/student?nick="+encodeURIComponent(nick),null,{"X-Teacher-Key":T}).then(function(j){
+  if(!j.ok){d.innerHTML='<div class="bad">'+esc(j.error||"Не получилось")+'</div>';return}
+  var tk={};j.tasks.forEach(function(t){tk[t.task]=t});
+  var h='<div class="box" id="stu"><h2 style="margin-top:0">'+esc(j.fio)+' <span class="m">('+esc(j.nick)+', '+esc(j.group)+')</span></h2><p class="m">Почта: '+esc(j.email||"нет")+' · зарегистрирован: '+dt(j.created)+' · был на сайте: '+dt(j.seen||j.updated)+' · серия: '+(j.streak.n||0)+' дн. (лучшая '+(j.streak.best||0)+')'+(j.sus?' · <b class="bad">подозрений: '+j.sus+'</b>':'')+'</p>';
+  h+='<h3>Задания</h3><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>№</th><th>Задание</th><th>Статус</th><th>Попыток</th><th>Последняя</th></tr></thead><tbody>';
+  TASKS.forEach(function(t){var pa=j.passed.indexOf(t.id)>=0,dn=j.done.indexOf(t.id)>=0,x=tk[t.id];h+='<tr><td>'+esc(t.id)+'</td><td>'+esc(t.title)+'</td><td>'+(dn?"✓✓ сдано":pa?"✓ решено":(x?"в процессе":"—"))+'</td><td>'+(x?x.tries:0)+'</td><td>'+(x?dt(x.last):"—")+'</td></tr>'});
+  h+='</tbody></table></div><h3>Квизы</h3>';
+  h+=j.quizzes.length?'<table class="tbl"><thead><tr><th>Урок</th><th>Результат</th><th>Когда</th></tr></thead><tbody>'+j.quizzes.map(function(q){return '<tr><td>'+(LS[q.lesson]||q.lesson)+'</td><td>'+q.score+' из '+q.total+' ('+Math.round(q.score*100/q.total)+'%)</td><td>'+dt(q.ts)+'</td></tr>'}).join("")+'</tbody></table>':'<p class="m">Квизов пока нет.</p>';
+  h+='<h3>Игры (лучшие результаты)</h3>';
+  h+=j.games.length?'<table class="tbl"><tbody>'+j.games.map(function(g){return '<tr><td>'+esc(g.title)+'</td><td>'+g.best+' '+esc(g.unit)+'</td><td>'+dt(g.ts)+'</td></tr>'}).join("")+'</tbody></table>':'<p class="m">В игры ещё не играл.</p>';
+  if(j.events.length){var K={five:"красная пятёрка","burned":"оценка сгорела","no-skulls":"рулетка: черепа не выпали"};h+='<h3>Рулетка</h3><table class="tbl"><tbody>'+j.events.map(function(e){return '<tr><td>'+dt(e.ts)+'</td><td>'+esc(K[e.kind]||e.kind)+'</td><td>'+esc(e.note)+'</td></tr>'}).join("")+'</tbody></table>'}
+  d.innerHTML=h+'</div>';d.scrollIntoView({behavior:"smooth",block:"start"})}).catch(function(e){d.innerHTML='<div class="bad">'+esc(e.message)+'</div>'})}
 $("ld").onclick=function(){T=$("tk").value.trim();load()};
 </script></body></html>
