@@ -66,7 +66,7 @@ document.getElementById("rs").onclick=function(){if(confirm("Вернуть за
 document.getElementById("dl").onclick=function(){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+Honest.code(ta)],{type:"text/x-python"}));a.download=t.file;a.click()};
 document.getElementById("q").onclick=function(){window.openGuide&&window.openGuide(3)};
 var warmed=false;function warmOnce(){if(!warmed){warmed=true;var c=navigator.connection;if(c&&c.saveData)return;BrowserCheck.warm()}}
-ta.addEventListener('focus',warmOnce,{once:true});ta.addEventListener('input',warmOnce,{once:true});
+ta.addEventListener('focus',warmOnce,{once:true});ta.addEventListener('input',warmOnce,{once:true});setTimeout(warmOnce,1000);
 var res=document.getElementById("res"),chk=document.getElementById("chk");
 chk.onclick=function(){if(Honest.locked(ta)){var hh=document.getElementById("hn");hh.className="bad";hh.textContent="Редактор заблокирован: похоже, код вводит бот.";return}
  res.className="res on wait";res.innerHTML='<div class="rh">'+(BrowserCheck.isReady()?'Проверяю…':'Первый запуск: загружаю проверку (около 13 МБ, один раз). Подожди…')+'</div>';chk.disabled=true;
