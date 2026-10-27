@@ -45,6 +45,12 @@ python check.py 2.4
 | 2.2 | Оценка по баллам | [открыть](lessons/lesson2/task_2_otsenka) |
 | 2.3 | Аттракцион | [открыть](lessons/lesson2/task_3_attraktsion) |
 | 2.4 | Городской помощник 1.0 | [открыть](lessons/lesson2/task_4_gorodskoy_pomoshchnik) |
+| 2.5 | Високосный год | [открыть](lessons/lesson2/task_5_visokosny) |
+| 2.6 | Три стороны | [открыть](lessons/lesson2/task_6_treugolnik) |
+| 2.7 | Максимум из трёх | [открыть](lessons/lesson2/task_7_maksimum) |
+| 2.8 | Чётное или нечётное | [открыть](lessons/lesson2/task_8_chet) |
+| 2.9 | Скидка в магазине | [открыть](lessons/lesson2/task_9_skidka) |
+| 2.10 | Время суток | [открыть](lessons/lesson2/task_10_vremya) |
 | | **Урок 3. Циклы, списки, функции** | |
 | 3.1 | Таблица умножения | [открыть](lessons/lesson3/task_1_tablitsa) |
 | 3.2 | Сумма до n | [открыть](lessons/lesson3/task_2_summa) |

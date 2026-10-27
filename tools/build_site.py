@@ -97,6 +97,8 @@ body:
     sys.path.insert(0, os.path.join(ROOT, "tools"))
     import subjects  # другие предметы: docs/data/subjects.js
     subjects.main()
+    import ege  # раздел ЕГЭ (скрыт от учеников): docs/data/ege.js
+    ege.main()
 
 if __name__ == "__main__":
     main()
