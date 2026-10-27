@@ -2,14 +2,17 @@
 <main class="wrap">
 <div class="crumbs">Теория</div><h1>Короткая теория</h1>
 <p class="m">Главное из каждого урока в маленьких плашках. Примеры можно скопировать и запустить у себя.</p>
-<div class="tabs" id="tabs"></div><div id="vids"></div><div class="plates" id="pl"></div>
+<div class="tabs" id="tabs"></div><div id="lv"></div><div id="vids"></div><div class="plates" id="pl"></div>
 </main>
 <script src="site.js"></script><script src="data/tasks.js?v=2810"></script><script src="data/theory.js?v=2810"></script><script src="data/clips.js"></script><script src="explainer.js"></script>
 <script>
 layout("theory.html","Теория");
+/* Большой ролик-объяснение урока (пиксельный учитель), файлы лежат в docs/media */
+var LESSON_VIDEO={3:{src:"media/urok3-tsikly.mp4",title:"Циклы за 2,5 минуты: for, range, while, накопитель"}};
 var names={};TASKS.forEach(function(t){names[t.lesson]=t.lessonTitle});
 var ls=Object.keys(names).map(Number).sort(),cur=+(new URLSearchParams(location.search).get("l"))||ls[0];
 function draw(){document.getElementById("tabs").innerHTML=ls.map(function(n){return '<button class="'+(n===cur?'on':'')+'" data-n="'+n+'">Урок '+n+'. '+esc(names[n])+'</button>'}).join("");
+ var lv=LESSON_VIDEO[cur];document.getElementById("lv").innerHTML=lv?'<h2 style="margin:6px 0 12px">Объяснение урока</h2><div style="border:3px solid #000;padding:12px;margin-bottom:18px;display:flex;justify-content:center;background:linear-gradient(160deg,#3a1aa0,#1b0f45 60%,#0e0a24)"><video controls playsinline preload="metadata" src="'+lv.src+'" style="display:block;max-width:100%;height:min(70vh,640px);aspect-ratio:9/16;background:#000;border:3px solid #000;box-shadow:6px 6px 0 #000"></video></div><p class="m" style="margin-top:-8px">'+esc(lv.title)+'</p>':"";
  var vs=Explainer.forLesson(cur);document.getElementById("vids").innerHTML=vs.length?'<h2 style="margin:6px 0 12px">Видеоразбор</h2><div class="vgrid">'+vs.map(Explainer.card).join("")+'</div><h2 style="margin:6px 0 12px">Шпаргалка</h2>':"";Explainer.bind(document.getElementById("vids"));
  document.getElementById("pl").innerHTML=THEORY.filter(function(p){return p.l===cur}).map(plate).join("");
  Array.prototype.forEach.call(document.querySelectorAll("#tabs button"),function(b){b.onclick=function(){cur=+b.dataset.n;draw();history.replaceState(null,"","?l="+cur)}})}
