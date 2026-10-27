@@ -57,6 +57,9 @@ python check.py 2.4
 | 3.3 | Чек в магазине | [открыть](lessons/lesson3/task_3_pokupki) |
 | 3.4 | Функция recommend | [открыть](lessons/lesson3/task_4_recommend) |
 | 3.5 | Наибольшее в списке | [открыть](lessons/lesson3/task_5_naibolshee) |
+| 3.6 | Чётные до n | [открыть](lessons/lesson3/task_6_chetnye) |
+| 3.7 | Сумма цифр | [открыть](lessons/lesson3/task_7_tsifry) |
+| 3.8 | Три попытки | [открыть](lessons/lesson3/task_8_parol) |
 | | **Урок 4. Строки, словари, файлы** | |
 | 4.1 | Сколько слов | [открыть](lessons/lesson4/task_1_slova) |
 | 4.2 | Палиндром | [открыть](lessons/lesson4/task_2_palindrom) |

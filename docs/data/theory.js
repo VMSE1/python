@@ -357,6 +357,9 @@ window.THEORY_MAP={
   "l3-list",
   "l3-for"
  ],
+ "3.6": ["l3-for", "l3-range", "l3-acc"],
+ "3.7": ["l3-while", "l3-def", "l3-return"],
+ "3.8": ["l3-for", "l3-break", "l2-if"],
  "4.1": [
   "l4-methods",
   "l4-str"
