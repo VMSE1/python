@@ -1,0 +1,194 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://api.github.com https://vsemcode.ru wss://vsemcode.ru; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-src 'none'"><meta name="referrer" content="no-referrer"><title>Урок: монеты и опоздавшие</title><link rel="preload" href="fonts/press-start-2p-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/press-start-2p-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/ibm-plex-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="site.css"><link rel="stylesheet" href="live.css"></head><body>
+<main class="wrap">
+<div class="crumbs">Урок: монеты и опоздавшие</div><h1>Урок</h1>
+<p class="m">Таблица лидеров урока: монеты за ответы и активность, лёгкое задание опоздавшему, золотая монета с сундуками. Видно только учителю (и на проекторе, если включишь).</p>
+<div class="box" id="gate" style="display:none;gap:10px;max-width:520px"><div class="fld"><label for="tk">Ключ учителя</label><input id="tk" type="password" autocomplete="off"></div><p class="m">Или войди логином и паролем в <a href="teacher.html">кабинете учителя</a> и вернись сюда во вкладке «Урок».</p><div class="bad" id="er" role="alert"></div><button class="btn go" id="ld" type="button">Войти</button></div>
+<div id="out"></div>
+</main>
+<div id="proj" hidden></div>
+<style>
+.lg{display:grid;gap:14px}.lg .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.lg select,.lg input[type=text],.lg textarea{font:500 16px var(--mono);padding:8px 10px;border:3px solid #000;background:#fff;max-width:100%}
+.lg textarea{width:100%;min-height:110px}.chips{display:flex;flex-wrap:wrap;gap:6px;max-height:180px;overflow:auto;margin:8px 0}.chips span{border:2px solid #000;background:#fff;padding:2px 8px;font-size:14px}
+.bt{width:100%;border-collapse:collapse}.bt td,.bt th{border-bottom:2px solid #0002;padding:6px 6px;text-align:left;vertical-align:middle}.bt th{font-size:13px;color:var(--muted)}
+.bt .cn{font-weight:800;font-size:20px;white-space:nowrap}.bt .act{display:flex;gap:6px;flex-wrap:wrap}.bt .act button{min-width:44px;min-height:40px;font:700 16px var(--mono);border:3px solid #000;background:#fff;box-shadow:2px 2px 0 #000;cursor:pointer}
+.bt .act button.p{background:#ffd23a}.bt .act button.n{background:#f3d0d0}.bt .act button.l{background:#d8cff5}.bt tr.flash td{background:#fff6b8}
+.coin{display:inline-block;width:1em;height:1em;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff6b0,#ffd23a 45%,#c98a00);border:2px solid #7a4d00;vertical-align:-.15em;margin-right:4px}
+.gch{display:inline-block;padding:2px 6px;border:2px solid #000;background:#8b4513;color:#ffd23a;font-weight:700;font-size:13px;cursor:pointer}
+.tag{font-size:12px;border:2px solid #0004;padding:1px 6px;white-space:nowrap}.tag.ok{border-color:#0a7a2a;color:#0a7a2a}.tag.w{border-color:#b26a00;color:#b26a00}
+.lq{border:2px dashed #0005;padding:8px 10px;margin:6px 0;background:#fff}.lq pre{margin:6px 0;font-size:13px}
+#proj{position:fixed;inset:0;z-index:2147482000;background:radial-gradient(circle at 50% 0,#4b2bd0,#140a3a 70%);color:#fff;overflow:auto;padding:24px clamp(16px,4vw,60px);font-family:var(--mono)}
+#proj h2{font:400 clamp(18px,3vw,34px)/1.3 var(--px);margin:0 0 6px;color:#ffd23a}#proj .sub{opacity:.8;margin-bottom:18px}
+#proj .pr{display:grid;grid-template-columns:3.2em 1fr auto;align-items:center;gap:14px;padding:10px 16px;margin:8px 0;background:#ffffff14;border:3px solid #ffffff30;font-size:clamp(18px,2.6vw,32px);transition:transform .4s}
+#proj .pr.top{background:#ffd23a22;border-color:#ffd23a}#proj .pr b{font-weight:700}#proj .pr .c{font-weight:800;color:#ffd23a;white-space:nowrap}
+#proj .pr.bump{animation:bump .9s}@keyframes bump{30%{transform:scale(1.04);background:#ffd23a55}}
+#proj .fly{position:fixed;width:42px;height:42px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff6b0,#ffd23a 45%,#c98a00);border:3px solid #7a4d00;pointer-events:none;animation:fly 1.1s ease-in forwards;z-index:3}
+@keyframes fly{0%{transform:translateY(-60vh) rotate(0)}80%{opacity:1}100%{transform:translateY(0) rotate(540deg);opacity:0}}
+#proj .tb{position:sticky;top:0;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}#proj .tb button{font:700 15px var(--mono);padding:8px 12px;border:3px solid #000;background:#fff;cursor:pointer}
+#proj .gold{position:fixed;inset:0;background:#000c;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;z-index:4;padding:16px}
+#proj .gold .chs{display:flex;gap:clamp(12px,3vw,40px);flex-wrap:wrap;justify-content:center}#proj .gold .ch{width:clamp(110px,16vw,200px);aspect-ratio:6/5;border:4px solid #000;background:linear-gradient(#a0522d 0 38%,#000 38% 42%,#8b4513 42%);box-shadow:6px 6px 0 #000;cursor:pointer;font:800 clamp(28px,5vw,60px) var(--mono);color:#ffd23a}
+#proj .gold .ch.open{background:#2b1606;cursor:default}#proj .gold .ch.mine{outline:6px solid #ffd23a;outline-offset:4px}
+@media (prefers-reduced-motion:reduce){#proj .fly{display:none}#proj .pr.bump{animation:none}}
+@media (max-width:640px){.bt .hide{display:none}}
+</style>
+<script src="site.js"></script><script src="config.js"></script><script src="net.js"></script><script src="data/tasks.js"></script><script src="questions.js"></script><script src="xlsx.js"></script>
+<script>
+layout("lesson.html","Урок: монеты и опоздавшие");
+(function(){
+function $(i){return document.getElementById(i)}
+function H(){return {"X-Teacher-Key":Net.tkey()}}
+function ls(k,v){try{if(v!==undefined)localStorage.setItem(k,v);return localStorage.getItem(k)||""}catch(e){return ""}}
+var S={group:ls("lsnGroup"),lesson:+ls("lsnLesson")||0,data:null,board:null,parsed:null,proj:false,all:false,prev:{},seenGold:{}};
+var TOPICS={};(window.QUESTIONS||[]).forEach(function(q){TOPICS[q.l]=1});
+var LT={};(window.TASKS||[]).forEach(function(t){if(!LT[t.lesson])LT[t.lesson]=t.lessonTitle});
+function topicName(n){return n?"Python, урок "+n+(LT[n]?": "+LT[n]:""):"любая тема (вопросы со всего курса)"}
+function msg(t,bad){var m=$("msg");if(m){m.className=bad?"bad":"m";m.textContent=t||""}}
+
+/* ---------- вход */
+function gate(err){$("gate").style.display="grid";$("out").innerHTML="";$("er").textContent=err||""}
+$("ld").onclick=function(){var k=$("tk").value.trim();if(!k)return;Net.tkey(k);load(true)};
+if(!Net.on){$("out").innerHTML='<div class="box">Сервер курса не подключён.</div>';return}
+
+function load(first){
+ var q="/api/teacher/lesson?group="+encodeURIComponent(S.group)+(S.lesson?"&lesson="+S.lesson:"");
+ return Net.req("GET",q,null,H()).then(function(j){
+  if(j.status===403){gate(first&&Net.tkey()?"Ключ не подошёл.":"");return}
+  if(j.status===404&&S.lesson){S.lesson=0;ls("lsnLesson","0");return load(first)}
+  if(!j.ok){msg(j.error||"Ошибка",1);return}
+  $("gate").style.display="none";S.data=j;S.board=j.board||null;
+  if(S.group&&!j.groups.some(function(g){return g.group===S.group})){S.group="";S.lesson=0}
+  if(first||!$("lb"))draw();else{drawBoard();if(S.proj)drawProj()}
+ }).catch(function(e){msg(e.message,1)})}
+
+/* ---------- страница */
+function draw(){
+ var d=S.data,h='<div class="lg">';
+ h+='<div class="box"><b>1. Группа</b><div class="row" style="margin-top:8px"><select id="gs" aria-label="Группа"><option value="">— выбери группу —</option>'+d.groups.map(function(g){return '<option'+(g.group===S.group?" selected":"")+' value="'+esc(g.group)+'">'+esc(g.group)+' ('+g.n+')</option>'}).join("")+'</select>'+
+  '<button class="btn sm ghost" id="gnew" type="button">'+(d.groups.length?"Загрузить список из Excel":"Загрузить первую группу")+'</button></div><div id="up" '+(d.groups.length?"hidden":"")+'></div>'+(S.group&&d.roster?rosterHtml():"")+'</div>';
+ if(S.group){
+  h+='<div class="box"><b>2. Урок</b><div class="row" style="margin-top:8px"><select id="ls" aria-label="Урок"><option value="0">— выбери урок —</option>'+(d.lessons||[]).map(function(l){return '<option value="'+l.id+'"'+(l.id===S.lesson?" selected":"")+'>'+esc(l.title)+' · '+new Date(l.ts*1000).toLocaleDateString("ru")+'</option>'}).join("")+'</select><span class="m">или новый:</span>'+
+   '<input type="text" id="lt" placeholder="Тема урока" maxlength="80" value="Урок '+esc(new Date().toLocaleDateString("ru",{day:"2-digit",month:"2-digit"}))+'"><select id="lp2" aria-label="Вопросы для опоздавших"><option value="0">Вопросы: любая тема</option>'+Object.keys(TOPICS).sort().map(function(n){return '<option value="'+n+'">Вопросы: '+esc(topicName(+n))+'</option>'}).join("")+'</select><button class="btn sm" id="lnew" type="button">Начать урок</button></div></div>';
+ }
+ h+='<p id="msg" class="m" role="status"></p><div id="lb"></div><div id="lateBox"></div></div>';
+ $("out").innerHTML=h;
+ upload();
+ $("gs").onchange=function(){S.group=this.value;S.lesson=0;ls("lsnGroup",S.group);ls("lsnLesson","0");load(true)};
+ $("gnew").onclick=function(){var u=$("up");u.hidden=!u.hidden};
+ if($("ls")){$("ls").onchange=function(){S.lesson=+this.value;ls("lsnLesson",String(S.lesson));load(true)};
+  $("lnew").onclick=function(){Net.req("POST","/api/teacher/lesson",{action:"new",group:S.group,title:$("lt").value,topic:+$("lp2").value},H()).then(function(j){if(!j.ok){msg(j.error,1);return}S.lesson=j.id;ls("lsnLesson",String(j.id));load(true)})}}
+ bindRoster();drawBoard()}
+
+function rosterHtml(){
+ var r=S.data.roster,linked=r.filter(function(x){return x.nick}).length;
+ return '<details style="margin-top:10px"><summary class="m">Список группы: '+r.length+' чел., с аккаунтом на сайте: '+linked+'. Привязать ник вручную</summary>'+
+  '<p class="m">Сайт сам ищет аккаунт по фамилии и имени, которые ученик указал при регистрации. Задание опоздавшему и сундуки приходят только тем, у кого есть ник.</p><table class="bt">'+
+  r.map(function(x){return '<tr><td>'+esc(x.fio)+'</td><td>'+(x.nick?'<span class="tag ok">'+esc(x.nick)+'</span>':'<span class="tag w">нет аккаунта</span>')+'</td><td><button class="btn sm ghost" type="button" data-link="'+x.rid+'">'+(x.nick?"Изменить":"Привязать ник")+'</button></td></tr>'}).join("")+
+  '</table><div class="btns"><button class="btn sm ghost" id="relink" type="button">Поискать аккаунты ещё раз</button><button class="btn sm ghost" id="gdel" type="button">Убрать группу</button></div></details>'}
+function bindRoster(){
+ Array.prototype.forEach.call(document.querySelectorAll("[data-link]"),function(b){b.onclick=function(){var nk=prompt("Ник ученика на сайте (пусто: отвязать):","");if(nk===null)return;
+  Net.req("POST","/api/teacher/lesson",{action:"link",rid:+b.dataset.link,nick:nk.trim()},H()).then(function(j){if(!j.ok)alert(j.error);load(true)})}});
+ if($("relink"))$("relink").onclick=function(){Net.req("POST","/api/teacher/lesson",{action:"relink",group:S.group},H()).then(function(){load(true)})};
+ if($("gdel"))$("gdel").onclick=function(){if(this.dataset.sure!=="1"){this.dataset.sure="1";this.textContent="Точно убрать? Монеты останутся в базе";return}
+  Net.req("POST","/api/teacher/lesson",{action:"group_del",group:S.group},H()).then(function(){S.group="";ls("lsnGroup","");load(true)})}}
+
+/* ---------- загрузка списка из Excel */
+function upload(){
+ var u=$("up");
+ u.innerHTML='<p class="m" style="margin-top:10px">Выгрузка журнала (.xlsx) или CSV. Файл читается здесь, в браузере, и никуда не отправляется: на сервер уйдёт только список «Фамилия Имя Отчество».</p>'+
+  '<div class="row"><input type="file" id="xf" accept=".xlsx,.csv,.txt"></div><p class="m">или вставь список, по одному ученику в строке:</p><textarea id="xt" placeholder="Иванова Анна Сергеевна&#10;Петров Пётр Иванович"></textarea>'+
+  '<div class="btns" style="margin:8px 0"><button class="btn sm ghost" id="xp" type="button">Разобрать текст</button></div><div id="xo"></div>';
+ $("xf").onchange=function(){var f=this.files[0];if(!f)return;$("xo").innerHTML='<p class="m">Читаю файл…</p>';
+  f.arrayBuffer().then(function(buf){
+   if(/\.(csv|txt)$/i.test(f.name))return preview(Xlsx.fromText(new TextDecoder().decode(buf)),Xlsx.group(f.name,[]));
+   return Xlsx.read(buf).then(function(sh){preview(Xlsx.students(sh),Xlsx.group(f.name,sh))})}).catch(function(e){$("xo").innerHTML='<p class="bad">'+esc(e.message)+'</p>'})};
+ $("xp").onclick=function(){preview(Xlsx.fromText($("xt").value),S.group)}}
+function preview(names,grp){
+ var o=$("xo");S.parsed=names;
+ if(!names.length){o.innerHTML='<p class="bad">Не нашёл ни одной фамилии. Нужна колонка «Студент» или «ФИО» со строками вида «Фамилия Имя».</p>';return}
+ o.innerHTML='<p><b>Нашёл учеников: '+names.length+'</b></p><div class="chips">'+names.map(function(n){return '<span>'+esc(n)+'</span>'}).join("")+'</div>'+
+  '<div class="row"><label for="xg">Группа</label><input type="text" id="xg" maxlength="20" value="'+esc(grp||S.group||"")+'" placeholder="ИИ-136"><button class="btn sm" id="xs" type="button">Сохранить группу</button></div>'+
+  '<p class="m">Если группа уже есть, список обновится: монеты и привязки учеников сохранятся.</p>';
+ $("xs").onclick=function(){var g=$("xg").value.trim();if(!g){$("xg").focus();return}
+  Net.req("POST","/api/teacher/lesson",{action:"roster",group:g,names:S.parsed},H()).then(function(j){if(!j.ok){o.insertAdjacentHTML("beforeend",'<p class="bad">'+esc(j.error)+'</p>');return}
+   S.group=g;ls("lsnGroup",g);S.lesson=0;ls("lsnLesson","0");load(true).then(function(){msg("Группа "+g+" сохранена: "+j.n+" чел., нашлись на сайте: "+j.linked+".")})})}}
+
+/* ---------- таблица урока */
+function sorted(){var b=S.board,k=S.all?"all":"coins";return b.rows.slice().sort(function(x,y){return y[k]-x[k]||x.name.localeCompare(y.name,"ru")})}
+function drawBoard(){
+ var el=$("lb");if(!el)return;var b=S.board;
+ if(document.activeElement&&document.activeElement.id==="odds")return;
+ if(!b){el.innerHTML=S.group?'<div class="box m">Выбери урок или начни новый.</div>':"";return}
+ var h='<div class="box"><div class="row" style="justify-content:space-between"><b>3. '+esc(b.title)+' · '+esc(b.group)+'</b><span class="row"><button class="btn sm alt" id="pj" type="button">На проектор</button></span></div>'+
+  '<p class="m">Вопросы опоздавшим: '+esc(topicName(b.topic))+'. Золотая монета выпадает с шансом <input type="number" id="odds" min="0" max="100" step="5" style="width:4.5em" value="'+Math.round(b.odds*100)+'"> % при каждой выдаче.</p>'+
+  '<div style="overflow-x:auto"><table class="bt"><thead><tr><th>#</th><th>Ученик</th><th>Монеты</th><th class="hide">Всего</th><th>Выдать</th><th>Опоздал</th></tr></thead><tbody>';
+ sorted().forEach(function(r,i){
+  var lt=r.late?(r.late.score<0?(r.late.left?'<span class="tag w">отвечает, '+Math.ceil(r.late.left/60)+' мин</span>':'<span class="tag">не ответил</span>'):'<span class="tag ok">'+r.late.score+' / '+r.late.total+'</span>'):"";
+  var gd=r.gold.length?' <span class="gch" data-gold="'+r.gold[0]+'" data-rid="'+r.rid+'" title="'+(r.linked?"Сундук открыт у ученика на экране. Нажми, чтобы открыть на проекторе":"Нет аккаунта: открой сундук на проекторе")+'">сундук'+(r.gold.length>1?" ×"+r.gold.length:"")+'</span>':"";
+  h+='<tr data-row="'+r.rid+'"'+(S.prev[r.rid]!==undefined&&S.prev[r.rid]<r.coins?' class="flash"':"")+'><td>'+(i+1)+'</td><td>'+esc(r.name)+(r.linked?'':' <span class="tag w" title="Нет аккаунта на сайте">без ника</span>')+gd+'</td><td class="cn"><span class="coin"></span>'+r.coins+'</td><td class="hide">'+r.all+'</td>'+
+   '<td><div class="act"><button class="p" data-c="1" data-r="'+r.rid+'" aria-label="плюс 1 монета: '+esc(r.name)+'">+1</button><button class="p" data-c="2" data-r="'+r.rid+'" aria-label="плюс 2 монеты: '+esc(r.name)+'">+2</button><button class="n" data-c="-1" data-r="'+r.rid+'" aria-label="минус 1 монета: '+esc(r.name)+'">−1</button></div></td>'+
+   '<td><div class="act"><button class="l" data-late="'+r.rid+'" aria-label="задание опоздавшему: '+esc(r.name)+'"'+(r.linked?"":' title="Нет аккаунта: задание не придёт"')+'>⏰</button>'+lt+'</div></td></tr>'});
+ h+='</tbody></table></div></div>';
+ el.innerHTML=h;
+ b.rows.forEach(function(r){S.prev[r.rid]=r.coins});
+ $("pj").onclick=function(){S.proj=true;drawProj();var p=$("proj");if(p.requestFullscreen)p.requestFullscreen().catch(function(){})};
+ $("odds").onchange=function(){Net.req("POST","/api/teacher/lesson",{action:"odds",odds:Math.max(0,Math.min(100,+this.value||0))/100},H())};
+ Array.prototype.forEach.call(el.querySelectorAll("[data-c]"),function(x){x.onclick=function(){coin(+x.dataset.r,+x.dataset.c)}});
+ Array.prototype.forEach.call(el.querySelectorAll("[data-late]"),function(x){x.onclick=function(){lateBox(+x.dataset.late)}});
+ Array.prototype.forEach.call(el.querySelectorAll("[data-gold]"),function(x){x.onclick=function(){S.proj=true;drawProj();goldShow(+x.dataset.gold,+x.dataset.rid)}})}
+function coin(rid,d){
+ Net.req("POST","/api/teacher/lesson",{action:"coin",lesson:S.lesson,rid:rid,delta:d},H()).then(function(j){if(!j.ok){msg(j.error,1);return}
+  var r=S.board.rows.filter(function(x){return x.rid===rid})[0];
+  if(j.gold)msg("Золотая монета для "+(r?r.name:"ученика")+"! "+(r&&r.linked?(j.online?"У него на экране открылись сундуки.":"Сундуки откроются, когда он зайдёт на сайт."):"Аккаунта нет: открой сундук на проекторе."));else msg("");
+  load()})}
+
+/* ---------- задание опоздавшему */
+function pick(topic,n){var all=(window.QUESTIONS||[]).filter(function(q){return !topic||q.l===topic});if(!all.length)all=window.QUESTIONS||[];
+ all=all.slice();for(var i=all.length-1;i>0;i--){var k=Math.floor(Math.random()*(i+1)),t=all[i];all[i]=all[k];all[k]=t}
+ return all.slice(0,n).map(function(q){return {q:q.q,code:q.code||"",o:q.o,a:q.a,why:q.why||""}})}
+function lateBox(rid){
+ var r=S.board.rows.filter(function(x){return x.rid===rid})[0],box=$("lateBox");if(!r)return;
+ var qs=pick(S.board.topic,3);
+ function draw(){
+  box.innerHTML='<div class="box" style="margin-top:12px;background:#fff"><b>Задание опоздавшему: '+esc(r.name)+'</b>'+(r.linked?'':'<p class="bad">У ученика нет аккаунта на сайте. Задание не придёт. Привяжи ник в списке группы (шаг 1).</p>')+
+   '<p class="m">5 минут на ответ. За каждый верный ответ +1 монета.</p>'+qs.map(function(q,i){return '<div class="lq"><b>'+(i+1)+'. '+esc(q.q)+'</b>'+(q.code?'<pre>'+esc(q.code)+'</pre>':'')+'<div class="m">'+q.o.map(function(o,k){return (k===q.a?"✓ ":"")+esc(o)}).join(" · ")+'</div><button class="btn sm ghost" type="button" data-del="'+i+'">Убрать</button></div>'}).join("")+
+   '<details><summary class="m">Свой вопрос</summary><div class="lg" style="gap:6px;margin-top:6px"><input type="text" id="cq" placeholder="Вопрос" maxlength="300"><textarea id="co" style="min-height:80px" placeholder="Варианты, по одному в строке. Правильный отметь * в начале&#10;*print&#10;input"></textarea><button class="btn sm ghost" id="cadd" type="button">Добавить вопрос</button></div></details>'+
+   '<div class="btns"><button class="btn sm" id="lsend" type="button"'+(qs.length&&r.linked?"":" disabled")+'>Отправить ученику</button><button class="btn sm ghost" id="lmix" type="button">Другие вопросы</button><button class="btn sm ghost" id="lcan" type="button">Отмена</button></div><p id="lm" class="m" role="status"></p></div>';
+  Array.prototype.forEach.call(box.querySelectorAll("[data-del]"),function(x){x.onclick=function(){qs.splice(+x.dataset.del,1);draw()}});
+  $("lmix").onclick=function(){qs=pick(S.board.topic,3);draw()};
+  $("lcan").onclick=function(){box.innerHTML=""};
+  $("cadd").onclick=function(){var q=$("cq").value.trim(),a=0,o=$("co").value.split(/\n/).map(function(s){return s.trim()}).filter(Boolean).slice(0,4).map(function(s,i){if(s[0]==="*"){a=i;s=s.slice(1).trim()}return s});
+   if(!q||o.length<2){$("lm").className="bad";$("lm").textContent="Нужен вопрос и минимум 2 варианта.";return}if(qs.length>=5)qs.shift();qs.push({q:q,code:"",o:o,a:a,why:""});draw()};
+  $("lsend").onclick=function(){var b=this;b.disabled=true;Net.req("POST","/api/teacher/lesson",{action:"late",lesson:S.lesson,rid:rid,questions:qs},H()).then(function(j){
+   if(!j.ok){b.disabled=false;$("lm").className="bad";$("lm").textContent=j.error;return}
+   box.innerHTML="";msg("Задание отправлено: "+r.name+". "+(j.online?"Он сейчас на сайте, окно откроется через пару секунд.":"Его сейчас нет на сайте: задание появится, когда он зайдёт (в течение 5 минут)."));load()})}}
+ draw();box.scrollIntoView({behavior:"smooth",block:"nearest"})}
+
+/* ---------- проектор */
+function drawProj(){
+ var p=$("proj"),b=S.board;if(!b)return;p.hidden=false;document.body.style.overflow="hidden";
+ var rows=sorted(),k=S.all?"all":"coins",old={};Array.prototype.forEach.call(p.querySelectorAll(".pr"),function(x){old[x.dataset.r]=+x.dataset.c});
+ var gold=p.querySelector(".gold");
+ p.innerHTML='<div class="tb"><button type="button" id="pall">'+(S.all?"За этот урок":"За все уроки")+'</button><button type="button" id="pclose">Закрыть</button></div><h2>Таблица лидеров</h2><div class="sub">'+esc(b.title)+' · '+esc(b.group)+(S.all?" · за все уроки":"")+'</div>'+
+  rows.map(function(r,i){return '<div class="pr'+(i<3&&r[k]>0?" top":"")+'" data-r="'+r.rid+'" data-c="'+r[k]+'"><span>'+(i===0&&r[k]>0?"🥇":i===1&&r[k]>0?"🥈":i===2&&r[k]>0?"🥉":(i+1)+".")+'</span><b>'+esc(r.name)+'</b><span class="c"><span class="coin"></span>'+r[k]+'</span></div>'}).join("");
+ if(gold)p.appendChild(gold);
+ Array.prototype.forEach.call(p.querySelectorAll(".pr"),function(x){var o=old[x.dataset.r];if(o!==undefined&&o<+x.dataset.c){x.classList.add("bump");var c=x.querySelector(".c").getBoundingClientRect(),f=document.createElement("div");f.className="fly";f.style.left=(c.left)+"px";f.style.top=(c.top)+"px";p.appendChild(f);setTimeout(function(){f.remove()},1200)}});
+ $("pclose").onclick=function(){S.proj=false;p.hidden=true;p.innerHTML="";document.body.style.overflow="";if(document.fullscreenElement)document.exitFullscreen().catch(function(){})};
+ $("pall").onclick=function(){S.all=!S.all;drawProj()};
+ /* золотая монета у ученика без аккаунта: сундуки сразу на проекторе */
+ if(!gold)b.rows.forEach(function(r){if(!r.linked&&r.gold.length&&!S.seenGold[r.gold[0]]){S.seenGold[r.gold[0]]=1;goldShow(r.gold[0],r.rid)}})}
+function goldShow(gid,rid){
+ var p=$("proj"),r=S.board.rows.filter(function(x){return x.rid===rid})[0];if(!r||p.querySelector(".gold"))return;
+ var g=document.createElement("div");g.className="gold";g.setAttribute("role","dialog");g.setAttribute("aria-label","Золотая монета");
+ g.innerHTML='<h2><span class="coin" style="width:1.2em;height:1.2em"></span>Золотая монета!</h2><div style="font-size:clamp(20px,3vw,36px)"><b>'+esc(r.name)+'</b>, выбери сундук</div><div class="chs">'+[0,1,2].map(function(k){return '<button type="button" class="ch" data-k="'+k+'" aria-label="Сундук '+(k+1)+'"></button>'}).join("")+'</div><div id="gres" style="font-size:clamp(20px,3vw,36px);min-height:1.5em"></div>';
+ p.appendChild(g);var busy=false;
+ Array.prototype.forEach.call(g.querySelectorAll(".ch"),function(c){c.onclick=function(){if(busy)return;busy=true;var k=+c.dataset.k;
+  Net.req("POST","/api/teacher/lesson",{action:"gold_open",lesson:S.lesson,id:gid,pick:k},H()).then(function(j){
+   if(!j.ok){$("gres").textContent=j.error||"Не открылся";setTimeout(function(){g.remove()},1500);return}
+   Array.prototype.forEach.call(g.querySelectorAll(".ch"),function(x,n){x.classList.add("open");x.disabled=true;x.textContent="+"+j.chests[n];if(n===k)x.classList.add("mine")});
+   $("gres").innerHTML='<b style="color:#ffd23a">+'+j.prize+'</b> монет для '+esc(r.name)+'!';
+   setTimeout(function(){g.remove();load()},3500)})}})}
+document.addEventListener("keydown",function(e){if(e.key==="Escape"&&S.proj&&!document.fullscreenElement&&$("pclose"))$("pclose").click()});
+
+if(Net.tkey())load(true);else gate();
+setInterval(function(){if(!document.hidden&&S.lesson&&$("gate").style.display==="none")load()},3000);
+})();
+</script></body></html>

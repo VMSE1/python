@@ -260,10 +260,10 @@ function tGame(el){
 function srvCabinet(){
  app.innerHTML='<div class="crumbs">Кабинет учителя · <a href="#" id="out">выйти</a></div><h1>Кабинет</h1><div class="cab-tabs" id="tb"></div><div id="tab"></div>';
  document.getElementById("out").onclick=function(e){e.preventDefault();try{sessionStorage.removeItem("tkey")}catch(x){}location.href="index.html"};
- var tabs=[["game","Игра"],["subs","Сдачи"],["rec","Пароли"],["stu2","Ученики"],["quiz","Тест"]],cur="game";
+ var tabs=[["game","Игра"],["lsn","Урок"],["subs","Сдачи"],["rec","Пароли"],["stu2","Ученики"],["quiz","Тест"]],cur="game";
  function draw(){document.getElementById("tb").innerHTML=tabs.map(function(t){return '<button data-k="'+t[0]+'" class="'+(t[0]===cur?'on':'')+'">'+t[1]+'</button>'}).join("");
   Array.prototype.forEach.call(document.querySelectorAll("#tb button"),function(b){b.onclick=function(){cur=b.dataset.k;draw();show()}})}
- function show(){var el=document.getElementById("tab");({game:tGame,subs:tSubs,rec:tRec,stu2:function(e){e.innerHTML='<div class="box"><p>Список учеников, прогресс и таблица: <a class="btn go" href="students.html">Ученики на сервере</a></p></div>'},quiz:tQuiz})[cur](el)}
+ function show(){var el=document.getElementById("tab");({game:tGame,subs:tSubs,rec:tRec,stu2:function(e){e.innerHTML='<div class="box"><p>Список учеников, прогресс и таблица: <a class="btn go" href="students.html">Ученики на сервере</a></p></div>'},lsn:function(e){e.innerHTML='<div class="box"><p>Таблица лидеров урока: группа из Excel, монеты за ответы и активность, задание опоздавшему, золотая монета с сундуками.</p><p><a class="btn go" href="lesson.html">Открыть урок</a></p></div>'},quiz:tQuiz})[cur](el)}
  draw();show()}
 function tkh(){return {"X-Teacher-Key":Net.tkey()}}
 function ago2(ts){var d=Math.round((Date.now()/1000-ts)/60);return d<2?"только что":d<60?d+" мин назад":d<1440?Math.round(d/60)+" ч назад":Math.round(d/1440)+" дн назад"}

@@ -552,5 +552,36 @@ class TestServerApi(unittest.IsolatedAsyncioTestCase):
         self.assertIn("lucky", d); self.assertGreater(A.LUCKY["next"], time.time() + 3000)                   # следующий раз через 1–2 часа
         A.LK.clear(); A.LUCKY.update(next=0); A.ONLINE.clear(); A.lucky_tick(); self.assertLess(A.LUCKY["next"], time.time() + 200)   # некого выбирать: повтор через пару минут
 
+    async def test_lesson_board(self):
+        A = self.A; T = {"X-Teacher-Key": "teacher-secret"}
+        st, d = await self.reg(fio="Иванова Аня", grp="ИИ-136"); h = {"Authorization": "Bearer " + d["token"]}
+        r = await self.cl.post("/api/teacher/lesson", json={"action": "roster", "group": "ИИ-136", "names": ["Иванова Аня Сергеевна", "Петров Пётр", "<script>", "Петров Пётр"]}); self.assertEqual(r.status, 403)
+        r = await self.cl.post("/api/teacher/lesson", json={"action": "roster", "group": "ИИ-136", "names": ["Иванова Аня Сергеевна", "Петров Пётр", "<script>", "Петров Пётр"]}, headers=T); d = await r.json()
+        self.assertEqual((d["n"], d["linked"]), (2, 1))                                                          # мусор и повтор отброшены, Аня нашлась по фамилии и имени
+        r = await self.cl.post("/api/teacher/lesson", json={"action": "new", "group": "ИИ-136", "title": "Циклы", "topic": 3}, headers=T); lid = (await r.json())["id"]
+        r = await self.cl.get("/api/teacher/lesson?group=ИИ-136&lesson=%d" % lid, headers=T); b = (await r.json())["board"]
+        anya, petr = b["rows"]; self.assertEqual((anya["name"], anya["nick"], petr["linked"]), ("Иванова Аня", "anya", False))
+        A.GOLD["odds"] = 1.0
+        r = await self.cl.post("/api/teacher/lesson", json={"action": "coin", "lesson": lid, "rid": anya["rid"], "delta": 2}, headers=T); g = (await r.json())["gold"]; self.assertTrue(g)
+        A.GOLD["odds"] = 0.0
+        await self.cl.post("/api/teacher/lesson", json={"action": "coin", "lesson": lid, "rid": petr["rid"], "delta": 1}, headers=T)
+        r = await self.cl.get("/api/play", headers=h); self.assertEqual((await r.json())["gold"]["id"], g)
+        r = await self.cl.post("/api/gold", json={"id": g, "pick": 1}, headers=h); d = await r.json(); self.assertIn(d["prize"], (1, 2, 3)); prize = d["prize"]
+        r = await self.cl.post("/api/gold", json={"id": g, "pick": 0}, headers=h); self.assertEqual(r.status, 409)        # второй раз сундук не открыть
+        r = await self.cl.post("/api/teacher/lesson", json={"action": "late", "lesson": lid, "rid": petr["rid"], "questions": [{"q": "2+2?", "o": ["3", "4"], "a": 1}]}, headers=T); self.assertEqual(r.status, 400)   # без аккаунта задание не дойдёт
+        qs = [{"q": "2+2?", "o": ["3", "4"], "a": 1, "why": "Сложение"}, {"q": "Тип 3.0?", "o": ["int", "float", "str"], "a": 1}]
+        r = await self.cl.post("/api/teacher/lesson", json={"action": "late", "lesson": lid, "rid": anya["rid"], "questions": qs}, headers=T); self.assertEqual(r.status, 200)
+        r = await self.cl.get("/api/play", headers=h); self.assertIn("late", await r.json())
+        r = await self.cl.get("/api/late", headers=h); t = (await r.json())["task"]; self.assertEqual(t["title"], "Циклы"); self.assertNotIn('"a"', json.dumps(t["qs"]))   # ответы не утекают
+        r = await self.cl.post("/api/late", json={"id": t["id"], "answers": [1, 0]}, headers=h); d = await r.json(); self.assertEqual((d["score"], d["coins"]), (1, 1))
+        r = await self.cl.post("/api/late", json={"id": t["id"], "answers": [1, 1]}, headers=h); self.assertEqual(r.status, 404)
+        r = await self.cl.get("/api/play", headers=h); d = await r.json(); self.assertNotIn("late", d); self.assertNotIn("gold", d)
+        r = await self.cl.get("/api/teacher/lesson?lesson=%d" % lid, headers=T); b = (await r.json())["board"]
+        self.assertEqual(b["rows"][0]["coins"], 2 + prize + 1); self.assertEqual(b["rows"][0]["late"]["score"], 1); self.assertEqual(b["rows"][1]["coins"], 1)
+        r = await self.cl.get("/api/teacher/lesson?lesson=%d" % lid); self.assertEqual(r.status, 403)                     # фамилии без ключа учителя не отдаются
+        r = await self.cl.post("/api/teacher/lesson", json={"action": "roster", "group": "ИИ-136", "names": ["Петров Пётр"]}, headers=T)
+        r = await self.cl.get("/api/teacher/lesson?lesson=%d" % lid, headers=T); b = (await r.json())["board"]; self.assertEqual([x["name"] for x in b["rows"]], ["Петров Пётр"])
+        self.assertEqual(b["rows"][0]["coins"], 1)                                                               # монеты оставшихся сохраняются после перезагрузки списка
+
 if __name__ == "__main__":
     unittest.main()

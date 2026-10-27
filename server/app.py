@@ -67,6 +67,7 @@ def init_db():
     if "look" not in cols:
         db.execute("ALTER TABLE users ADD COLUMN look TEXT DEFAULT ''")        # внешний вид персонажа (JSON)
     db.commit()
+    lesson_tables()
 
 
 def pw_hash(password, salt):
@@ -238,7 +239,7 @@ async def body(req):
 
 
 async def ping(req):
-    return web.json_response({"ok": True, "v": 2, "feat": ["boss", "spy", "scare", "leaders"], "t": int(time.time())})
+    return web.json_response({"ok": True, "v": 2, "feat": ["boss", "spy", "scare", "leaders", "lesson"], "t": int(time.time())})
 
 
 async def register(req):
@@ -1460,6 +1461,7 @@ async def play_state(req):
         sc = SCARES.pop(u[0], None)
         if sc:
             out["scare"] = sc
+        out.update(lesson_push(u[0]))
     resp = web.json_response(out)
     resp.headers["Cache-Control"] = "no-store"
     return resp
@@ -1732,6 +1734,317 @@ async def race_submit(req):
     return web.json_response({"ok": True, "passed": ok, "msg": msg, **RACE.view(u[0])})
 
 
+# ---------------------------------------------------------------- урок: группа из журнала, монеты, опоздавшие
+# Список группы учитель загружает из выгрузки журнала (Excel читается в его браузере, сюда приходят только ФИО).
+# Фамилии лежат только в базе сервера. Ученикам сервер их не отдаёт: таблицу урока видит только учитель (и проектор).
+GOLD = {"odds": float(os.environ.get("GOLD_ODDS", "0.15"))}     # шанс, что выданная монета окажется золотой (с мини-игрой)
+GOLD_PRIZES = (1, 2, 3)                                         # что лежит в сундуках золотой монеты
+LATE_SEC = 300                                                  # сколько минут у опоздавшего на задание (5 минут)
+LATE_COIN = 1                                                   # монет за каждый верный ответ
+FIO_RE = re.compile(r"^[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё'\- ]{2,79}$")
+MAX_ROSTER = 60
+
+
+def lesson_tables():
+    db.executescript("""
+    CREATE TABLE IF NOT EXISTS roster(id INTEGER PRIMARY KEY, grp TEXT, fio TEXT, uid INTEGER DEFAULT 0, pos INTEGER DEFAULT 0, gone INTEGER DEFAULT 0);
+    CREATE UNIQUE INDEX IF NOT EXISTS roster_gf ON roster(grp, fio);
+    CREATE TABLE IF NOT EXISTS lessons(id INTEGER PRIMARY KEY, grp TEXT, title TEXT, topic INTEGER DEFAULT 0, ts INTEGER);
+    CREATE TABLE IF NOT EXISTS coins(id INTEGER PRIMARY KEY, lesson INTEGER, rid INTEGER, delta INTEGER, kind TEXT, ts INTEGER);
+    CREATE INDEX IF NOT EXISTS coins_l ON coins(lesson, rid);
+    CREATE TABLE IF NOT EXISTS gold(id INTEGER PRIMARY KEY, lesson INTEGER, rid INTEGER, ts INTEGER, prize INTEGER DEFAULT 0, opened INTEGER DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS late(id INTEGER PRIMARY KEY, lesson INTEGER, rid INTEGER, ts INTEGER, until INTEGER, qs TEXT, ans TEXT DEFAULT '', score INTEGER DEFAULT -1, total INTEGER);
+    """)
+    db.commit()
+
+
+def norm_name(s):
+    return " ".join(str(s or "").lower().replace("ё", "е").split())
+
+
+def norm_grp(s):
+    return re.sub(r"[\s\-_.]", "", str(s or "").lower().replace("ё", "е"))
+
+
+def roster_match(grp, fio):
+    """Ищет аккаунт ученика по фамилии и имени из журнала. Возвращает id, только если такой аккаунт один."""
+    w = norm_name(fio).split()
+    if len(w) < 2:
+        return 0
+    key = {(w[0], w[1]), (w[1], w[0])}
+    hits = []
+    for uid, ufio, ugrp in db.execute("SELECT id,fio,grp FROM users"):
+        u = norm_name(ufio).split()
+        if len(u) >= 2 and (u[0], u[1]) in key:
+            hits.append((uid, norm_grp(ugrp) == norm_grp(grp)))
+    same = [h[0] for h in hits if h[1]]
+    if len(same) == 1:
+        return same[0]
+    return hits[0][0] if len(hits) == 1 else 0
+
+
+def roster_save(grp, names):
+    """Заменяет список группы. Ученики, что уже были, остаются со своими монетами и привязкой к аккаунту."""
+    old = {f: (i, uid) for i, f, uid in db.execute("SELECT id,fio,uid FROM roster WHERE grp=?", (grp,))}
+    db.execute("UPDATE roster SET gone=1 WHERE grp=?", (grp,))
+    for pos, f in enumerate(names):
+        if f in old:
+            i, uid = old[f]
+            db.execute("UPDATE roster SET gone=0,pos=?,uid=? WHERE id=?", (pos, uid or roster_match(grp, f), i))
+        else:
+            db.execute("INSERT INTO roster(grp,fio,uid,pos) VALUES(?,?,?,?)", (grp, f, roster_match(grp, f), pos))
+    db.commit()
+
+
+def short_fio(f):
+    """«Иванова Анна Сергеевна» -> «Иванова Анна»: отчество на проекторе не нужно."""
+    return " ".join(f.split()[:2])
+
+
+def lesson_board(lid):
+    l = db.execute("SELECT id,grp,title,topic,ts FROM lessons WHERE id=?", (lid,)).fetchone()
+    if not l:
+        return None
+    rows = db.execute("SELECT r.id,r.fio,r.uid,u.nick FROM roster r LEFT JOIN users u ON u.id=r.uid WHERE r.grp=? AND r.gone=0 ORDER BY r.pos", (l[1],)).fetchall()
+    tot = dict(db.execute("SELECT rid,SUM(delta) FROM coins WHERE lesson=? GROUP BY rid", (lid,)).fetchall())
+    allt = dict(db.execute("SELECT c.rid,SUM(c.delta) FROM coins c JOIN lessons l ON l.id=c.lesson WHERE l.grp=? GROUP BY c.rid", (l[1],)).fetchall())
+    gold = {}
+    for gid, rid in db.execute("SELECT id,rid FROM gold WHERE lesson=? AND opened=0", (lid,)):
+        gold.setdefault(rid, []).append(gid)
+    late = {}
+    for i, rid, until, score, total in db.execute("SELECT id,rid,until,score,total FROM late WHERE lesson=? ORDER BY id", (lid,)):
+        late[rid] = {"id": i, "score": score, "total": total, "left": max(0, until - int(time.time())) if score < 0 else 0}
+    last = db.execute("SELECT MAX(id) FROM coins WHERE lesson=?", (lid,)).fetchone()[0] or 0
+    out = [{"rid": r, "fio": f, "name": short_fio(f), "nick": n or "", "linked": bool(u and n), "coins": tot.get(r, 0), "all": allt.get(r, 0),
+            "gold": gold.get(r, []), "late": late.get(r)} for r, f, u, n in rows]
+    return {"id": l[0], "group": l[1], "title": l[2], "topic": l[3], "ts": l[4], "rows": out, "last": last, "odds": GOLD["odds"]}
+
+
+def coin_add(lid, rid, delta, kind, now=None):
+    now = int(now or time.time())
+    cur = db.execute("INSERT INTO coins(lesson,rid,delta,kind,ts) VALUES(?,?,?,?,?)", (lid, rid, delta, kind, now))
+    db.commit()
+    return cur.lastrowid
+
+
+def valid_late_qs(qs):
+    """Лёгкие вопросы для опоздавшего: из банка урока или свои. От 1 до 5 вопросов, у каждого 2–4 варианта."""
+    out = []
+    if not isinstance(qs, list) or not 1 <= len(qs) <= 5:
+        return None
+    for q in qs:
+        try:
+            o = [clean_str(x, 120) for x in q["o"]][:4]
+            a = int(q["a"])
+            if len(o) < 2 or not all(o) or not 0 <= a < len(o) or not clean_str(q["q"], 300):
+                return None
+            out.append({"q": clean_str(q["q"], 300), "code": str(q.get("code") or "")[:600], "o": o, "a": a, "why": clean_str(q.get("why"), 300)})
+        except Exception:
+            return None
+    return out
+
+
+def lesson_push(uid, now=None):
+    """Что показать ученику при опросе /api/play: задание опоздавшему и закрытую золотую монету."""
+    now = int(now or time.time())
+    out = {}
+    r = db.execute("SELECT l.id FROM late l JOIN roster r ON r.id=l.rid WHERE r.uid=? AND l.score<0 AND l.until>? ORDER BY l.id DESC LIMIT 1", (uid, now)).fetchone()
+    if r:
+        out["late"] = {"id": r[0]}
+    g = db.execute("SELECT g.id FROM gold g JOIN roster r ON r.id=g.rid WHERE r.uid=? AND g.opened=0 AND g.ts>? ORDER BY g.id LIMIT 1", (uid, now - 12 * 3600)).fetchone()
+    if g:
+        out["gold"] = {"id": g[0]}
+    return out
+
+
+def gold_open(gid, pick, uid=None, now=None):
+    """Открывает сундук золотой монеты. Приз решает сервер, а не браузер. Возвращает (приз, что было в сундуках) или None."""
+    q = "SELECT g.id,g.lesson,g.rid FROM gold g JOIN roster r ON r.id=g.rid WHERE g.id=? AND g.opened=0" + (" AND r.uid=?" if uid is not None else "")
+    row = db.execute(q, (gid, uid) if uid is not None else (gid,)).fetchone()
+    if not row:
+        return None
+    chests = list(GOLD_PRIZES)
+    _rnd.shuffle(chests)
+    pick = max(0, min(len(chests) - 1, int(pick)))
+    prize = chests[pick]
+    cur = db.execute("UPDATE gold SET opened=?,prize=? WHERE id=? AND opened=0", (int(now or time.time()), prize, gid))
+    if cur.rowcount != 1:
+        return None
+    coin_add(row[1], row[2], prize, "gold", now)
+    return prize, chests
+
+
+async def t_lesson_get(req):
+    if not teacher_ok(req):
+        return jerr("Нет доступа.", 403)
+    grp = clean_str(req.query.get("group"), 20)
+    groups = [{"group": g, "n": n} for g, n in db.execute("SELECT grp,COUNT(*) FROM roster WHERE gone=0 GROUP BY grp ORDER BY grp")]
+    out = {"ok": True, "groups": groups, "odds": GOLD["odds"]}
+    if grp:
+        out["lessons"] = [{"id": i, "title": t, "topic": tp, "ts": ts} for i, t, tp, ts in db.execute("SELECT id,title,topic,ts FROM lessons WHERE grp=? ORDER BY id DESC LIMIT 30", (grp,))]
+        out["roster"] = [{"rid": i, "fio": f, "nick": n or ""} for i, f, n in db.execute("SELECT r.id,r.fio,u.nick FROM roster r LEFT JOIN users u ON u.id=r.uid WHERE r.grp=? AND r.gone=0 ORDER BY r.pos", (grp,))]
+    try:
+        lid = int(req.query.get("lesson", "0"))
+    except ValueError:
+        lid = 0
+    if lid:
+        b = lesson_board(lid)
+        if not b:
+            return jerr("Урок не найден.", 404)
+        out["board"] = b
+    resp = web.json_response(out)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+async def t_lesson(req):
+    if not teacher_ok(req):
+        return jerr("Нет доступа.", 403)
+    d = await body(req)
+    a = d.get("action")
+    now = int(time.time())
+    if a == "roster":
+        grp = clean_str(d.get("group"), 20)
+        names, seen = [], set()
+        for f in d.get("names") or []:
+            f = clean_str(f, 80)
+            if FIO_RE.match(f) and f not in seen:
+                seen.add(f)
+                names.append(f)
+        if len(grp) < 1:
+            return jerr("Впиши название группы.")
+        if not names or len(names) > MAX_ROSTER:
+            return jerr("В списке нет фамилий (или их больше %d)." % MAX_ROSTER)
+        roster_save(grp, names)
+        return web.json_response({"ok": True, "n": len(names), "linked": db.execute("SELECT COUNT(*) FROM roster WHERE grp=? AND gone=0 AND uid>0", (grp,)).fetchone()[0]})
+    if a == "relink":
+        grp = clean_str(d.get("group"), 20)
+        for i, f in db.execute("SELECT id,fio FROM roster WHERE grp=? AND gone=0 AND uid=0", (grp,)).fetchall():
+            db.execute("UPDATE roster SET uid=? WHERE id=?", (roster_match(grp, f), i))
+        db.commit()
+        return web.json_response({"ok": True})
+    if a == "link":
+        nick = clean_str(d.get("nick"), 20)
+        uid = 0
+        if nick:
+            r = db.execute("SELECT id FROM users WHERE nick=? COLLATE NOCASE", (nick,)).fetchone()
+            if not r:
+                return jerr("Ученика с таким ником нет.", 404)
+            uid = r[0]
+        if db.execute("UPDATE roster SET uid=? WHERE id=?", (uid, _i(d.get("rid")))).rowcount != 1:
+            return jerr("Ученик не найден.", 404)
+        db.commit()
+        return web.json_response({"ok": True})
+    if a == "group_del":
+        grp = clean_str(d.get("group"), 20)
+        db.execute("UPDATE roster SET gone=1 WHERE grp=?", (grp,))
+        db.commit()
+        return web.json_response({"ok": True})
+    if a == "new":
+        grp = clean_str(d.get("group"), 20)
+        if not db.execute("SELECT 1 FROM roster WHERE grp=? AND gone=0", (grp,)).fetchone():
+            return jerr("Сначала загрузи список этой группы.")
+        title = clean_str(d.get("title"), 80) or time.strftime("Урок %d.%m", time.localtime(now))
+        cur = db.execute("INSERT INTO lessons(grp,title,topic,ts) VALUES(?,?,?,?)", (grp, title, max(0, min(99, _i(d.get("topic")))), now))
+        db.commit()
+        return web.json_response({"ok": True, "id": cur.lastrowid})
+    if a == "odds":
+        try:
+            GOLD["odds"] = max(0.0, min(1.0, float(d.get("odds"))))
+        except Exception:
+            return jerr("Шанс: число от 0 до 1.")
+        return web.json_response({"ok": True, "odds": GOLD["odds"]})
+    lid, rid = _i(d.get("lesson")), _i(d.get("rid"))
+    l = db.execute("SELECT grp FROM lessons WHERE id=?", (lid,)).fetchone()
+    if not l:
+        return jerr("Урок не найден.", 404)
+    if a == "gold_open":
+        res = gold_open(_i(d.get("id")), _i(d.get("pick")), now=now)
+        if not res:
+            return jerr("Этот сундук уже открыт.", 409)
+        return web.json_response({"ok": True, "prize": res[0], "chests": res[1]})
+    r = db.execute("SELECT id,uid FROM roster WHERE id=? AND grp=? AND gone=0", (rid, l[0])).fetchone()
+    if not r:
+        return jerr("Такого ученика нет в группе.", 404)
+    if a == "coin":
+        delta = max(-5, min(5, _i(d.get("delta"))))
+        if not delta:
+            return jerr("Сколько монет?")
+        cid = coin_add(lid, rid, delta, "hand", now)
+        gold = None
+        if delta > 0 and _rnd.random() < GOLD["odds"]:
+            gold = db.execute("INSERT INTO gold(lesson,rid,ts) VALUES(?,?,?)", (lid, rid, now)).lastrowid
+            db.commit()
+        return web.json_response({"ok": True, "id": cid, "gold": gold, "online": bool(r[1]) and r[1] in online_uids()})
+    if a == "late":
+        if not r[1]:
+            return jerr("Этот ученик не привязан к аккаунту на сайте: задание ему не придёт. Привяжи ник в списке группы.")
+        qs = valid_late_qs(d.get("questions"))
+        if not qs:
+            return jerr("Нужно от 1 до 5 вопросов, у каждого 2–4 варианта ответа.")
+        db.execute("UPDATE late SET until=? WHERE rid=? AND score<0", (now, rid))   # прошлое невыполненное задание этому ученику закрывается
+        cur = db.execute("INSERT INTO late(lesson,rid,ts,until,qs,total) VALUES(?,?,?,?,?,?)", (lid, rid, now, now + LATE_SEC, json.dumps(qs, ensure_ascii=False), len(qs)))
+        db.commit()
+        return web.json_response({"ok": True, "id": cur.lastrowid, "online": r[1] in online_uids()})
+    return jerr("Неизвестное действие.")
+
+
+async def late_get(req):
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    now = int(time.time())
+    r = db.execute("SELECT l.id,l.qs,l.until,s.title FROM late l JOIN roster r ON r.id=l.rid JOIN lessons s ON s.id=l.lesson WHERE r.uid=? AND l.score<0 AND l.until>? ORDER BY l.id DESC LIMIT 1", (u[0], now)).fetchone()
+    if not r:
+        return web.json_response({"ok": True, "task": None})
+    qs = [{"q": q["q"], "code": q["code"], "o": q["o"]} for q in json.loads(r[1])]   # правильные ответы ученику не отдаём
+    return web.json_response({"ok": True, "task": {"id": r[0], "title": r[3], "left": r[2] - now, "qs": qs}})
+
+
+async def late_answer(req):
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    d = await body(req)
+    now = int(time.time())
+    r = db.execute("SELECT l.id,l.qs,l.until,l.lesson,l.rid,l.ts FROM late l JOIN roster r ON r.id=l.rid WHERE l.id=? AND r.uid=? AND l.score<0", (_i(d.get("id")), u[0])).fetchone()
+    if not r:
+        return jerr("Задания нет или ответ уже принят.", 404)
+    if now > r[2] + 15:                                            # 15 секунд запаса на медленную сеть
+        return jerr("Время вышло.", 410)
+    qs = json.loads(r[1])
+    ans = d.get("answers")
+    if not isinstance(ans, list) or len(ans) != len(qs):
+        return jerr("Ответь на все вопросы.")
+    if guard() and now - r[5] < MIN_ANSWER_SEC * len(qs):
+        return jerr(BOT_MSG, 403)
+    res = []
+    for q, a in zip(qs, ans):
+        try:
+            a = int(a)
+        except Exception:
+            a = -1
+        res.append({"ok": a == q["a"], "a": q["a"], "why": q.get("why", "")})
+    score = sum(x["ok"] for x in res)
+    if db.execute("UPDATE late SET score=?,ans=? WHERE id=? AND score<0", (score, json.dumps(ans), r[0])).rowcount != 1:
+        return jerr("Ответ уже принят.", 409)
+    db.commit()
+    if score:
+        coin_add(r[3], r[4], score * LATE_COIN, "late", now)
+    return web.json_response({"ok": True, "score": score, "total": len(qs), "coins": score * LATE_COIN, "res": res})
+
+
+async def gold_post(req):
+    u = user_from(req)
+    if not u:
+        return jerr("Нужно войти.", 401)
+    d = await body(req)
+    res = gold_open(_i(d.get("id")), _i(d.get("pick")), uid=u[0])
+    if not res:
+        return jerr("Этот сундук уже открыт.", 409)
+    return web.json_response({"ok": True, "prize": res[0], "chests": res[1]})
+
+
 def teacher_ok_key(k):
     return tkey_valid(k)
 
@@ -1764,6 +2077,7 @@ def make_app():
         web.get("/api/play", play_state), web.post("/api/lucky/spin", lucky_spin), web.post("/api/lucky/finish", lucky_finish), web.get("/api/teacher/lucky", t_lucky), web.post("/api/teacher/play", t_play), web.post("/api/race/join", race_join), web.post("/api/boss/join", boss_join), web.post("/api/spy/join", spy_join), web.get("/api/spy/state", spy_state), web.post("/api/spy/{what}", spy_act), web.post("/api/score", score_post), web.get("/api/leaderboards", leaderboards), web.get("/api/boss/state", boss_state), web.post("/api/boss/ask", boss_ask), web.post("/api/boss/answer", boss_answer), web.get("/api/race/state", race_state), web.post("/api/race/submit", race_submit),
         web.get("/api/me", me), web.get("/api/look", look_api), web.post("/api/look", look_api), web.post("/api/heart", heart_post), web.put("/api/progress", put_progress),
         web.get("/api/teacher/check", t_check), web.get("/api/teacher/users", t_users), web.get("/api/teacher/student", t_student), web.post("/api/quiz", quiz_post), web.post("/api/teacher/reset", t_reset), web.delete("/api/teacher/user", t_delete),
+        web.get("/api/teacher/lesson", t_lesson_get), web.post("/api/teacher/lesson", t_lesson), web.get("/api/late", late_get), web.post("/api/late", late_answer), web.post("/api/gold", gold_post),
         web.get("/ws", ws_handler),
         web.route("OPTIONS", "/{tail:.*}", ping),
     ])

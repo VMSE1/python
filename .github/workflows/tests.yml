@@ -22,4 +22,4 @@ jobs:
         run: |
           pip install playwright aiohttp
           playwright install --with-deps chromium
-          python tests/browser_tests.py smoke functional teacher slides honest offline video extras brief chaos online gate race lucky botguard unlock subjects arcade secrets ege
+          python tests/browser_tests.py smoke functional teacher slides honest offline video extras brief chaos online gate race lucky botguard unlock subjects arcade secrets ege lesson
