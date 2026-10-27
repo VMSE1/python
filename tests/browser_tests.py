@@ -138,7 +138,7 @@ def functional(b, base):
     pg.goto(base + "index.html"); pg.wait_for_timeout(300)
     check("desktop: 12 иконок, кнопка «Начать» ведёт к 1.1", pg.locator("a.ico").count() == 12 and "id=1.1" in pg.get_attribute("#cont", "href"))
     pg.click("a.ico >> nth=0"); pg.wait_for_url("**/tasks.html"); check("иконка «Задания» открывает карту", "tasks.html" in pg.url)
-    check("карта: 25 квадратов, один «следующий»", pg.locator(".node").count() == 25 and pg.locator(".node.next").count() == 1)
+    check("карта: квадрат на каждое задание, один «следующий»", pg.locator(".node").count() == pg.evaluate("TASKS.length") and pg.locator(".node.next").count() == 1)
     pg.click(".node >> nth=3"); pg.wait_for_url("**/task.html?id=1.4"); check("клик по квадрату открывает задание", "id=1.4" in pg.url)
     pg.click(".wb >> text=Закрыть"); pg.wait_for_url("**/index.html"); check("«Закрыть» возвращает на рабочий стол", True)
     pg.click("#startBtn"); check("меню: «Вход для учителя» ученикам не показывается", "Вход для учителя" not in pg.inner_text("#smenu") and "Кабинет" not in pg.inner_text("#smenu"))
@@ -739,12 +739,14 @@ def extras(b, base):
     pg.wait_for_timeout(800); pg.click("#gh .mn .c >> nth=40")
     check("сапёр: следующий тап после флажка работает", pg.evaluate("document.querySelectorAll('#gh .mn .c.op').length") > 0)
     pg.evaluate("""()=>{const g=document.querySelector('#gh .gm');const cs=Array.from(document.querySelectorAll('#gh .mn .c'));cs.forEach(c=>{})}""")
-    # пасхалка: 2267
+    # пасхалка: слово skull (старый код 2267 больше ничего не открывает)
     pg.goto(base + "index.html"); pg.wait_for_timeout(400)
-    pg.keyboard.type("226"); pg.keyboard.type("x"); pg.keyboard.type("7"); pg.wait_for_timeout(300)
-    check("пасхалка: неполный или прерванный код не открывает игру", pg.locator("#egg").count() == 0)
-    pg.keyboard.type("2267"); pg.wait_for_selector("#egg", timeout=4000)
-    check("пасхалка: код 2267 открывает игру", pg.evaluate("document.getElementById('egg').dataset.state") == "playing")
+    pg.keyboard.type("2267"); pg.wait_for_timeout(300)
+    check("пасхалка: старый код 2267 больше не открывает игру", pg.locator("#egg").count() == 0)
+    pg.keyboard.type("sku"); pg.keyboard.type("x"); pg.keyboard.type("ll"); pg.wait_for_timeout(300)
+    check("пасхалка: неполное или прерванное слово не открывает игру", pg.locator("#egg").count() == 0)
+    pg.keyboard.type("skull"); pg.wait_for_selector("#egg", timeout=4000)
+    check("пасхалка: слово skull открывает игру", pg.evaluate("document.getElementById('egg').dataset.state") == "playing")
     pg.keyboard.press("Space"); pg.wait_for_timeout(200); pg.evaluate("Egg._t().win()"); pg.wait_for_timeout(300)
     check("пасхалка: победа показывает «Ты убежал!»", "Ты убежал" in pg.inner_text("#egm"))
     pg.keyboard.press("Escape"); check("пасхалка: Esc закрывает", pg.locator("#egg").count() == 0)
@@ -1232,24 +1234,29 @@ def lucky(b, base):
     c4, s4 = student("secret_1")
     s4.click("body")
     for k in ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"]: s4.keyboard.press(k)
-    s4.wait_for_selector("#gc", timeout=8000); check("секрет: ↑↑↓↓←→←→BA открывает тренировочную игру", "Скелет и бочки" in s4.inner_text("#lk"))
+    s4.wait_for_timeout(600); check("секрет: старая комбинация ↑↑↓↓←→←→BA больше ничего не открывает", s4.locator("#lk").count() == 0)
+    for k in ["ArrowDown", "ArrowDown", "ArrowUp", "ArrowUp", "ArrowRight", "ArrowLeft", "ArrowRight", "ArrowLeft", "a", "b"]: s4.keyboard.press(k)
+    s4.wait_for_selector("#gc", timeout=8000); check("секрет: ↓↓↑↑→←→←AB открывает тренировочную игру", "Скелет и бочки" in s4.inner_text("#lk"))
     s4.click("text=Выйти")
-    for k in ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "Shift+B", "Shift+A"]: s4.keyboard.press(k)
-    s4.wait_for_selector("#gc", timeout=8000); check("секрет: заглавные B A (с Shift) тоже подходят", True)
+    for k in ["ArrowDown", "ArrowDown", "ArrowUp", "ArrowUp", "ArrowRight", "ArrowLeft", "ArrowRight", "ArrowLeft", "Shift+A", "Shift+B"]: s4.keyboard.press(k)
+    s4.wait_for_selector("#gc", timeout=8000); check("секрет: заглавные A B (с Shift) тоже подходят", True)
     s4.click("text=Выйти"); check("секрет: из тренировки можно выйти", s4.locator("#lk").count() == 0)
     for _ in range(5): s4.click(".clock")
-    s4.wait_for_selector("#lc", timeout=6000); check("секрет: пять нажатий на часы показывают смеющегося скелета без оценок", "секрет" in s4.inner_text("#lk"))
+    s4.wait_for_timeout(500); check("секрет: пяти нажатий на часы уже мало", s4.locator("#lk").count() == 0)
+    for _ in range(2): s4.click(".clock")
+    s4.wait_for_selector("#lc", timeout=6000); check("секрет: семь нажатий на часы показывают смеющегося скелета без оценок", "секрет" in s4.inner_text("#lk"))
     s4.click("#lkx")
     r = s4.evaluate("(()=>{let h=0;const old=Math.random;Math.random=()=>0.1;const el=document.createElement('div');for(let i=0;i<3;i++)EggHint(el);Math.random=old;return el.innerText})()")
-    check("секрет: подсказки о секретах появляются после решённых заданий", "2 2 6 7" in r and "B A" in r and "часы" in r.lower(), r[:80])
+    check("секрет: подсказки о секретах появляются после решённых заданий", "hop" in r and "A B" in r and "часы" in r.lower(), r[:80])
     for kind, sel in (("fact", ".surprise"), ("confetti", "canvas.surprise"), ("walker", "canvas.surprise"), ("bonus", ".surprise #sbp"), ("coin", ".surprise"), ("rain", "canvas.surprise")):
         s4.evaluate("document.querySelectorAll('.surprise').forEach(e=>e.remove())")
         s4.evaluate("Surprise.maybe(1, '%s')" % kind); s4.wait_for_selector(sel, timeout=6000); check("сюрприз «%s» появляется" % kind, True)
         s4.wait_for_timeout(300)
-    s4.evaluate("document.querySelectorAll('.surprise').forEach(e=>e.remove())"); s4.keyboard.type("1337"); s4.wait_for_selector("canvas.surprise", timeout=5000); check("код 1337 показывает конфетти", True)
-    s4.evaluate("document.querySelectorAll('.surprise').forEach(e=>e.remove())"); s4.keyboard.type("1989"); s4.wait_for_selector(".surprise", timeout=5000); check("код 1989 показывает факт", "Знаешь" in s4.inner_text(".surprise"))
+    s4.evaluate("document.querySelectorAll('.surprise').forEach(e=>e.remove())"); s4.keyboard.type("1337"); s4.wait_for_timeout(500); check("старый код 1337 больше ничего не показывает", s4.locator(".surprise").count() == 0)
+    s4.keyboard.type("boom"); s4.wait_for_selector("canvas.surprise", timeout=5000); check("слово boom показывает конфетти", True)
+    s4.evaluate("document.querySelectorAll('.surprise').forEach(e=>e.remove())"); s4.keyboard.type("fact"); s4.wait_for_selector(".surprise", timeout=5000); check("слово fact показывает факт", "Знаешь" in s4.inner_text(".surprise"))
     s4.evaluate("document.querySelectorAll('.surprise').forEach(e=>e.remove())")
-    s4.keyboard.type("2267"); s4.wait_for_selector("#egg", timeout=5000); check("секрет: 2267 по-прежнему открывает «Убеги от скелета»", True); s4.keyboard.press("Escape")
+    s4.keyboard.type("skull"); s4.wait_for_selector("#egg", timeout=5000); check("секрет: слово skull открывает «Убеги от скелета»", True); s4.keyboard.press("Escape")
     check("рулетка и игра: нет ошибок в консоли", not [x for x in bag if "Failed to load resource" not in x], bag[:3])
     for c in (c0, c1, c2, c3, c4): c.close()
 
@@ -1358,7 +1365,7 @@ def arcade(b, base):
     print("\n== АРКАДА ==")
     ctx = new_ctx(b); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
     pg.goto(base + "arcade.html"); pg.wait_for_selector("[data-g]")
-    check("аркада: две игры", pg.locator("[data-g]").count() == 2)
+    check("аркада: четыре игры", pg.locator("[data-g]").count() == 4)
     pg.click('[data-g="chick"]'); pg.wait_for_selector("#chGo"); pg.click("#chGo"); pg.wait_for_timeout(300)
     check("цыплята: игра идёт", pg.get_attribute(".gm-root", "data-state") == "play")
     # ставим бота прямо перед игроком и стреляем
@@ -1387,6 +1394,94 @@ def arcade(b, base):
     pg.evaluate("(function(){var s=__game._state();s.x=12.5;s.y=8.5;s.dx=1;s.dy=0;s.plx=0;s.ply=0.66;})()"); pg.keyboard.press("KeyE"); pg.wait_for_timeout(200)
     check("подземелье: выход ведёт на уровень 2", pg.get_attribute(".gm-root", "data-level") == "2")
     check("аркада: нет ошибок в консоли", not bag, bag[:3])
+    ctx.close()
+
+
+def ege(b, base):
+    print("\n== ЕГЭ (скрытый раздел) ==")
+    src = json.load(open(os.path.join(os.path.dirname(ROOT), "subjects", "ege", "topics.json"), encoding="utf-8"))
+    ctx = new_ctx(b); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    pg.goto(base + "ege.html"); pg.wait_for_selector(".howto")
+    check("ЕГЭ: ученику показано «Раздел готовится»", "готовится" in pg.inner_text(".howto") and pg.locator("details.ltask").count() == 0)
+    pg.goto(base + "index.html"); pg.wait_for_selector("#icons a"); pg.click("#startBtn")
+    check("ЕГЭ: ученику нет ни иконки, ни пункта меню", pg.locator("#icons a[href='ege.html'], #smenu a[href='ege.html']").count() == 0)
+    ctx.close()
+    ctx = new_ctx(b); ctx.add_init_script("localStorage.teacher='1'"); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    pg.goto(base + "ege.html"); pg.wait_for_selector("details.ltask")
+    check("ЕГЭ: учитель видит все темы", pg.locator("#app > .plates > details.ltask").count() == len(src["topics"]), pg.locator("details.ltask").count())
+    ok_all = True
+    for t in src["topics"]:
+        for k in t["tasks"]:
+            pg.evaluate("n=>{document.getElementById('n'+n).open=true}", t["n"])
+            box = pg.locator('.ltask[data-id="%s"]' % k["id"])
+            box.locator("textarea").fill(k["ref"]); box.locator(".go").click()
+            try:
+                box.locator(".res.pass").wait_for(timeout=60000)
+            except Exception:
+                ok_all = False; check("ЕГЭ: эталон %s проходит проверку в браузере" % k["id"], False, box.locator(".res").inner_text()[:200])
+    check("ЕГЭ: все эталонные решения проходят в браузере", ok_all)
+    k = src["topics"][0]["tasks"][0]; box = pg.locator('.ltask[data-id="%s"]' % k["id"])
+    box.locator("textarea").fill("print('0 0 0')"); box.locator(".go").click(); box.locator(".res.fail").wait_for(timeout=30000)
+    check("ЕГЭ: неверное решение не принимается", True)
+    check("ЕГЭ: прогресс запомнен", pg.evaluate("Object.keys(JSON.parse(localStorage.egep||'{}')).length") == sum(len(t["tasks"]) for t in src["topics"]))
+    check("ЕГЭ: нет ошибок в консоли", not bag, bag[:3])
+    ctx.close()
+
+
+def secrets(b, base):
+    print("\n== СЕКРЕТНЫЕ ИГРЫ: «Пикс-прыгун» и «Разбей баги» ==")
+    ctx = new_ctx(b); pg = ctx.new_page(); bag = []; attach_errors(pg, bag)
+    pg.goto(base + "index.html"); pg.wait_for_timeout(400)
+    pg.keyboard.type("ho"); pg.keyboard.type("x"); pg.keyboard.type("p"); pg.wait_for_timeout(300)
+    check("hop: прерванное слово не открывает игру", pg.locator("#sg").count() == 0)
+    pg.keyboard.type("hop"); pg.wait_for_selector("#sg #hopGo", timeout=6000); check("hop: слово открывает «Пикс-прыгун»", True)
+    pg.click("#hopGo"); pg.wait_for_timeout(300); G = "window.__sg"
+    check("hop: игра началась, три жизни", pg.get_attribute(".gm-root", "data-state") == "play" and pg.evaluate(G + "._state().lives") == 3)
+    pg.keyboard.down("ArrowRight"); pg.wait_for_timeout(700); pg.keyboard.up("ArrowRight")
+    check("hop: герой бежит вправо", pg.evaluate(G + "._state().p.x") > 40, pg.evaluate(G + "._state().p.x"))
+    y0 = pg.evaluate(G + "._state().p.y"); pg.keyboard.down("Space"); pg.wait_for_timeout(180); y1 = pg.evaluate(G + "._state().p.y"); pg.keyboard.up("Space")
+    check("hop: пробел подбрасывает героя", y1 < y0 - 5, (y0, y1))
+    pg.wait_for_timeout(900)
+    # прыжок на баг: ставим героя над багом и роняем
+    pg.evaluate("(function(){var s=%s._state(),b=s.bugs[0];b.vx=0;s.p.x=b.x+2;s.p.y=b.y-26;s.p.vy=60;s.p.inv=0;s.p.vx=0})()" % G); sc = pg.evaluate(G + "._state().score"); pg.wait_for_timeout(350)
+    check("hop: прыжок на голову убивает бага и даёт очки", pg.evaluate(G + "._state().score") >= sc + 100 and pg.evaluate(G + "._state().lives") == 3, pg.evaluate(G + "._state().score"))
+    # блок «{ }»: бьём снизу
+    pg.evaluate("(function(){var s=%s._state(),m=s.map,f=null;for(var y=0;y<11&&!f;y++)for(var x=0;x<m[y].length;x++)if(m[y][x]==='?'){f=[x,y];break}s.p.x=f[0]*16+4;s.p.y=f[1]*16+16+1;s.p.vy=-200;s.p.inv=0;s.blockAt=f})()" % G); pg.wait_for_timeout(250)
+    check("hop: удар снизу по блоку даёт бит", pg.evaluate("(function(){var s=%s._state(),f=s.blockAt;return s.map[f[1]][f[0]]==='x'&&s.coins>=1})()" % G))
+    # столкновение с багом сбоку отнимает жизнь и возвращает в начало
+    pg.evaluate("(function(){var s=%s._state(),b=s.bugs.filter(function(b){return !b.dead})[0];s.p.x=b.x+3;s.p.y=b.y;s.p.vy=0;s.p.inv=0})()" % G); pg.wait_for_timeout(1100)
+    check("hop: касание бага сбоку отнимает жизнь, герой возвращается на старт", pg.evaluate(G + "._state().lives") == 2 and pg.evaluate(G + "._state().p.x") < 60, pg.evaluate(G + "._state().lives"))
+    # яма
+    pg.evaluate("(function(){var s=%s._state();s.p.inv=0;s.p.x=22*16+4;s.p.y=8*16-4;s.p.vy=0})()" % G); pg.wait_for_timeout(1600)
+    check("hop: падение в яму отнимает жизнь", pg.evaluate(G + "._state().lives") == 1, pg.evaluate(G + "._state().lives"))
+    # флажок: переход на следующий уровень, затем победа
+    for lvl in (1, 2):
+        pg.evaluate("(function(){var s=%s._state();for(var x=0;x<s.L.w;x++)for(var y=0;y<11;y++)if(s.map[y][x]==='F'){s.p.x=x*16;s.p.y=y*16+20;s.p.vy=0;return}})()" % G); pg.wait_for_timeout(500)
+        check("hop: флажок открывает уровень %d" % (lvl + 1), pg.get_attribute(".gm-root", "data-level") == str(lvl + 1) or pg.get_attribute(".gm-root", "data-state") == "won", pg.get_attribute(".gm-root", "data-level"))
+    pg.evaluate("(function(){var s=%s._state();for(var x=0;x<s.L.w;x++)for(var y=0;y<11;y++)if(s.map[y][x]==='F'){s.p.x=x*16;s.p.y=y*16+20;s.p.vy=0;return}})()" % G); pg.wait_for_timeout(500)
+    check("hop: после третьего флажка победа", pg.get_attribute(".gm-root", "data-state") == "won" and "Деплой" in pg.inner_text(".gm-over"))
+    check("hop: рекорд записан", int(pg.evaluate("localStorage.best_hop")) > 0)
+    pg.click("#sgx"); check("hop: окно закрывается", pg.locator("#sg").count() == 0)
+    # три жизни кончаются
+    pg.keyboard.type("hop"); pg.wait_for_selector("#hopGo"); pg.click("#hopGo"); pg.wait_for_timeout(300)
+    for _ in range(3):
+        pg.evaluate("(function(){var s=%s._state();s.p.inv=0;s.p.x=22*16+4;s.p.y=8*16-4;s.p.vy=0})()" % G); pg.wait_for_timeout(1500)
+    check("hop: после трёх падений «Игра окончена»", pg.get_attribute(".gm-root", "data-state") == "over", pg.get_attribute(".gm-root", "data-state"))
+    pg.click("#sgx")
+    # zap
+    pg.keyboard.type("zap"); pg.wait_for_selector("#sg #zapGo", timeout=6000); pg.click("#zapGo"); pg.wait_for_timeout(200)
+    check("zap: игра идёт, мяч на платформе", pg.get_attribute(".gm-root", "data-state") == "play" and pg.evaluate(G + "._state().ball.stuck"))
+    pg.keyboard.press("Space"); pg.wait_for_timeout(100); check("zap: пробел запускает мяч", not pg.evaluate(G + "._state().ball.stuck"))
+    n0 = pg.evaluate(G + "._state().bricks.length")
+    pg.evaluate("(function(){var s=%s._state(),b=s.ball,k=s.bricks[s.bricks.length-1];b.x=k.x+10;b.y=k.y+k.h+6;b.vx=0;b.vy=-100})()" % G); pg.wait_for_timeout(250)
+    check("zap: мяч бьёт кирпич и даёт очки", pg.evaluate(G + "._state().score") >= 10, pg.evaluate(G + "._state().score"))
+    pg.evaluate("(function(){var s=%s._state();s.ball.x=160;s.ball.y=300;s.ball.vy=50})()" % G); pg.wait_for_timeout(300)
+    check("zap: упавший мяч отнимает жизнь", pg.evaluate(G + "._state().lives") == 2, pg.evaluate(G + "._state().lives"))
+    for _ in range(3):
+        pg.evaluate("(function(){var s=%s._state();s.bricks=[s.bricks[0]];s.bricks[0].hp=1;var b=s.ball,k=s.bricks[0];s.ball.stuck=false;b.x=k.x+10;b.y=k.y+k.h+6;b.vx=0;b.vy=-100})()" % G); pg.wait_for_timeout(300)
+    check("zap: когда все кирпичи разбиты, игра заканчивается победой после трёх уровней", pg.get_attribute(".gm-root", "data-state") == "won", pg.get_attribute(".gm-root", "data-state"))
+    pg.keyboard.press("Escape"); check("zap: Esc закрывает после конца игры", pg.locator("#sg").count() == 0)
+    check("секретные игры: нет ошибок в консоли", not bag, bag[:3])
     ctx.close()
 
 
@@ -1478,7 +1573,7 @@ def respect(b, base):
 
 
 if __name__ == "__main__":
-    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "spy", "leaders", "admin", "lucky", "botguard", "unlock", "subjects", "arcade", "respect", "perf", "stress"]
+    only = sys.argv[1:] or ["smoke", "functional", "teacher", "slides", "honest", "offline", "video", "extras", "brief", "chaos", "online", "gate", "race", "boss", "spy", "leaders", "admin", "lucky", "botguard", "unlock", "subjects", "arcade", "secrets", "ege", "respect", "perf", "stress"]
     srv, base = serve()
     with sync_playwright() as p:
         b = p.chromium.launch(args=["--no-sandbox", "--disable-features=LocalNetworkAccessChecks,LocalNetworkAccess,PrivateNetworkAccessRespectPreflightResults"])

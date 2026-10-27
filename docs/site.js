@@ -56,7 +56,7 @@ function appsOpen() {
 function isTeacher() { try { return !!localStorage.getItem("teacher"); } catch (e) { return false; } }
 var PAGES = {
   "tasks.html": ["Задания", "pc"], "theory.html": ["Теория", "folder"], "quiz.html": ["Квизы", "book"],
-  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "video.html": ["Видеоразборы", "video"], "leaders.html": ["Таблица лидеров", "bolt"], "spy.html": ["Шпион", "user"], "teacher.html": ["Кабинет учителя", "key"], "account.html": ["Мой профиль", "user"], "students.html": ["Ученики на сервере", "user"], "live.html": ["Онлайн-игра", "bolt"], "run.html": ["Убеги от скелета", "skull"], "race.html": ["Гонка по Python", "bolt"],
+  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "video.html": ["Видеоразборы", "video"], "leaders.html": ["Таблица лидеров", "bolt"], "spy.html": ["Шпион", "user"], "teacher.html": ["Кабинет учителя", "key"], "ege.html": ["ЕГЭ Python", "doc"], "account.html": ["Мой профиль", "user"], "students.html": ["Ученики на сервере", "user"], "live.html": ["Онлайн-игра", "bolt"], "run.html": ["Убеги от скелета", "skull"], "race.html": ["Гонка по Python", "bolt"],
   "learn.html": ["Предметы", "books"], "arcade.html": ["Аркада", "skull"]
 };
 function layout(active, title) {
@@ -78,7 +78,7 @@ function layout(active, title) {
   }
   var items = [["learn.html", "Предметы", "books"], ["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"], ["video.html", "Видеоразборы", "video"], ["live.html", "Онлайн-игра", "bolt"], ["race.html", "Гонка по Python", "bolt"], ["arcade.html", "Аркада", "skull"], ["leaders.html", "Таблица лидеров", "bolt"], ["spy.html", "Шпион", "user"], ["account.html", "Мой профиль", "user"]];
   /* ученикам вход для учителя не показываем: учитель открывает teacher.html по адресу, после входа пункты появляются */
-  if (teacher) { items.push(["teacher.html", "Кабинет учителя", "key"]); items.push(["students.html", "Ученики на сервере", "user"]); }
+  if (teacher) { items.push(["teacher.html", "Кабинет учителя", "key"]); items.push(["students.html", "Ученики на сервере", "user"]); items.push(["ege.html", "ЕГЭ Python (черновик)", "doc"]); }
   function menuHtml() { return items.filter(function (x) { return x[0] !== "arcade.html" || appsOpen(); }).map(function (x) { return '<li><a href="' + x[0] + '">' + pix(x[2]) + x[1] + "</a></li>"; }).join(""); }
   var tail = '<hr><li><a href="#" id="guideBtn">' + pix("help") + 'Как это работает</a></li>' +
     '<li><a href="index.html">' + pix("win") + 'Рабочий стол</a></li>';
@@ -316,31 +316,66 @@ function fetchIssues(label, cb, fail) {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { setTimeout(boot, 0); }); else setTimeout(boot, 0);
 })();
 
-/* Мелкие секреты. Находятся по подсказкам в заданиях: стрелки как в старых играх, пять нажатий на часы. Оценок за них нет. */
+/* Секреты. Находятся по подсказкам в заданиях и после решённых задач. Оценок за них нет.
+   Слова печатаются на клавиатуре не в поле ввода (работают и с русской раскладкой: смотрим на клавишу, а не на букву):
+     hop: платформер «Пикс-прыгун», zap: «Разбей баги», skull: «Убеги от скелета»,
+     boom, ghost, gold, fact: маленькие сюрпризы. Стрелки ↓↓↑↑ →←→← A B: тренировка «Скелет и бочки». Семь нажатий на часы: «Скелет и бочки» с подсказками. */
 (function () {
   if (typeof document === "undefined") return;
-  var KON = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"], buf = [], clicks = [], loading = false;
+  var WORDS = { hop: "hop", zap: "zap", skull: "skull", boom: "confetti", ghost: "walker", gold: "coin", fact: "fact" };
+  var KON = ["ArrowDown", "ArrowDown", "ArrowUp", "ArrowUp", "ArrowRight", "ArrowLeft", "ArrowRight", "ArrowLeft", "a", "b"], kbuf = [], word = "", clicks = [], loading = false;
+  function need(src, cb, fail) { var sc = document.createElement("script"); sc.src = src; sc.onload = cb; sc.onerror = fail || function () {}; document.head.appendChild(sc); }
   function withLucky(cb) {
-    if (loading) return; loading = true; var done = function () { loading = false; cb(); };
-    var needL = function () { if (window.Lucky) done(); else { var l = document.createElement("script"); l.src = "lucky.js"; l.onload = done; l.onerror = function () { loading = false; }; document.head.appendChild(l); } };
-    if (window.Egg) needL(); else { var e = document.createElement("script"); e.src = "egg.js"; e.onload = needL; e.onerror = function () { loading = false; }; document.head.appendChild(e); }
+    if (loading) return; loading = true; var done = function () { loading = false; cb(); }, fail = function () { loading = false; };
+    var needL = function () { if (window.Lucky) done(); else need("lucky.js", done, fail); };
+    if (window.Egg) needL(); else need("egg.js", needL, fail);
+  }
+  /* секретная мини-игра в окне поверх страницы: Esc или кнопка закрывают */
+  var GAMES = { hop: ["hop.js", "Hop", "Пикс-прыгун"], zap: ["zap.js", "Zap", "Разбей баги"] };
+  function openGame(id) {
+    if (document.getElementById("sg") || loading) return; var G = GAMES[id]; if (!G) return; loading = true;
+    function run() {
+      loading = false; var ov = document.createElement("div"); ov.id = "sg"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", G[2]);
+      ov.style.cssText = "position:fixed;inset:0;z-index:2147482000;background:rgba(10,5,40,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px;gap:8px;overflow:auto";
+      ov.innerHTML = '<div style="width:min(960px,100%);display:flex;justify-content:space-between;align-items:center;color:#fff;font:400 12px/1.4 \'Press Start 2P\',monospace"><span>' + G[2] + '</span><button type="button" id="sgx" style="font:400 12px \'Press Start 2P\',monospace;min-height:40px;padding:8px 12px;background:#c0c0c0;border:3px solid #000;cursor:pointer">Закрыть</button></div><div id="sgh" style="width:min(960px,100%)"></div>';
+      document.body.appendChild(ov); document.documentElement.style.overflow = "hidden";
+      var game = window[G[1]].mount(ov.querySelector("#sgh"), {});
+      function close() { try { game.destroy(); } catch (e) {} ov.remove(); document.documentElement.style.overflow = ""; document.removeEventListener("keydown", esc, true); }
+      function esc(e) { if (e.key === "Escape" && game.root && game.root.getAttribute("data-state") !== "play") { e.preventDefault(); close(); } }
+      document.addEventListener("keydown", esc, true); ov.querySelector("#sgx").onclick = close;
+      ov.querySelector("#sgx").focus(); window.__sg = game;
+    }
+    var css = document.getElementById("sgcss"); if (!css) { css = document.createElement("link"); css.id = "sgcss"; css.rel = "stylesheet"; css.href = "learn.css"; document.head.appendChild(css); }
+    if (window[G[1]]) run(); else need(G[0], run, function () { loading = false; });
   }
   document.addEventListener("keydown", function (e) {
-    var tg = e.target && e.target.tagName; if (tg === "TEXTAREA" || tg === "INPUT" || tg === "SELECT" || (e.target && e.target.isContentEditable) || document.getElementById("notice") || document.getElementById("lk")) { buf = []; return; }
+    var tg = e.target && e.target.tagName; if (tg === "TEXTAREA" || tg === "INPUT" || tg === "SELECT" || (e.target && e.target.isContentEditable) || document.getElementById("notice") || document.getElementById("lk") || document.getElementById("sg") || document.getElementById("egg")) { kbuf = []; word = ""; return; }
     if (e.ctrlKey || e.metaKey || e.altKey || /^(Shift|CapsLock|Control|Alt|Meta|AltGraph)$/.test(e.key)) return;
-    var k = e.key.length === 1 ? ({ "и": "b", "ф": "a" }[e.key.toLowerCase()] || e.key.toLowerCase()) : e.key;
-    buf.push(k); if (buf.length > KON.length) buf.shift();
-    if (buf.join() === KON.join()) { buf = []; withLucky(function () { window.Lucky.practice(); }); }
+    var m = /^Key([A-Z])$/.exec(e.code || ""), d = /^Digit(\d)$/.exec(e.code || ""), ch = m ? m[1].toLowerCase() : d ? d[1] : "";
+    var k = e.key.length === 1 ? (ch || e.key.toLowerCase()) : e.key;
+    kbuf.push(k); if (kbuf.length > KON.length) kbuf.shift();
+    if (kbuf.join() === KON.join()) { kbuf = []; withLucky(function () { window.Lucky.practice(); }); return; }
+    if (!ch) { word = ""; return; }
+    word = (word + ch).slice(-6);
+    for (var w in WORDS) if (word.slice(-w.length) === w) {
+      word = ""; var t = WORDS[w];
+      if (t === "hop" || t === "zap") openGame(t);
+      else if (t === "skull") { var go = function () { window.Egg.start(); }; if (window.Egg) go(); else need("egg.js", go); }
+      else if (window.Surprise) Surprise.maybe(1, t);
+      return;
+    }
   });
   document.addEventListener("click", function (e) {
     var c = e.target && e.target.closest && e.target.closest(".clock"); if (!c) return;
-    var now = Date.now(); clicks = clicks.filter(function (t) { return now - t < 3000; }); clicks.push(now);
-    if (clicks.length >= 5) { clicks = []; withLucky(function () { window.Lucky.fun(); }); }
+    var now = Date.now(); clicks = clicks.filter(function (t) { return now - t < 4000; }); clicks.push(now);
+    if (clicks.length >= 7) { clicks = []; withLucky(function () { window.Lucky.fun(); }); }
   });
-  var HINTS = ["Подсказка для внимательных: у скелетов есть любимое число из четырёх цифр. Набери его на клавиатуре, но не в поле ввода: 2 2 6 7.",
-    "Старый секрет геймеров: ↑ ↑ ↓ ↓ ← → ← → B A. Нажми по очереди не в поле ввода и увидишь, что будет.",
-    "Часы в правом нижнем углу не любят, когда на них нажимают пять раз подряд. Проверь.",
-    "Эти числа любят все программисты. Набери по одному не в поле ввода: 1337, 404, 777, 1989. Каждое показывает своё.",
+  var HINTS = ["Секрет для внимательных: набери на клавиатуре слово hop (не в поле ввода). Герой любит прыгать.",
+    "Набери zap по буквам не в поле ввода. Баги это кирпичи.",
+    "Старый секрет геймеров: ↓ ↓ ↑ ↑ → ← → ← A B. Нажимай по очереди не в поле ввода.",
+    "Часы в правом нижнем углу не любят, когда на них нажимают семь раз подряд быстро.",
+    "Слова boom, ghost, gold и fact по буквам: каждое показывает своё. Печатай не в поле ввода, раскладка не важна.",
+    "Слово skull открывает старую игру со скелетом. Попробуй!",
     "После решённых заданий иногда появляются сюрпризы: конфетти, прохожий скелет, золотой череп. Решай больше, и повезёт."];
   /* случайный сюрприз после выполненного задания: не чаще раза в полторы минуты, примерно в каждом третьем случае */
   var lastS = 0;
@@ -348,11 +383,11 @@ function fetchIssues(label, cb, fail) {
     maybe: function (p, force) {
       try {
         var now = Date.now();
-        if (document.getElementById("notice") || document.getElementById("egg") || document.getElementById("lk") || document.getElementById("scare")) return false;
+        if (document.getElementById("notice") || document.getElementById("egg") || document.getElementById("lk") || document.getElementById("scare") || document.getElementById("sg")) return false;
         if (!force && (now - lastS < 90000 || Math.random() > (p == null ? 0.34 : p))) return false;
         lastS = now;
         var run = function () { window.SurpriseRun(typeof force === "string" ? force : undefined); };
-        if (window.SurpriseRun) run(); else { var s = document.createElement("script"); s.src = "surprise.js"; s.onload = run; document.head.appendChild(s); }
+        if (window.SurpriseRun) run(); else need("surprise.js", run);
         return true;
       } catch (e) { return false; }
     }
@@ -362,26 +397,7 @@ function fetchIssues(label, cb, fail) {
     try { if (!el || Math.random() > 0.34) return; var n = +(localStorage.getItem("hintN") || 0); localStorage.setItem("hintN", String(n + 1));
       var d = document.createElement("div"); d.className = "m"; d.style.cssText = "font-size:13px;opacity:.75;margin-top:10px;border-top:1px dashed #999;padding-top:8px"; d.textContent = "🦴 " + HINTS[n % HINTS.length]; el.appendChild(d); } catch (e) {}
   };
-})();
-
-/* Пасхалка: цифры 2267 подряд (любая другая клавиша сбрасывает ввод) */
-(function () {
-  var CODE = "2267", buf = "", loading = false, SMALL = { "1337": "confetti", "404": "walker", "777": "coin", "1989": "fact" };
-  function go() {
-    if (window.Egg) { window.Egg.start(); return; }
-    if (loading) return; loading = true;
-    var sc = document.createElement("script"); sc.src = "egg.js"; sc.onload = function () { loading = false; window.Egg.start(); }; sc.onerror = function () { loading = false; };
-    document.head.appendChild(sc);
-  }
-  document.addEventListener("keydown", function (e) {
-    var tg = e.target && e.target.tagName; if (tg === "TEXTAREA" || tg === "INPUT" || tg === "SELECT" || (e.target && e.target.isContentEditable) || document.getElementById("notice")) { buf = ""; return; }
-    if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) { if (e.key.length === 1) buf = ""; return; }
-    if (e.key < "0" || e.key > "9") { buf = ""; return; }
-    buf = (buf + e.key).slice(-CODE.length);
-    if (buf === CODE) { buf = ""; go(); return; }
-    var q = SMALL[buf.slice(-4)] || SMALL[buf.slice(-3)] || SMALL[buf.slice(-2)];     // короткие коды: каждый показывает свой сюрприз
-    if (q && window.Surprise) { buf = ""; Surprise.maybe(1, q); }
-  });
+  window.__secrets = { open: openGame };
 })();
 
 /* Выбор предмета (Python, SQL, Blender, нейросети): окно появляется после входа или регистрации и у тех, кто вошёл, но ещё не выбирал.

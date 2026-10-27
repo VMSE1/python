@@ -20,3 +20,5 @@ jobs:
         run: python check.py
       - name: Проверка уроков других предметов (SQL, Blender, нейросети)
         run: python tools/subjects.py --check
+      - name: Проверка раздела ЕГЭ (эталоны)
+        run: python tools/ege.py --check

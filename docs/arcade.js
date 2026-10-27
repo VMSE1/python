@@ -10,6 +10,8 @@
   }
   var G = [
     { id: "chick", name: "Пернатый бой", icon: "bolt", text: "Аркада: цыплята с яйцемётами против ботов. Выбери цвет и шапку, держи прыжок, чтобы планировать, собирай кукурузу и золотые яйца.", mod: function () { return Chick; } },
+    { id: "hop", name: "Пикс-прыгун", icon: "pc", text: "Платформер с прокруткой: прыгай на головы багам, бей блоки «{ }» снизу, собирай биты и добегай до флажка. Три уровня.", mod: function () { return Hop; } },
+    { id: "zap", name: "Разбей баги", icon: "disk", text: "Арканоид: отбивай мяч терминалом и разбивай баги-кирпичи. Мышь, палец или стрелки.", mod: function () { return Zap; } },
     { id: "dungeon", name: "Подземелье багов", icon: "skull", text: "Шутер от первого лица в духе игр 90-х. Три уровня, жуки-баги и двери-терминалы, которые открывает правильный ответ.", mod: function () { return Dungeon; } }
   ];
   var arc = document.getElementById("arc"), stage = document.getElementById("stage"), sth = document.getElementById("sth"), cur = null;
