@@ -2,8 +2,9 @@
 # Установка и обновление сервера курса на VPS (Debian/Ubuntu), запуск от root:
 #   curl -fsSL https://raw.githubusercontent.com/VMSE1/python/main/server/install.sh | bash
 # Свой домен: ... | bash -s -- course.example.com   (А-запись домена должна смотреть на IP сервера)
+# Сайт (docs/) тоже раздаёт этот сервер: /var/www/pycourse, обновляется таймером pycourse-update из ветки main.
 set -euo pipefail
-REPO="https://github.com/VMSE1/python"
+REPO="${REPO:-https://github.com/VMSE1/python}"   # закрытый репозиторий: REPO=git@github.com:VMSE1/python.git (нужен deploy key)
 DIR=/opt/pycourse
 ENVF=/etc/pycourse.env
 [ "$(id -u)" = 0 ] || { echo "Запусти от root"; exit 1; }
@@ -14,7 +15,7 @@ DOMAIN="${1:-}"
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y python3 python3-venv git curl sqlite3
+apt-get install -y python3 python3-venv git curl sqlite3 rsync
 if ! command -v caddy >/dev/null; then
   apt-get install -y caddy || {
     apt-get install -y debian-keyring debian-archive-keyring apt-transport-https gpg
@@ -35,7 +36,7 @@ if [ ! -f "$ENVF" ]; then
 TEACHER_KEY=$KEY
 DB_PATH=/var/lib/pycourse/data.sqlite
 PORT=8080
-ALLOW_ORIGINS=https://vmse1.github.io
+ALLOW_ORIGINS=https://$DOMAIN,https://vmse1.github.io
 EOF
   chmod 600 "$ENVF"
   NEWKEY="$KEY"
@@ -65,7 +66,11 @@ chown -R www-data:www-data /var/lib/pycourse /var/backups/pycourse
 cat > /etc/caddy/Caddyfile <<EOF
 $DOMAIN {
     encode gzip
-    reverse_proxy 127.0.0.1:8080
+    @api path /api/* /ws
+    reverse_proxy @api 127.0.0.1:8080
+    header /pyodide/* Cache-Control "public, max-age=604800"
+    root * /var/www/pycourse
+    file_server
 }
 EOF
 
@@ -75,11 +80,29 @@ sqlite3 /var/lib/pycourse/data.sqlite ".backup '/var/backups/pycourse/data-$(dat
 EOF
 chmod +x /etc/cron.daily/pycourse-backup
 
+cat > /etc/systemd/system/pycourse-update.service <<EOF
+[Unit]
+Description=Обновление сайта курса из GitHub
+[Service]
+Type=oneshot
+ExecStart=$DIR/server/deploy_site.sh
+EOF
+cat > /etc/systemd/system/pycourse-update.timer <<EOF
+[Unit]
+Description=Проверка обновлений сайта курса каждые 5 минут
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+[Install]
+WantedBy=timers.target
+EOF
 systemctl daemon-reload
+systemctl enable --now pycourse-update.timer
 systemctl enable --now pycourse
 systemctl restart pycourse
 systemctl enable caddy
 systemctl restart caddy
+"$DIR/server/deploy_site.sh" --force
 sleep 4
 echo
 echo "================ ГОТОВО ================"

@@ -1,5 +1,7 @@
 # Сервер курса: профили, онлайн-викторина, облако слов
 
+> С версии «свой хостинг» сайт можно раздавать с этого же сервера, а GitHub использовать только для разработки (см. раздел «Сайт на своём сервере» в конце файла). Ниже, где написано «сайт на GitHub Pages», это прежняя схема.
+
 Сайт остаётся на GitHub Pages. Серверу достаётся то, что статический сайт не умеет: хранить профили с паролями и передавать сообщения между телефонами в реальном времени.
 
 ## Что умеет
@@ -97,3 +99,13 @@
 - `{action:"hearts"}`: кто ответил сердечком.
 - `GET/POST /api/look`: персонаж ученика (нужен вход). `POST /api/heart`: ответное сердечко учителю.
 - В базе: колонка `users.look`, таблица `kv(k,v)`. Обе создаются сами при запуске, ничего вручную не нужно. Чтобы это заработало на живом сервере, обнови его: `curl -fsSL https://raw.githubusercontent.com/VMSE1/python/main/server/install.sh | bash`.
+
+## Сайт на своём сервере (разработка на GitHub, хостинг у тебя)
+Схема: код живёт в репозитории GitHub (ветки, PR, проверки), а страницы сайта отдаёт твой VPS. GitHub Pages при этом не нужен, поэтому репозиторий можно сделать закрытым.
+
+- **Caddy** на сервере отдаёт файлы из `/var/www/pycourse` и проксирует `/api/*` и `/ws` на `127.0.0.1:8080`. Сайт и API на одном домене, CORS не нужен (браузер всё равно шлёт `Origin`, поэтому домен должен быть в `ALLOW_ORIGINS`).
+- **Обновление:** `server/deploy_site.sh` делает `git pull --ff-only`, `python3 tools/build_site.py`, копирует `docs/` в `/var/www/pycourse` и перезапускает сервис. Его же каждые 5 минут запускает таймер `pycourse-update.timer`: влил PR в `main`, через несколько минут сайт обновился. Вручную: `/opt/pycourse/server/deploy_site.sh --force`.
+- **Установка или переход с Pages** (от root на VPS): `curl -fsSL https://raw.githubusercontent.com/VMSE1/python/main/server/install.sh | bash -s -- vsemcode.ru`. Скрипт перепишет `/etc/caddy/Caddyfile` и поставит таймер. Файл `/etc/pycourse.env` он не трогает, если тот уже есть: **добавь в `ALLOW_ORIGINS` свой домен** (например `ALLOW_ORIGINS=https://vsemcode.ru,https://vmse1.github.io`) и сделай `systemctl restart pycourse`.
+- **Закрытый репозиторий:** серверу нужен доступ на чтение. Создай deploy key (только чтение): `ssh-keygen -t ed25519 -f /root/.ssh/pycourse_deploy -N ""`, добавь публичный ключ в GitHub (Settings → Deploy keys), в `/root/.ssh/config` пропиши `Host github.com` с `IdentityFile /root/.ssh/pycourse_deploy`, а в `/opt/pycourse` выполни `git remote set-url origin git@github.com:VMSE1/python.git`. Ключ нигде не записывай в репозиторий и в чат. Установочную команду через `raw.githubusercontent.com` для закрытого репозитория замени на копирование `install.sh` на сервер и запуск `REPO=git@github.com:VMSE1/python.git bash install.sh vsemcode.ru`.
+- **Что перестанет работать после закрытия репозитория:** GitHub Pages (он больше не нужен) и всё, что читает GitHub API без токена с сайта (запасной путь сдачи через Issues и кабинет учителя в части Issues; вход в них идёт по токену учителя). Основная сдача идёт через сервер.
+- **Откат:** `cd /opt/pycourse && git checkout <старый коммит> && ./server/deploy_site.sh --force` (таймер потом вернёт `main`, поэтому на время отката `systemctl stop pycourse-update.timer`).
