@@ -812,7 +812,7 @@ def api_ctx(b, api, w=1280, h=800, mobile=False, gate=True, pick=False):
     if not pick: ctx.add_init_script("window.__noPick=true")  # окно выбора предмета проверяется в наборе subjects
     host = api.split("//")[1]
     def html(route):
-        r = route.fetch(); body = re.sub(r"https://[a-z0-9.-]+sslip\.io wss://[a-z0-9.-]+sslip\.io", "%s ws://%s" % (api, host), r.text())
+        r = route.fetch(); body = re.sub(r"https://(?!api\.github\.com)[a-z0-9.-]+ wss://[a-z0-9.-]+", "%s ws://%s" % (api, host), r.text())
         route.fulfill(response=r, body=body)
     ctx.route(re.compile(r"\.html(\?.*)?$"), html)
     ctx.route("**/config.js", lambda r: r.fulfill(body='window.API_BASE="%s";' % api, content_type="application/javascript"))
@@ -1395,6 +1395,78 @@ def arcade(b, base):
     check("подземелье: выход ведёт на уровень 2", pg.get_attribute(".gm-root", "data-level") == "2")
     check("аркада: нет ошибок в консоли", not bag, bag[:3])
     ctx.close()
+
+
+def fake_journal(path, names):
+    """Маленький .xlsx, похожий на выгрузку журнала: заголовок «Студент», даты, фамилии в общих строках (sharedStrings)."""
+    import zipfile
+    strs = ["№", "Студент", "сен"] + [n + "  " for n in names]
+    cell = lambda r, c, i: '<c r="%s%d" t="s"><v>%d</v></c>' % (c, r, i)
+    rows = '<row r="1">%s%s%s</row><row r="2"><c r="C2"><v>5</v></c></row>' % (cell(1, "A", 0), cell(1, "B", 1), cell(1, "C", 2))
+    rows += "".join('<row r="%d"><c r="A%d"><v>%d</v></c>%s</row>' % (i + 3, i + 3, i + 1, cell(i + 3, "B", 3 + i)) for i in range(len(names)))
+    ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>')
+        z.writestr("xl/workbook.xml", '<?xml version="1.0"?><workbook %s><sheets><sheet name="Информатика ИТ-101999" sheetId="1"/></sheets></workbook>' % ns)
+        z.writestr("xl/sharedStrings.xml", '<?xml version="1.0"?><sst %s>%s</sst>' % (ns, "".join("<si><t>%s</t></si>" % x for x in strs)))
+        z.writestr("xl/worksheets/sheet1.xml", '<?xml version="1.0"?><worksheet %s><sheetData>%s</sheetData></worksheet>' % (ns, rows))
+
+
+def wait_text(pg, sel, sub, tmo=8):
+    """Ждёт, пока в элементе появится текст (wait_for_function здесь не работает: CSP сайта запрещает eval)."""
+    end = time.time() + tmo
+    while time.time() < end:
+        if pg.locator(sel).count() and sub in pg.locator(sel).first.inner_text(): return True
+        pg.wait_for_timeout(200)
+    return False
+
+
+def lesson(b, base):
+    print("\n== УРОК: ГРУППА ИЗ EXCEL, МОНЕТЫ, ОПОЗДАВШИЙ, ЗОЛОТАЯ МОНЕТА ==")
+    import tempfile
+    api = start_api(base.rstrip("/")); bag = []; A = sys.modules["app"]; A.LUCKY.update(next=time.time() + 99999); A.SCARE.update(next=time.time() + 99999); A.GOLD["odds"] = 0.0
+    # ученик заходит на сайт (быстрая регистрация: фамилии нет, привязку учитель делает по нику)
+    cs = api_ctx(b, api, 390, 780, mobile=True); st = cs.new_page(); attach_errors(st, bag); st.goto(base + "index.html"); st.wait_for_selector("#gate")
+    st.fill("#gn", "late_kid"); st.fill("#gp", "secret1"); st.fill("#ge", "late@mail.ru"); st.click("#ggo"); st.wait_for_selector("#gate", state="detached", timeout=8000)
+    # учитель: загрузка списка из .xlsx
+    ct = api_ctx(b, api); ct.add_init_script("try{sessionStorage.setItem('tkey','teacher-secret')}catch(e){}"); tp = ct.new_page(); attach_errors(tp, bag)
+    tp.on("dialog", lambda d: d.accept("late_kid"))
+    path = os.path.join(tempfile.mkdtemp(), "ОУП.11 Информатика ИТ-101 ОП_ИТ-101_2026.xlsx"); fake_journal(path, ["Тестов Тест Тестович", "Пробная Проба Пробовна", "Учебный Ученик"])
+    tp.goto(base + "lesson.html"); tp.wait_for_selector("#xf"); tp.set_input_files("#xf", path); tp.wait_for_selector("#xs", timeout=6000)
+    check("урок: из .xlsx найдены 3 ученика и группа ИТ-101", tp.locator(".chips span").count() == 3 and tp.input_value("#xg") == "ИТ-101", tp.inner_text("#xo")[:200])
+    tp.click("#xs"); tp.wait_for_selector("#ls", timeout=6000)
+    tp.click("details summary"); tp.locator("[data-link]").first.click()
+    check("урок: ученик привязан к нику", wait_text(tp, "#out", "с аккаунтом на сайте: 1"))
+    tp.fill("#lt", "Циклы"); tp.select_option("#lp2", "3"); tp.click("#lnew"); tp.wait_for_selector(".bt [data-c]", timeout=6000)
+    rid = tp.locator("tr[data-row]:not(:has(.tag.w)) [data-late]").first.get_attribute("data-late")      # ученик с ником
+    tp.click('[data-c="2"][data-r="%s"]' % rid)
+    check("урок: +2 монеты видны в таблице", wait_text(tp, 'tr[data-row="%s"] .cn' % rid, "2"))
+    # опоздавший: 3 вопроса по теме урока
+    tp.click('[data-late="%s"]' % rid); tp.wait_for_selector("#lsend"); check("опоздавший: учитель видит 3 вопроса с ответами", tp.locator(".lq").count() == 3)
+    tp.click("#lsend"); st.wait_for_selector("#lp .op button", timeout=12000)
+    check("опоздавший: у ученика открылось задание", "Ты опоздал" in st.inner_text("#lp"))
+    st.screenshot(path="/tmp/lesson_late_q.png"); st.wait_for_timeout(3000)                              # быстрее секунды на вопрос сервер ответы не принимает
+    for _ in range(3): st.locator("#lp .op button").first.click(); st.wait_for_timeout(150)
+    st.wait_for_selector("#lp .big", timeout=6000); t = st.inner_text("#lp"); st.screenshot(path="/tmp/lesson_late.png")
+    check("опоздавший: результат и разбор ответов", "/ 3" in t and ("✓" in t or "✗" in t), t[:200])
+    st.click("#lp .go")
+    check("опоздавший: учитель видит счёт", wait_text(tp, 'tr[data-row="%s"]' % rid, " / 3"))
+    # золотая монета у ученика с аккаунтом: сундуки на его экране
+    A.GOLD["odds"] = 1.0; tp.click('[data-c="1"][data-r="%s"]' % rid); st.wait_for_selector("#lp .ch", timeout=12000)
+    check("золотая монета: у ученика появились сундуки", "золотая монета" in st.inner_text("#lp").lower())
+    st.locator("#lp .ch").nth(1).click(); st.wait_for_selector("#lp .ch.mine", timeout=6000); st.screenshot(path="/tmp/lesson_gold.png")
+    check("золотая монета: сундук открыт, приз 1–3", any(("+%d" % n) in st.inner_text("#lp .big") for n in (1, 2, 3)))
+    # золотая монета у ученика без аккаунта: сундуки на проекторе
+    rid2 = tp.locator("tr[data-row]:has(.tag.w) [data-late]").first.get_attribute("data-late")          # ученик без аккаунта
+    tp.click('[data-c="1"][data-r="%s"]' % rid2); tp.wait_for_selector('.gch[data-rid="%s"]' % rid2, timeout=8000); A.GOLD["odds"] = 0.0
+    tp.click("#pj"); tp.wait_for_selector("#proj .gold .ch", timeout=6000)
+    check("проектор: сундуки для ученика без аккаунта", "выбери сундук" in tp.inner_text("#proj .gold"))
+    tp.locator("#proj .gold .ch").first.click(); tp.wait_for_selector("#proj .gold .ch.mine", timeout=6000); tp.screenshot(path="/tmp/lesson_proj_gold.png")
+    tp.wait_for_selector("#proj .gold", state="detached", timeout=8000); tp.wait_for_timeout(500); tp.screenshot(path="/tmp/lesson_proj.png")
+    check("проектор: таблица лидеров по монетам", tp.locator("#proj .pr").count() == 3 and "Тестов Тест" in tp.inner_text("#proj .pr.top"), tp.inner_text("#proj")[:300])
+    check("урок: фамилии не уходят ученикам", "Тестов" not in st.content() and "Пробная" not in st.content())
+    check("урок: без ошибок в консоли", not bag, bag[:3])
+    ct.close(); cs.close()
 
 
 def ege(b, base):

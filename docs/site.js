@@ -56,7 +56,7 @@ function appsOpen() {
 function isTeacher() { try { return !!localStorage.getItem("teacher"); } catch (e) { return false; } }
 var PAGES = {
   "tasks.html": ["Задания", "pc"], "theory.html": ["Теория", "folder"], "quiz.html": ["Квизы", "book"],
-  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "video.html": ["Видеоразборы", "video"], "leaders.html": ["Таблица лидеров", "bolt"], "spy.html": ["Шпион", "user"], "teacher.html": ["Кабинет учителя", "key"], "ege.html": ["ЕГЭ Python", "doc"], "account.html": ["Мой профиль", "user"], "students.html": ["Ученики на сервере", "user"], "live.html": ["Онлайн-игра", "bolt"], "run.html": ["Убеги от скелета", "skull"], "race.html": ["Гонка по Python", "bolt"],
+  "projects.html": ["Проекты ребят", "disk"], "cloud.html": ["Облако слов", "win"], "slides.html": ["Презентации", "doc"], "video.html": ["Видеоразборы", "video"], "leaders.html": ["Таблица лидеров", "bolt"], "spy.html": ["Шпион", "user"], "teacher.html": ["Кабинет учителя", "key"], "lesson.html": ["Урок: монеты и опоздавшие", "bolt"], "ege.html": ["ЕГЭ Python", "doc"], "account.html": ["Мой профиль", "user"], "students.html": ["Ученики на сервере", "user"], "live.html": ["Онлайн-игра", "bolt"], "run.html": ["Убеги от скелета", "skull"], "race.html": ["Гонка по Python", "bolt"],
   "learn.html": ["Предметы", "books"], "arcade.html": ["Аркада", "skull"]
 };
 function layout(active, title) {
@@ -78,7 +78,7 @@ function layout(active, title) {
   }
   var items = [["learn.html", "Предметы", "books"], ["tasks.html", "Задания", "pc"], ["theory.html", "Теория", "folder"], ["quiz.html", "Квизы", "book"], ["projects.html", "Проекты ребят", "disk"], ["cloud.html", "Облако слов", "win"], ["slides.html", "Презентации", "doc"], ["video.html", "Видеоразборы", "video"], ["live.html", "Онлайн-игра", "bolt"], ["race.html", "Гонка по Python", "bolt"], ["arcade.html", "Аркада", "skull"], ["leaders.html", "Таблица лидеров", "bolt"], ["spy.html", "Шпион", "user"], ["account.html", "Мой профиль", "user"]];
   /* ученикам вход для учителя не показываем: учитель открывает teacher.html по адресу, после входа пункты появляются */
-  if (teacher) { items.push(["teacher.html", "Кабинет учителя", "key"]); items.push(["students.html", "Ученики на сервере", "user"]); items.push(["ege.html", "ЕГЭ Python (черновик)", "doc"]); }
+  if (teacher) { items.push(["teacher.html", "Кабинет учителя", "key"]); items.push(["students.html", "Ученики на сервере", "user"]); items.push(["lesson.html", "Урок: монеты", "bolt"]); items.push(["ege.html", "ЕГЭ Python (черновик)", "doc"]); }
   function menuHtml() { return items.filter(function (x) { return x[0] !== "arcade.html" || appsOpen(); }).map(function (x) { return '<li><a href="' + x[0] + '">' + pix(x[2]) + x[1] + "</a></li>"; }).join(""); }
   var tail = '<hr><li><a href="#" id="guideBtn">' + pix("help") + 'Как это работает</a></li>' +
     '<li><a href="index.html">' + pix("win") + 'Рабочий стол</a></li>';
@@ -234,7 +234,7 @@ function fetchIssues(label, cb, fail) {
 (function () {
   if (typeof document === "undefined" || location.protocol === "file:") return;
   var path = location.pathname.split("/").pop() || "index.html";
-  if (/^(race|boss|spy|teacher|students)\.html$/.test(path)) return;
+  if (/^(race|boss|spy|teacher|students|lesson)\.html$/.test(path)) return;
   try { if (sessionStorage.getItem("tkey")) return; } catch (e) {}
   var busy = false, started = false;
   function api() { return String(window.API_BASE || "").replace(/\/+$/, ""); }
@@ -259,6 +259,13 @@ function fetchIssues(label, cb, fail) {
     var needS = function () { if (window.Scare) go(); else { var s2 = document.createElement("script"); s2.src = "scare.js"; s2.onload = go; document.head.appendChild(s2); } };
     if (window.Egg) needS(); else { var s3 = document.createElement("script"); s3.src = "egg.js"; s3.onload = needS; document.head.appendChild(s3); }
   }
+  /* урок: задание опоздавшему и золотая монета (lesson.html у учителя, окна в lessonpop.js) */
+  function lessonPop(j) {
+    if ((!j.late && !j.gold) || document.getElementById("lp") || document.getElementById("lk") || document.getElementById("notice")) return;
+    var go = function () { if (j.late) window.LessonPop.late(); else window.LessonPop.gold(j.gold.id); };
+    var needP = function () { if (window.LessonPop) go(); else { var s = document.createElement("script"); s.src = "lessonpop.js"; s.onload = go; document.head.appendChild(s); } };
+    if (window.Net) needP(); else { var n = document.createElement("script"); n.src = "net.js"; n.onload = needP; document.head.appendChild(n); }
+  }
   function appsSync(a) {
     var now = a.games ? "1" : "0", old = ""; try { old = localStorage.getItem("appsGames") || ""; } catch (e) {}
     if (old === now) return; try { localStorage.setItem("appsGames", now); } catch (e) {}
@@ -277,6 +284,7 @@ function fetchIssues(label, cb, fail) {
     if (j && j.ok && j.apps) appsSync(j.apps);
     if (j && j.ok && j.scare) scare(j.scare);
     if (j && j.ok) lucky(j);
+    if (j && j.ok) lessonPop(j);
     if (!j || !j.ok || !j.id || j.phase === "idle" || j.phase === "end" || document.getElementById("notice")) return;
     var seen = ""; try { seen = sessionStorage.getItem("playSeen") || ""; } catch (e) {}
     if (seen === String(j.id)) return;
@@ -299,7 +307,7 @@ function fetchIssues(label, cb, fail) {
 (function () {
   if (typeof document === "undefined" || location.protocol === "file:") return;
   var path = location.pathname.split("/").pop() || "index.html";
-  if (/^(teacher|students|account)\.html$/.test(path) || (path === "boss.html" && /[?&]board=1/.test(location.search))) return;
+  if (/^(teacher|students|account|lesson)\.html$/.test(path) || (path === "boss.html" && /[?&]board=1/.test(location.search))) return;
   function need(src, cb) { var s = document.createElement("script"); s.src = src; s.onload = cb; s.onerror = function () {}; document.head.appendChild(s); }
   function go() {
     if (!window.Net || !Net.on || Net.user()) return;
@@ -410,7 +418,7 @@ window.askSubject = function () {
 (function () {
   if (typeof document === "undefined") return;
   var path = location.pathname.split("/").pop() || "index.html";
-  if (/^(teacher|students|race|boss)\.html$/.test(path)) return;
+  if (/^(teacher|students|race|boss|lesson)\.html$/.test(path)) return;
   function boot() {
     var flag = "", subj = "", acct = null;
     try { flag = localStorage.getItem("pickSubj") || ""; subj = localStorage.getItem("subject") || ""; acct = JSON.parse(localStorage.getItem("acct") || "null"); } catch (e) { return; }
