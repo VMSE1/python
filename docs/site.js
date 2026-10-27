@@ -176,19 +176,35 @@ function fetchIssues(label, cb, fail) {
     show();
   }
   /* Объявление учителя ("news": true): спокойное окно с видео сверху и текстом снизу. Показывается каждому, кто открыл сайт
-     с at до until, один раз за вкладку, закрывается кнопкой. Проверить заранее: любая страница с ?notice=preview */
+     с at до until: сам открывается один раз на устройстве, потом живёт иконкой в углу. Проверить заранее: любая страница с ?notice=preview */
   function news(n, preview) {
     var t = Date.parse(n.at), u = Date.parse(n.until), now = Date.now(), key = "newsSeen_" + n.id;
-    if (!preview && (!n.id || !(t > 0) || !(u > t) || now < t || now >= u || shown === n.id)) return;
-    try { if (!preview && sessionStorage.getItem(key)) return; } catch (e) {}
-    if (document.getElementById("notice")) return;
+    if (!preview && (!n.id || !(t > 0) || !(u > t) || now < t || now >= u)) { var old = document.getElementById("newsIco"); if (old) old.remove(); return; }
+    if (!preview && shown === n.id) return;
     shown = n.id;
+    newsIcon(n, preview);
+    try { if (!preview && localStorage.getItem(key)) return; } catch (e) {}
+    newsOpen(n, preview);
+  }
+  /* После закрытия объявление остаётся маленькой иконкой в углу, пока оно действует: можно открыть ещё раз. */
+  function newsIcon(n, preview) {
+    if (document.getElementById("newsIco")) return;
+    var b = document.createElement("button"); b.type = "button"; b.id = "newsIco"; b.title = "Открыть объявление ещё раз";
+    b.setAttribute("aria-label", "Объявление от учителя: открыть");
+    b.style.cssText = "position:fixed;right:14px;bottom:78px;z-index:2147483000;display:flex;align-items:center;gap:8px;max-width:calc(100vw - 28px);font:700 15px/1.2 'IBM Plex Mono',ui-monospace,monospace;color:#111;background:#ffd23a;border:3px solid #000;box-shadow:4px 4px 0 #000;padding:8px 12px;cursor:pointer;animation:nwpulse 2s ease-in-out 3";
+    b.innerHTML = '<style>@keyframes nwpulse{50%{transform:translateY(-4px)}}@media (prefers-reduced-motion:reduce){#newsIco{animation:none!important}}</style><span aria-hidden="true" style="display:inline-grid;place-items:center;width:30px;height:30px;background:#3a1aa0;color:#ffd23a;border:2px solid #000;font-size:14px">&#9654;</span><span>' + esc(n.icon || "Задание на сегодня") + "</span>";
+    b.onclick = function () { newsOpen(n, preview); };
+    document.body.appendChild(b);
+  }
+  function newsOpen(n, preview) {
+    var key = "newsSeen_" + n.id;
+    if (document.getElementById("notice")) return;
     var vids = (n.videos || []).filter(function (v) { return v && /^media\/[\w.\-]+\.(mp4|webm)$/.test(v.src || ""); }), cur = 0;
     var el = document.createElement("div"); el.id = "notice"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-labelledby", "nwt");
     el.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(10,6,30,.86);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto";
     var px = "'Press Start 2P',monospace", mono = "'IBM Plex Mono',ui-monospace,monospace";
     el.innerHTML = '<div style="width:min(760px,100%);margin:auto 0;background:#ffffe1;color:#111;border:3px solid #000;box-shadow:8px 8px 0 #000;font:500 17px/1.5 ' + mono + '">' +
-      '<div style="background:#3a1aa0;color:#fff;padding:8px 12px;font-weight:700;display:flex;justify-content:space-between;gap:10px"><span>' + esc(n.window || "Объявление от учителя") + "</span><span>" + (preview ? "предпросмотр" : "") + "</span></div>" +
+      '<div style="background:#3a1aa0;color:#fff;padding:8px 12px;font-weight:700;display:flex;justify-content:space-between;gap:10px"><span>' + esc(n.window || "Объявление от учителя") + "</span><span style=\"display:flex;gap:10px;align-items:center\">" + (preview ? "предпросмотр" : "") + '<button type="button" id="nwx" aria-label="Закрыть" style="font:700 16px/1 ' + mono + ';background:#ffd23a;color:#111;border:2px solid #000;width:28px;height:28px;cursor:pointer">&#10005;</button></span></div>' +
       '<div style="padding:clamp(14px,3vw,24px)">' +
       (n.groups && n.groups.length ? '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">' + n.groups.map(function (g) { return '<span style="border:3px solid #000;background:#ffd23a;padding:3px 10px;font-weight:700">' + esc(g) + "</span>"; }).join("") + "</div>" : "") +
       '<h2 id="nwt" style="font:400 clamp(16px,3.6vw,26px)/1.5 ' + px + ';color:#3a1aa0;margin:0 0 14px">' + esc(n.title || "Объявление") + "</h2>" +
@@ -208,7 +224,12 @@ function fetchIssues(label, cb, fail) {
     var prevO = document.documentElement.style.overflow; document.documentElement.style.overflow = "hidden";
     document.body.appendChild(el); drawVid();
     var ok = el.querySelector("#nwok"); ok.focus();
-    ok.onclick = function () { try { sessionStorage.setItem(key, "1"); } catch (e) {} Array.prototype.forEach.call(el.querySelectorAll("video"), function (v) { v.pause(); }); document.documentElement.style.overflow = prevO; el.remove(); };
+    function shut() { try { if (!preview) localStorage.setItem(key, "1"); } catch (e) {} Array.prototype.forEach.call(el.querySelectorAll("video"), function (v) { v.pause(); }); document.documentElement.style.overflow = prevO; document.removeEventListener("keydown", esc2, true); el.remove(); var ic = document.getElementById("newsIco"); if (ic) ic.focus(); }
+    function esc2(e) { if (e.key === "Escape") shut(); }
+    document.addEventListener("keydown", esc2, true);
+    el.addEventListener("click", function (e) { if (e.target === el) shut(); });
+    el.querySelector("#nwx").onclick = shut;
+    ok.onclick = shut;
   }
   function run(n) {
     if (n.news) { news(n, false); return; }

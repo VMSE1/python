@@ -1,0 +1,55 @@
+{
+  "id": "3.7",
+  "title": "Сумма цифр",
+  "file": "tsifry.py",
+  "text": "Напиши функцию `digit_sum(n)`: она **возвращает** сумму цифр числа `n` (n ≥ 0). Сделай циклом `while`, без перевода в строку.",
+  "example": {
+    "in": "digit_sum(1234)",
+    "out": "10"
+  },
+  "hint": "Последняя цифра: `n % 10`. Убрать её: `n //= 10`. Повторяй, пока `n > 0`.",
+  "starter": "def digit_sum(n):\n    # TODO: цикл while, n % 10 и n // 10\n    pass\n",
+  "funcs": [
+    {
+      "name": "digit_sum",
+      "calls": [
+        {
+          "args": [
+            1234
+          ],
+          "expect": 10
+        },
+        {
+          "args": [
+            7
+          ],
+          "expect": 7
+        },
+        {
+          "args": [
+            905
+          ],
+          "expect": 14
+        },
+        {
+          "args": [
+            0
+          ],
+          "expect": 0
+        }
+      ]
+    }
+  ],
+  "steps": [
+    "Заведи `total = 0`.",
+    "`while n > 0:`",
+    "В цикле: `total += n % 10` (берём последнюю цифру).",
+    "Потом `n //= 10` (отрезаем её).",
+    "После цикла `return total`."
+  ],
+  "sample": {
+    "task": "Функция `count_digits(n)` считает, сколько цифр в числе.",
+    "code": "def count_digits(n):\n    k = 0\n    while n > 0:\n        k += 1\n        n //= 10\n    return k",
+    "out": "count_digits(2025) вернёт 4"
+  }
+}
