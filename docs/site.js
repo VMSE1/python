@@ -175,7 +175,43 @@ function fetchIssues(label, cb, fail) {
     };
     show();
   }
+  /* Объявление учителя ("news": true): спокойное окно с видео сверху и текстом снизу. Показывается каждому, кто открыл сайт
+     с at до until, один раз за вкладку, закрывается кнопкой. Проверить заранее: любая страница с ?notice=preview */
+  function news(n, preview) {
+    var t = Date.parse(n.at), u = Date.parse(n.until), now = Date.now(), key = "newsSeen_" + n.id;
+    if (!preview && (!n.id || !(t > 0) || !(u > t) || now < t || now >= u || shown === n.id)) return;
+    try { if (!preview && sessionStorage.getItem(key)) return; } catch (e) {}
+    if (document.getElementById("notice")) return;
+    shown = n.id;
+    var vids = (n.videos || []).filter(function (v) { return v && /^media\/[\w.\-]+\.(mp4|webm)$/.test(v.src || ""); }), cur = 0;
+    var el = document.createElement("div"); el.id = "notice"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-labelledby", "nwt");
+    el.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:rgba(10,6,30,.86);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto";
+    var px = "'Press Start 2P',monospace", mono = "'IBM Plex Mono',ui-monospace,monospace";
+    el.innerHTML = '<div style="width:min(760px,100%);margin:auto 0;background:#ffffe1;color:#111;border:3px solid #000;box-shadow:8px 8px 0 #000;font:500 17px/1.5 ' + mono + '">' +
+      '<div style="background:#3a1aa0;color:#fff;padding:8px 12px;font-weight:700;display:flex;justify-content:space-between;gap:10px"><span>' + esc(n.window || "Объявление от учителя") + "</span><span>" + (preview ? "предпросмотр" : "") + "</span></div>" +
+      '<div style="padding:clamp(14px,3vw,24px)">' +
+      (n.groups && n.groups.length ? '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">' + n.groups.map(function (g) { return '<span style="border:3px solid #000;background:#ffd23a;padding:3px 10px;font-weight:700">' + esc(g) + "</span>"; }).join("") + "</div>" : "") +
+      '<h2 id="nwt" style="font:400 clamp(16px,3.6vw,26px)/1.5 ' + px + ';color:#3a1aa0;margin:0 0 14px">' + esc(n.title || "Объявление") + "</h2>" +
+      (vids.length ? '<div id="nwv"></div>' : "") +
+      '<div style="white-space:pre-line;font-size:clamp(17px,2.4vw,20px)">' + esc(n.text || "") + "</div>" +
+      (n.sign ? '<p style="text-align:right;font-style:italic;margin:12px 0 0">' + esc(n.sign) + "</p>" : "") +
+      '<button type="button" id="nwok" style="display:block;width:100%;margin-top:18px;font:700 18px ' + mono + ';padding:14px;border:3px solid #000;background:#ffd23a;box-shadow:4px 4px 0 #000;cursor:pointer;color:#111">' + esc(n.button || "Понятно") + "</button></div></div>";
+    function drawVid() {
+      var box = el.querySelector("#nwv"); if (!box) return;
+      var v = vids[cur];
+      box.innerHTML = '<video controls playsinline preload="metadata" src="' + esc(v.src) + '" style="width:100%;max-height:60vh;background:#000;border:3px solid #000;display:block"></video>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 0 16px;flex-wrap:wrap"><b>' + esc(v.title || "") + "</b>" +
+        (vids.length > 1 ? '<span style="display:flex;gap:6px;align-items:center"><button type="button" data-d="-1" aria-label="Предыдущее видео" style="font:700 16px ' + mono + ';border:3px solid #000;background:#fff;padding:4px 12px;cursor:pointer"' + (cur ? "" : " disabled") + '>&#9664;</button>' + (cur + 1) + " из " + vids.length +
+          '<button type="button" data-d="1" aria-label="Следующее видео" style="font:700 16px ' + mono + ';border:3px solid #000;background:#fff;padding:4px 12px;cursor:pointer"' + (cur < vids.length - 1 ? "" : " disabled") + ">&#9654;</button></span>" : "") + "</div>";
+      Array.prototype.forEach.call(box.querySelectorAll("[data-d]"), function (b) { b.onclick = function () { cur = Math.max(0, Math.min(vids.length - 1, cur + +b.getAttribute("data-d"))); drawVid(); }; });
+    }
+    var prevO = document.documentElement.style.overflow; document.documentElement.style.overflow = "hidden";
+    document.body.appendChild(el); drawVid();
+    var ok = el.querySelector("#nwok"); ok.focus();
+    ok.onclick = function () { try { sessionStorage.setItem(key, "1"); } catch (e) {} Array.prototype.forEach.call(el.querySelectorAll("video"), function (v) { v.pause(); }); document.documentElement.style.overflow = prevO; el.remove(); };
+  }
   function run(n) {
+    if (n.news) { news(n, false); return; }
     var t = Date.parse(n.at), now = Date.now(), sec = Math.min(600, Math.max(3, +n.sec || 8));
     if (!n.id || !(t > 0) || now < t || now >= t + sec * 1000 || shown === n.id) return;
     if (n.dance) {
@@ -226,7 +262,10 @@ function fetchIssues(label, cb, fail) {
   function poll() {
     try { fetch("notice.json?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (n) { if (n) run(n); }).catch(function () {}); } catch (e) {}
   }
-  if (typeof document !== "undefined") { setTimeout(poll, 150); setInterval(poll, 5000); }
+  function preview() {
+    fetch("notice.json?t=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (n) { if (n && n.news) news(n, true); }).catch(function () {});
+  }
+  if (typeof document !== "undefined") { if (/[?&]notice=preview/.test(location.search)) setTimeout(preview, 300); else { setTimeout(poll, 150); setInterval(poll, 5000); } }
 })();
 
 /* Игра для всех: учитель нажимает кнопку в кабинете, сервер переходит в режим «игра», и у всех, кто сейчас на сайте,
