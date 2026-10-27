@@ -179,7 +179,7 @@ function fetchIssues(label, cb, fail) {
      с at до until: сам открывается один раз на устройстве, потом живёт иконкой в углу. Проверить заранее: любая страница с ?notice=preview */
   function news(n, preview) {
     var t = Date.parse(n.at), u = Date.parse(n.until), now = Date.now(), key = "newsSeen_" + n.id;
-    if (!preview && (!n.id || !(t > 0) || !(u > t) || now < t || now >= u)) { var old = document.getElementById("newsIco"); if (old) old.remove(); return; }
+    if (!preview && (!n.id || !(t > 0) || !(u > t) || now < t || now >= u)) { ["newsIco", "newsDesk"].forEach(function (id) { var old = document.getElementById(id); if (old) old.remove(); }); return; }
     if (!preview && shown === n.id) return;
     shown = n.id;
     newsIcon(n, preview);
@@ -195,6 +195,20 @@ function fetchIssues(label, cb, fail) {
     b.innerHTML = '<style>@keyframes nwpulse{50%{transform:translateY(-4px)}}@media (prefers-reduced-motion:reduce){#newsIco{animation:none!important}}</style><span aria-hidden="true" style="display:inline-grid;place-items:center;width:30px;height:30px;background:#3a1aa0;color:#ffd23a;border:2px solid #000;font-size:14px">&#9654;</span><span>' + esc(n.icon || "Задание на сегодня") + "</span>";
     b.onclick = function () { newsOpen(n, preview); };
     document.body.appendChild(b);
+    deskIcon(n, preview);
+  }
+  /* На рабочем столе (index.html) ролик ещё и первой иконкой; рабочий стол иногда перерисовывает иконки, тогда возвращаем её. */
+  function deskIcon(n, preview) {
+    var grid = document.getElementById("icons"); if (!grid) return;
+    function put() {
+      if (!document.getElementById("newsIco") || document.getElementById("newsDesk")) return;
+      var a = document.createElement("a"); a.className = "ico"; a.id = "newsDesk"; a.href = "#";
+      a.innerHTML = pix("video") + "<span>" + esc(n.deskTitle || "Видео от учителя") + "</span><small>" + esc(n.deskSub || "задание на сегодня") + "</small>";
+      a.onclick = function (e) { e.preventDefault(); newsOpen(n, preview); };
+      grid.insertBefore(a, grid.firstChild);
+    }
+    put();
+    new MutationObserver(put).observe(grid, { childList: true });
   }
   function newsOpen(n, preview) {
     var key = "newsSeen_" + n.id;
