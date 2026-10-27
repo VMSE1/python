@@ -207,7 +207,7 @@ function fetchIssues(label, cb, fail) {
       '<div style="background:#3a1aa0;color:#fff;padding:8px 12px;font-weight:700;display:flex;justify-content:space-between;gap:10px"><span>' + esc(n.window || "Объявление от учителя") + "</span><span style=\"display:flex;gap:10px;align-items:center\">" + (preview ? "предпросмотр" : "") + '<button type="button" id="nwx" aria-label="Закрыть" style="font:700 16px/1 ' + mono + ';background:#ffd23a;color:#111;border:2px solid #000;width:28px;height:28px;cursor:pointer">&#10005;</button></span></div>' +
       '<div style="padding:clamp(14px,3vw,24px)">' +
       (n.groups && n.groups.length ? '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">' + n.groups.map(function (g) { return '<span style="border:3px solid #000;background:#ffd23a;padding:3px 10px;font-weight:700">' + esc(g) + "</span>"; }).join("") + "</div>" : "") +
-      '<h2 id="nwt" style="font:400 clamp(16px,3.6vw,26px)/1.5 ' + px + ';color:#3a1aa0;margin:0 0 14px">' + esc(n.title || "Объявление") + "</h2>" +
+      '<h2 id="nwt" style="font:400 clamp(16px,3.6vw,26px)/1.5 ' + px + ';color:#fff;background:#c0142c;border:3px solid #000;box-shadow:4px 4px 0 #000;padding:10px 14px;margin:0 0 16px;text-shadow:2px 2px 0 #000">' + esc(n.title || "Объявление") + "</h2>" +
       (vids.length ? '<div id="nwv"></div>' : "") +
       '<div style="white-space:pre-line;font-size:clamp(17px,2.4vw,20px)">' + esc(n.text || "") + "</div>" +
       (n.sign ? '<p style="text-align:right;font-style:italic;margin:12px 0 0">' + esc(n.sign) + "</p>" : "") +
@@ -215,7 +215,8 @@ function fetchIssues(label, cb, fail) {
     function drawVid() {
       var box = el.querySelector("#nwv"); if (!box) return;
       var v = vids[cur];
-      box.innerHTML = '<video controls playsinline preload="metadata" src="' + esc(v.src) + '" style="width:100%;max-height:60vh;background:#000;border:3px solid #000;display:block"></video>' +
+      box.innerHTML = '<div style="border:3px solid #000;padding:12px;display:flex;justify-content:center;background:radial-gradient(circle at 12% 18%,#ffd23a 0 2px,transparent 3px),radial-gradient(circle at 85% 30%,#fff 0 2px,transparent 3px),radial-gradient(circle at 25% 75%,#fff 0 1.5px,transparent 2.5px),radial-gradient(circle at 78% 82%,#ffd23a 0 2px,transparent 3px),repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 2px,transparent 2px 24px),repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 2px,transparent 2px 48px),linear-gradient(160deg,#3a1aa0,#1b0f45 60%,#0e0a24)">' +
+        '<video controls playsinline preload="metadata" src="' + esc(v.src) + '" style="display:block;max-width:100%;height:min(60vh,560px);aspect-ratio:9/16;object-fit:contain;background:#000;border:3px solid #000;box-shadow:6px 6px 0 #000"></video></div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:8px 0 16px;flex-wrap:wrap"><b>' + esc(v.title || "") + "</b>" +
         (vids.length > 1 ? '<span style="display:flex;gap:6px;align-items:center"><button type="button" data-d="-1" aria-label="Предыдущее видео" style="font:700 16px ' + mono + ';border:3px solid #000;background:#fff;padding:4px 12px;cursor:pointer"' + (cur ? "" : " disabled") + '>&#9664;</button>' + (cur + 1) + " из " + vids.length +
           '<button type="button" data-d="1" aria-label="Следующее видео" style="font:700 16px ' + mono + ';border:3px solid #000;background:#fff;padding:4px 12px;cursor:pointer"' + (cur < vids.length - 1 ? "" : " disabled") + ">&#9654;</button></span>" : "") + "</div>";
